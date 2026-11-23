@@ -59,11 +59,14 @@ Decisions made while building, and why. Newest at the bottom of each group.
 | `accent` | `#B8420E` persimmon | `#FF8F57` | done rows, done dots, primary buttons, focus ring |
 | `on-accent` | `#FFFFFF` | `#1E120A` | text and icons on accent |
 | `accent-tint` | `#F6D9C8` | `#5A3220` | the hold fill while pressing (text stays `ink`) |
-| `danger` | `#B3261E` | `#FF8A80` | delete |
+| `accent-lip` | `#8A300A` | `#C2602F` | the bottom edge of a persimmon key: darker than `accent` in **both** themes (a lip, never a highlight) |
+| `danger` | `#A1173A` crimson | `#FF8FA8` | errors and delete: crimson, so it never reads as persimmon; always with an alert icon |
 
 All text pairs must pass 4.5:1 (`ink-muted` on `background` and `surface`, `on-accent` on `accent`, `ink` on `accent-tint`); dots, borders and focus rings 3:1 against what they sit on. Dark mode is warm, not pure black, and shows depth by lightness (background < surface), never by shadows. The accent gets lighter in dark mode, so it doesn't glare at night.
 
 **Type**: Bricolage Grotesque for everything (variable; its optical sizes keep small text calm).
+- Display 52 px / 800: the "Hold" wordmark on the login screen only (`text-display`)
+- Lead 18 px / 400: the one-line promise under the wordmark (`text-lead`)
 - Page title 34 px / 700, tight leading ("Today")
 - Habit name 22 px / 600
 - Body and buttons 16 px / 500–600 (16 px stops iOS zooming into inputs)
@@ -73,7 +76,8 @@ All text pairs must pass 4.5:1 (`ink-muted` on `background` and `surface`, `on-a
 **Space and shape**
 - 4 px grid. Page gutter 20 px. Gap between habit rows 12 px. Row padding 20 px. Header-to-list gap 28 px.
 - Habit rows are at least 88 px tall, full width, radius 24 px. Each row is a key: `surface` with a 4 px `surface-sunk` lip along the bottom edge. Pressed, it moves down 2 px and the lip shrinks to 2 px.
-- Buttons are pills (fully rounded), at least 48 px tall for primary actions and at least 44×44 px for every tap target.
+- Buttons are pills (fully rounded), at least 48 px tall for primary actions and at least 44×44 px for every tap target. Primary and secondary buttons sit on a 3 px **outer** lip (`accent-lip` / `surface-sunk`); pressed, the face moves down 2 px and the lip becomes 1 px, so the bottom edge stays put and the key sinks.
+- Text boxes: 16 px corners (`--radius-field`), a 1 px `ink-muted` edge (3:1 to be findable).
 - Icons: simple 2 px stroke line icons drawn inline (check, plus, grip, arrows, trash, pencil). No emoji.
 
 **Motion**: purposeful and physical.
@@ -193,25 +197,33 @@ Order: 1 data model → 2 login and demo → 3 Today → 4 manage habits → 5 i
 - `app/auth/confirm/route.ts`: the email's button lands here with `token_hash`; `verifyOtp` works in any browser. It falls back to `/login?error=link`.
 - **Demo** (`lib/demo.ts` server-only, `lib/demo-actions.ts`, pure `lib/demo-seed.ts`):
   - `signInDemo()` signs in with `DEMO_EMAIL` / `DEMO_PASSWORD` from the server environment. The browser only ever asks for "the demo".
-  - It then reseeds if needed: never seeded, over an hour ago, seeded for a different "today", or a seed date in the future.
-  - The seed runs **as the demo user** (RLS applies):
-    1. Clear the markers.
-    2. Delete the demo's `habits` (check-ins cascade).
-    3. Insert five sample habits with back-dated `created_at`.
-    4. Call `reorder_habits` to fix their order.
-    5. Insert their check-ins.
-    6. Write the markers last. A half-finished seed therefore looks like "never seeded" and is redone at the next sign-in.
-  - Markers are namespaced in user metadata: `hold_demo_seeded_at`, `hold_demo_seeded_day`. The account is shared with Staple, which uses `demo_seeded_*`, and Supabase merges metadata keys, so neither app overwrites the other's.
+  - It then reseeds if needed: never seeded, seeded over an hour ago, seeded for a different "today", or a seed time in the future. The metadata comes fresh from `signInWithPassword`'s user, not from the login token.
+  - **The seed is one SQL function, `reseed_demo_habits(p_habits jsonb)`**, added to the (not yet applied) migration. _(Revised after logic-checker: the first plan had six separate requests, which could half-fail and, with two sign-ins at once, leave 10 habits.)_
+    - It takes a per-user advisory lock (`pg_advisory_xact_lock`), deletes the caller's habits (check-ins cascade), and inserts each sample habit and its check-ins, all in one transaction. A failure leaves the old data, and two seeds at once run one after the other and end in the same 5 habits.
+    - It's `security invoker`, so RLS, the 100-habit trigger and the check-in date window all apply: whoever calls it can only ever replace **their own** habits.
+    - The app calls it only after `isDemoEmail(user.email)` passes, checked inside `seedDemo` itself (Staple's guard), so a bug can never wipe a real account.
+    - Habits are inserted one by one in list order, so positions come from the identity counter in that order, and "new habits land at the bottom" still holds. **Positions are never inserted explicitly**: an explicit 0…4 takes no numbers from the counter, so the next new habit could land in the middle.
+  - Markers are namespaced in user metadata: `hold_demo_seeded_at` is the **time the seed finished** (server clock, never a habit's back-dated `created_at`, which would make every sign-in reseed), and `hold_demo_seeded_day` is the visitor's today it was seeded for. Staple uses `demo_seeded_*`. They're cleared before the seed and written after it, so a failed seed is retried at the next sign-in.
   - The seed touches **only** `habits` and `habit_checkins`; Staple's seed touches only its own tables.
-  - **Positions are never inserted explicitly.** They come from the identity default and then `reorder_habits`, which writes 0…n−1. That keeps the rule "new habits land at the bottom" true: every habit took a number from the sequence, so the next number is always bigger than n−1. An explicit insert of 0…4 would take no numbers, and the next new habit could land in the middle.
-  - Sample history is chosen so the demo shows every state on first open:
-    - a 12-day streak done today;
-    - a 4-day streak not yet done today;
-    - a habit that missed yesterday (streak 0);
-    - a 2-day streak;
-    - a habit created two days ago (so some dots show "before").
-  - `created_at` is computed so its local day, in the visitor's timezone, is exactly the intended day (`instantOnDay(day, tz)`, pure and tested).
-  - Known limits, same as Staple's demo: visitors in the demo at the same time share it; a reseed an hour later clears what an earlier visitor did; two sign-ins in the same second could both reseed (the next reseed fixes it). Every demo sign-in comes from Vercel's IPs, so Supabase's rate limit can say "Lots of people just tried the demo".
+  - **"Reset demo"**: a small button next to Log out, only for the demo account, which reseeds now. It's the fix for anything a previous visitor left behind.
+  - Sample history is written as data (`createdDaysAgo` and `checkinDaysAgo[]` per habit), with a test that every dot state and each intended streak appears:
+    - Drink water: created 30 days ago, done the last 12 days including today → streak 12.
+    - Read 10 pages: created 30 days ago, done days 1–4 ago, not today → streak 4, today `open`.
+    - Stretch: created 30 days ago, done 2, 3, 5 and 6 days ago, missed yesterday → streak 0.
+    - Walk outside: created 30 days ago, done today and yesterday → streak 2.
+    - No phone in bed: created 2 days ago, done yesterday → streak 1, and the older dots are `before`.
+  - `created_at` is **local noon** on the intended day in the visitor's timezone (`instantOnDay(day, tz)`). Noon exists every day in every zone (midnight doesn't where DST starts at 00:00, as in Havana and Santiago), and it survives viewers up to ±11 hours away. Tested so `todayIn(tz, instantOnDay(d, tz)) === d` for every day of a year across many zones.
+  - Known limits, in plain words:
+    - Visitors in the demo at the same time share it, and a reseed (an hour later, or by a visitor whose "today" is a different date) replaces what an earlier visitor did. Visitors in Toronto and Tokyo alternating will keep resetting each other.
+    - After a reseed, a screen still open on the old habits refers to ids that no longer exist. **Feature 3 must treat "habit not found" as "reload"**, like a stale day.
+    - A visitor whose today is a day ahead of the seed's (Tokyo vs Toronto) sees check-ins dated "tomorrow", which are correctly ignored, so streaks look one lower until the next reseed.
+    - "Try the demo" pressed before the page has loaded its JavaScript (no `tz` cookie yet) seeds in UTC.
+    - Supabase saves user metadata as one whole value. If Hold and Staple write their markers in the same few milliseconds, one could undo the other's write. Staple's next demo sign-in would then reseed. Rare, and it heals itself.
+    - Every demo sign-in comes from Vercel's IPs, so Supabase's rate limit can say "Lots of people just tried the demo". That limit is shared with Staple's demo.
+    - A demo visitor holds a real session for the shared account, so someone determined could call Supabase directly and change its password, breaking the demo in both apps until it's reset in the dashboard. (Inherited from Staple.) A real block needs a trigger on Supabase's `auth.users`, which changes the shared project's auth schema: offered to you, not done.
+    - The email's link logs in whoever it belongs to (true of every token-hash link), so an attacker could log someone into the attacker's account. Mitigation: Today shows the signed-in email (Feature 3).
+- `lib/server-helpers.ts`: `requireUser()` (verified claims, for every action), `userTimeZone()` (the `tz` cookie) and `userToday()`. These `await io()` before reading the clock, because with Partial Prefetching a per-session App Shell is prerendered and refuses `new Date()` (Staple hit this). The rule everywhere: cookies and `searchParams` go inside `<Suspense>`, and `await io()` comes before any clock read in render.
+- **Login cookie name**: Hold's Supabase clients use their own cookie name (`hold-auth`). Staple and Hold share a Supabase project, so they'd otherwise share the `sb-<ref>-auth-token` cookie on `localhost` (cookies ignore the port), and logging out of one would log out the other during development.
 - `components/timezone-sync.tsx`: sets the `tz` cookie from the browser and refreshes once if it changed (Staple's approach).
 - **Design system**:
   - `app/globals.css` holds the colour tokens from Design direction as CSS variables, light and dark via `prefers-color-scheme`, mapped to Tailwind colours (`bg-surface`, `text-ink-muted`...).
@@ -229,12 +241,89 @@ Order: 1 data model → 2 login and demo → 3 Today → 4 manage habits → 5 i
 - `playwright.config.ts` uses an iPhone viewport of 390×844 at 3× with touch. It runs against the dev server, or `BASE_URL`.
 - `e2e/screens.e2e.ts` saves screenshots in light and dark to `docs/screenshots/feature-N/`. They're committed, so the Reviews log can point at them.
 - `e2e/login.e2e.ts`: the page renders; "Try the demo" lands on `/` with the demo chip; Log out returns to `/login`; a signed-out visit to `/` redirects to `/login`.
+- The e2e tests use the real shared demo account, so they run **one at a time** (`workers: 1`). Two demo sign-ins at once would reset each other, and would use up the sign-in rate limit Staple's demo also depends on.
 
-**Tests (Vitest)**: login code cleaning; `isDemoEmail`; `needsReseed`; demo seed rows (counts, every state represented, created days correct in several timezones); `instantOnDay` at UTC+14 and UTC−11; the proxy matcher (static files skipped, pages not); palette contrast.
+**Tests (Vitest)**:
+- Login code cleaning and `isDemoEmail`.
+- `needsReseed`, including right after a seed (must be false).
+- Demo seed data: counts, every state represented, the intended streaks.
+- `instantOnDay` for every day of a year in many zones, including Havana, Santiago, Kiritimati (+14) and Pago Pago (−11).
+- `seedDemo` refuses a non-demo user.
+- The proxy matcher: static files and the `/icons/…` PNGs Feature 5 will serve are skipped, pages are not.
+- Palette contrast.
+- PGlite: `reseed_demo_habits` replaces only your own habits; two calls in a row leave exactly one set; check-ins outside the date window and an invalid payload roll everything back.
 
-**What you'll need to do** (collected for the one stop): add Hold's URLs to Supabase → Authentication → URL Configuration → Redirect URLs (`http://localhost:3000/auth/confirm` and the Vercel URL), so the email's button returns to Hold. The code works without this. Also note the shared email template says "Your Staple login code".
+**Icons (decided now for the matcher)**: Feature 5 serves the home-screen icons as PNGs from a route under `/icons/`, never from `app/icon.tsx` (which serves an extensionless `/icon` that would get the login page when a phone fetches it without cookies).
 
-## Reviews
+**What you'll need to do** (collected for the one stop):
+- Add Hold's **exact** addresses to Supabase → Authentication → URL Configuration → Redirect URLs: `http://localhost:3000/auth/confirm` and `https://<production domain>/auth/confirm`. **Never a wildcard on a domain you don't own** (like `hold-*.vercel.app`): anyone can register a matching Vercel project and receive a victim's login link, which would take over accounts in the whole shared project, Staple's included. _(Corrected after code review.)_ Previews log in with the code, which works whatever the redirect. Until this is added, the email's button opens **Staple**.
+- The shared email template says "Your Staple login code". Changing it to neutral wording would change Staple's email too, so I'm leaving that decision to you.
+
+### Feature 3: Today, with press-and-hold
+
+**Goal**: the main screen. Every habit is a big key: press and hold to complete it, tap a done one to undo, see its streak and the last 7 days.
+
+**Layout (390 px phone)**
+- Top bar: the date as a small label ("Monday, November 23"), a "Demo account" chip when it's the demo, and an "Edit" pill on the right that goes to `/habits` (Feature 4).
+- The title "Today" (34/700). Under it, one line: "Press and hold a habit to complete it." until something is done today, then "2 of 5 done", and "All done for today" at 5 of 5.
+- The list of habit keys, 12 px apart.
+- At the bottom, quiet links: "Log out", and "Reset demo" for the demo account. They're rarely used, so they stay out of the top bar.
+- Empty: no habits, so a short line and a primary "Add your first habit" that links to `/habits`. (Until Feature 4 lands, that link 404s. Features 3 and 4 ship back to back.)
+- Loading: three key-shaped skeletons. Error: `app/error.tsx` with "Couldn't load your habits" and Try again.
+
+**A habit key** (at least 96 px tall, full width)
+- Line 1: the name (22/600, wraps to two lines, never truncated mid-word). On the right, a 32 px check circle: an empty ring while not done; filled with the check drawn in when done.
+- Line 2: the 7 dots (10 px, oldest left, today right) and the streak on the right ("12-day streak", "Start today" at 0).
+- Dots: `done` filled; `missed` a 1.5 px ring in `ink-muted`; `open` (today, not done) a 2 px ring in `accent`, so today stands out; `before` a 4 px faint dot. On a done (persimmon) key, dots and text use `on-accent`.
+- Not done: `surface` with the 4 px `surface-sunk` lip. Done: `accent` with `on-accent` text.
+
+**The gesture** (a small, tested state machine in `lib/hold.ts` plus `components/habit-key.tsx`)
+- **Hold to complete.** `pointerdown` (primary pointer only) starts a fill: an `accent-tint` circle grows from the touch point until it covers the key, over 650 ms (linear). The animation's own `finish` is the trigger, so what you see and what happens can't drift apart. It cancels if the pointer moves more than 10 px (you're scrolling: the key has `touch-action: pan-y`), lifts early, or the browser cancels it. Cancelling shrinks the fill back in 150 ms.
+- **Pop** on completion: the key turns `accent`, scales 1 → 1.03 → 1 (about 250 ms), the check draws in, the streak ticks up, and one short vibration plays where supported (`navigator.vibrate`, which iOS ignores).
+- **Tap a done key to undo**: it fades back in 200 ms. The `click` that follows the `pointerup` of a completing hold is swallowed, so finishing a hold never undoes it.
+- **A quick tap on a not-done key** doesn't complete it. It shows "Keep holding…" under the name for 1.5 s and announces it, so people learn the gesture.
+- **Keyboard**: Space or Enter held down holds (keyup cancels); on a done key, Enter or Space undoes. The keys' default "click" is prevented, so it can't double-fire.
+- **Assistive tech**: a `click` with no `pointerdown` from us before it (VoiceOver double-tap, Switch Control, voice control) completes at once. Those users can't usefully hold, and an accidental touch always has a `pointerdown` first. The instruction is in the key's description: "Hold to complete" or "Done today. Tap to undo".
+- **Semantics**: `<button aria-pressed>` with `aria-label` = the habit name, and `aria-describedby` pointing at the streak, a text summary of the 7 days ("Last 7 days: 5 done, 1 missed, today not done yet") and the instruction. Changes are announced in one polite live region ("Read 10 pages done. 5-day streak.").
+- **Reduce Motion**: no growing circle and no scale. The key's tint fades in over the same 650 ms (opacity only), and done or undone switches colour instantly. Holding is still required: Reduce Motion is about animation, not about the gesture.
+- iOS details: `-webkit-touch-callout: none`, `user-select: none`, and `contextmenu` prevented on keys, so a long press never opens the iOS or Android menu.
+
+**Data** (server, `app/page.tsx` behind `<Suspense>`)
+- `today = userToday()` and `tz = userTimeZone()`, read once and passed everywhere.
+- In parallel:
+  - the habits (`id, name, created_at`, ordered by `position, created_at, id`);
+  - check-ins from `today − 6` to `today` (at most 700 rows for 100 habits, under Supabase's 1,000 limit);
+  - `habit_streaks(today)`.
+- Each habit becomes `{ id, name, doneToday, streak, dots }`, with `createdDay = todayIn(tz, created_at)`. That's a pure function (`lib/today.ts`), tested.
+
+**Saving** (`lib/checkin-actions.ts`: `setCheckin(habitId, day, done)`)
+1. `requireUser()`, then validate `habitId` (a UUID) and `done` (a boolean).
+2. `checkinDayStatus(day, tz)`: `invalid` → error, `stale` → `{ ok: false, reason: "stale" }`.
+3. If done: upsert with `ignoreDuplicates` (already done is fine). A foreign-key error means `"gone"`: the habit was deleted, or the demo was reseeded.
+4. If undo: delete the row for that habit and day. If nothing was deleted and the habit no longer exists, `"gone"`; if it still exists, `ok` (it was already undone).
+5. `refresh()` so the page re-renders with server truth, then return `ok`.
+
+**On the screen**
+- `useOptimistic` holds the done state per habit. The streak shown is `adjustStreak(serverStreak, serverDone, optimisticDone)`, and today's dot follows too.
+- On `stale` or `gone`, the screen reloads (`router.refresh()`) and says "It's a new day, so Today was refreshed" or "That habit changed, so the list was refreshed".
+- On any other failure, the optimistic change falls away on its own and the live region says "Couldn't save. Check your connection and try again."
+- Server actions from one page run one after another, and each save says done or not done (it isn't a toggle), so complete, undo, complete always ends complete.
+
+**Day rollover** (`components/day-watcher.tsx`): on `visibilitychange` to visible, on focus, and every 30 s, it compares the device's today with the page's `today`. If they differ, it refreshes the `tz` cookie and calls `router.refresh()`. That covers an app left open overnight and a phone resumed in the morning.
+
+**Tests**
+- Vitest: `lib/hold.ts` (fill radius from any touch point, move tolerance, release classification); `lib/today.ts` (view model: dot states, createdDay in tz, streak passthrough, done today); `setCheckin` with a fake Supabase (stale, invalid id, gone on foreign-key error, undo of a deleted habit, already done).
+- Playwright, after the migration:
+  - hold a key for 700 ms: it's done and the streak goes +1;
+  - release at 300 ms: not done, and the hint shows;
+  - move 30 px while holding: cancelled;
+  - tap a done key: undone, streak −1;
+  - reload: state persisted;
+  - keyboard Space held: done;
+  - a stale day returns "stale" (the clock can be faked in the browser);
+  - axe in light and dark.
+- Screenshots: Today in light and dark, mid-hold (the fill at about 50%), all done, and empty.
+
 
 _One entry per feature. Every agent finding is logged with its severity and what was done about it, so the log shows what each reviewer caught and what changed as a result._
 
@@ -280,6 +369,72 @@ Side note from the reviewer: the working tree also had `@playwright/test` in `pa
 - The logic-checker caught **design** problems: the day window, the dot states, the key order. The code-reviewer caught **attack surface** the plan never considered: direct PostgREST access by a demo visitor, and a shared storage quota. Neither overlapped much.
 - Mutation-checking my own tests found nothing new on the table revoke, but the reviewer showed the same method would have missed the function revoke. Asserting privileges directly is the reliable test.
 - Because a policy now depends on `now()`, every database test uses dates relative to today; fixed dates would have started failing within two months.
+
+### Feature 2: Login, demo and app shell (2026-11-23)
+
+#### logic-checker (plan review)
+Verdict: **Ready after fixes**
+
+| # | Severity | Finding | Outcome | What changed |
+|---|----------|---------|---------|--------------|
+| 1 | High | `hold_demo_seeded_at` had no defined value. Copying Staple's (the newest sample row's `created_at`) gives a back-dated time in Hold, so every "Try the demo" would reseed and wipe whoever is inside. | Fixed | Defined as the seed's finish time (server clock). A test checks `needsReseed` is false right after a seed. |
+| 2 | Medium | A reseed deletes habit ids that an open screen still holds; a later hold then fails on the foreign key, or an undo silently succeeds on nothing. | Fixed (Feature 3) | Written into the plan's known limits as a Feature 3 requirement: "habit not found" means reload. |
+| 3 | Medium | Two seeds at once leave 10 habits, and Hold had no "Reset demo". Parallel e2e tests make it likely and hit the shared rate limit. | Fixed | The seed became one SQL function with a per-user advisory lock (atomic, no duplicates), added to the not-yet-applied migration; a demo-only "Reset demo" button; e2e runs one at a time. |
+| 4 | Medium | `instantOnDay` must not use local midnight: it doesn't exist on DST days in Havana and Santiago, and it flips to the previous day for viewers further west. | Fixed | Local noon, tested for every day of a year across zones, including DST-at-midnight zones and ±14 h. |
+| 5 | Low | Supabase writes user metadata as a whole, so a Hold write and a Staple write in the same instant can lose one. | Accepted | Listed as a known limit; it heals at the next reseed. |
+| 6 | Low | Seed step 4 (`reorder_habits`) was redundant, or fragile if mapped by row order. | Fixed | Dropped: the seed function inserts one by one, so positions follow list order. |
+| 7 | Low | Until Hold's URLs are allowlisted, the email's button opens Staple; Vercel previews need a wildcard. | Fixed | Spelled out in "What you'll need to do", with the preview wildcard. |
+| 8 | Low | Generated `app/icon.tsx` URLs have no extension, so the proxy would send them the login page; keep `redirectKeepingCookies`. | Fixed | Icons will be PNGs under `/icons/` (decided now); the matcher test includes those paths; `redirectKeepingCookies` kept. |
+| 9 | Low | Suspense isn't enough once the clock is read: Partial Prefetching prerenders a per-session shell that refuses `new Date()`. | Fixed | `userToday()` with `await io()` is in this feature; the rule is written down. |
+| 10 | Low | Keep Staple's "demo only" guard inside the seed, or a bug could wipe a real account. | Fixed | `seedDemo` refuses unless `isDemoEmail`; unit test. |
+| 11 | Low | Timezone behaviours of the shared demo (Toronto/Tokyo alternation, rows dated "tomorrow", no-cookie sign-in) should be listed. | Accepted | Listed under known limits. |
+| 12 | Low | Staple and Hold share the `sb-<ref>-auth-token` cookie on localhost. | Fixed | Hold uses its own cookie name, `hold-auth`. |
+| 13 | Low | The sample history wasn't fully specified ("a 2-day streak", done today or not?). | Fixed | Written as data per habit, with a test that every dot state and streak appears. |
+
+Open questions: (1) Reset demo: yes, added. (2) Seed as a transactional SQL function: yes; the migration isn't applied yet, so it goes in the one migration. (3) The email template wording is the user's call (it changes Staple's email too). (4) Visitors in different timezones resetting each other: accepted for a shared demo. (5) e2e uses the real demo account, like Staple's, but one test at a time.
+
+#### code-reviewer (diff review)
+Verdict: **Ship after fixes**. No cross-user hole in the code; the one Critical was in my setup instructions.
+
+| # | Severity | Finding (file:line) | Outcome | What changed |
+|---|----------|---------------------|---------|--------------|
+| 1 | **Critical** | The plan told the user to allowlist `https://hold-*.vercel.app/**`. Anyone can register `hold-evil.vercel.app`, request a login email for any address straight from Supabase with that redirect, and receive the victim's token: account takeover across the whole shared project (Staple included). (plans:253, lib/auth-actions.ts:29) | Fixed | Exact URLs only, never a wildcard on a domain we don't own; previews use the code. The comment in `auth-actions.ts` now says the allowlist is the real protection. |
+| 2 | Medium | A demo visitor holds a full session, so they could change the shared demo's password from devtools and break the demo in both apps. (Inherited from Staple.) | Accepted / offered | Listed in known limits. A real block needs a trigger on `auth.users` in the shared project: offered to the user, not done unilaterally. |
+| 3 | Low | `needsReseed` reseeded on any different `today`, and `today` comes from a cookie the visitor controls, so a script alternating timezones could wipe the demo on every sign-in. (lib/demo-seed.ts:69) | Fixed | Reseed only for an *earlier* seeded day (or after an hour); tested both directions. |
+| 4 | Low | The login cookie (with a 400-day refresh token) is readable by page scripts, but Hold has no browser Supabase client. | Fixed | `httpOnly`, `sameSite: lax`, and `secure` in production for every Supabase cookie (`AUTH_COOKIE_OPTIONS`). |
+| 5 | Low | Reset demo submits again while busy (no guard), and success is never announced. (components/account-actions.tsx) | Fixed | Busy guard; "Demo reset. The sample habits are back." in a status region; e2e test. |
+| 6 | Low | On the code step, the "We sent a code to …" sentence isn't tied to the focused field. | Fixed | It's the field's hint (`aria-describedby`). |
+| 7 | Low | "I already have a code" with no email silently moves focus. | Fixed | Shows "Enter the email the code was sent to first." (also raised by the design-critic) and an e2e test. |
+| 8 | Low | Whether "Try the demo" shows was baked in at build time (Cache Components prerenders `process.env`). | Fixed | Checked per request after `connection()` inside `<Suspense>`. |
+| 9 | Low | Login CSRF: a token-hash link logs you into whoever's account it belongs to. | Planned | Inherent to the flow; Today will show the signed-in email (Feature 3). |
+| 10 | Low | `saveTimezoneCookie` throws on a garbled `tz` cookie, crashing the root layout. | Fixed | Decoding is guarded; a bad value counts as "changed". |
+| 11 | Low | The proxy 307s a logged-out server-action POST to `/login`, so the action's friendly message never arrives. | Fixed | Requests with a `Next-Action` header pass through; every action checks the login itself (`requireUser`). |
+| — | Tests | Missing: action error mapping, `/auth/confirm` cases, `signInDemo`/`resetDemo`, `userTimeZone` decoding, reseed position and rollback cases, axe on the signed-in page, Reset demo announced. | Fixed | All added: `lib/auth-actions.test.ts`, `app/auth/confirm/route.test.ts`, `lib/demo-actions.test.ts`, `lib/server-helpers.test.ts`, reseed DB cases, and e2e. 206 unit tests. |
+
+#### design-critic (screens: login email, email error, code step)
+Verdict: **Ship after fixes**. "Hierarchy, dark mode and spacing are working; the medium issues are all in things the next screens will copy."
+Screenshots: `docs/screenshots/feature-2/` (taken again after the fixes)
+
+| # | Severity | Finding | Outcome | What changed |
+|---|----------|---------|---------|--------------|
+| 1 | Medium | The primary button's lip was mixed from `--ink`, which is near-white in dark mode, so the "key" looked lit from below. | Fixed | New `accent-lip` token, darker than accent in both themes. (I'd spotted this in my own look at the screenshot but left it for the critic to judge independently.) |
+| 2 | Medium | Danger (#B3261E / #FF8A80) is the same hue family as persimmon; in dark mode error text read like accent styling. | Fixed | Crimson `#A1173A` / `#FF8FA8` (contrast-tested), plus an alert icon on every error line so it isn't colour alone. |
+| 3 | Medium | An email error doesn't move focus to the field; "I already have a code" fails silently. | Fixed | Focus moves to the field on error; the ghost button explains what's missing. |
+| 4 | Medium | The pressed state stretched the key: an inset lip shrinking 2 px while moving 1 px makes the face grow. | Fixed | Outer lip 3 px → 1 px with a 2 px sink: the bottom edge stays put. |
+| 5 | Medium | The login screen invented sizes and weights the direction doesn't have (52/800, 18, captions at 400). | Fixed | `text-display` and `text-lead` tokens, added to Design direction; captions at 500. |
+| 6 | Low | The placeholder "you@example.com" repeated the error's example, so the field looked filled in. | Fixed | Placeholder "name@email.com", error "Enter your email address." |
+| 7 | Low | The demo caption left one word on its last line. | Fixed | `text-balance`. |
+| 8 | Low | The gutter was 23 px, not 20 (`max-w-sm` is narrower than the phone). | Fixed | `max-w-[28rem]`. |
+| 9 | Low | The error line pushes the primary button 28 pt down. | Accepted | Focus now moves to the field, so the next tap lands there anyway. |
+| 10 | Low | Motion didn't use the motion tokens; `lib/motion.ts` didn't exist. | Fixed | `lib/motion.ts` + a test that it matches the CSS; buttons use `duration-(--motion-fast) ease-(--ease-out)`. |
+| 11 | Low | Ghost buttons give no press feedback on touch with Reduce Motion on. | Fixed | `active:bg-surface-sunk active:text-ink`. |
+| 12 | Low | The input radius (16 px) wasn't in the system. | Fixed | `--radius-field`, in Design direction. |
+| 13 | Low | "Start over" threw away the typed email. | Fixed | The email is kept across Start over. |
+
+#### Takeaways
+- The most valuable finding of the whole project so far was in **my setup instructions**, not in code: a convenience wildcard would have handed out account takeover for two production apps. Reviewing the plan text as part of the diff paid off.
+- The design-critic and code-reviewer independently flagged the same silent "I already have a code" button, from screenshots and from code respectively.
+- My first dark screenshots caught buttons mid-transition (150 ms after the colour-scheme switch). Screenshots now wait for transitions; worth remembering for every screen.
 
 <!--
 Template — copy for each feature:

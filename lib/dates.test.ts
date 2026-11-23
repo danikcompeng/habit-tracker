@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { addDays, daysBetween, isValidDay, isValidTimeZone, lastDays, minutesIntoDay, todayIn } from "./dates";
+import { addDays, daysBetween, instantOnDay, isValidDay, isValidTimeZone, lastDays, minutesIntoDay, todayIn } from "./dates";
 
 describe("isValidDay", () => {
   it("accepts real days, including leap days", () => {
@@ -76,6 +76,43 @@ describe("addDays / daysBetween", () => {
   });
   it("is negative backwards", () => {
     expect(daysBetween("2026-11-23", "2026-11-20")).toBe(-3);
+  });
+});
+
+describe("instantOnDay", () => {
+  const ZONES = [
+    "UTC",
+    "America/Toronto",
+    "America/Los_Angeles",
+    "America/Havana", // DST starts at midnight
+    "America/Santiago", // DST starts at midnight
+    "America/St_Johns", // -3:30
+    "Europe/London",
+    "Asia/Kolkata", // +5:30
+    "Asia/Kathmandu", // +5:45
+    "Australia/Lord_Howe", // 30-minute DST
+    "Pacific/Kiritimati", // +14
+    "Pacific/Pago_Pago", // -11
+  ];
+
+  it("is on the right local day, at local noon, for every day of 2026 in many zones", () => {
+    for (const zone of ZONES) {
+      for (let d = "2026-01-01"; d <= "2026-12-31"; d = addDays(d, 1)) {
+        const t = instantOnDay(d, zone);
+        expect(todayIn(zone, t), `${zone} ${d}`).toBe(d);
+        expect(minutesIntoDay(zone, t), `${zone} ${d}`).toBe(720);
+      }
+    }
+  });
+
+  it("stays on the same date for viewers up to 11 hours away", () => {
+    const t = instantOnDay("2026-11-21", "Europe/London");
+    expect(todayIn("America/Toronto", t)).toBe("2026-11-21");
+    expect(todayIn("Asia/Tokyo", t)).toBe("2026-11-21");
+  });
+
+  it("uses UTC noon when the zone is unknown", () => {
+    expect(instantOnDay("2026-11-23", undefined).toISOString()).toBe("2026-11-23T12:00:00.000Z");
   });
 });
 

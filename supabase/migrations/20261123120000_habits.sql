@@ -1,7 +1,7 @@
 -- Hold: habits and their daily check-ins (plans/habit-tracker.md, Feature 1).
 --
 -- How to apply: Supabase dashboard -> SQL Editor -> New query, paste this
--- whole file, Run. Once. It only creates new things (two tables, three
+-- whole file, Run. Once. It only creates new things (two tables, four
 -- functions, one trigger); it doesn't touch Staple's tables, which share
 -- this project. It's one transaction: if anything fails, nothing is kept,
 -- so it can simply be run again after fixing the problem.
@@ -224,10 +224,70 @@ begin
 end;
 $$;
 
+-- ---------------------------------------------------------------------------
+-- reseed_demo_habits: replaces the CALLER's habits and check-ins with the
+-- list passed in, all at once. "Try the demo" uses it to put the sample
+-- habits back (plans/habit-tracker.md, Feature 2), and the app only calls
+-- it for the demo account.
+--
+-- Why one function instead of separate requests: in one transaction, a
+-- failure keeps the old data instead of half a seed, and the lock makes two
+-- demo sign-ins at the same moment take turns instead of leaving two copies.
+--
+-- security invoker: Row Level Security, the 100-habit limit and the
+-- check-in date window all still apply. Anyone else calling it can only
+-- ever replace their own habits.
+--
+-- p_habits: [{ "name": "...", "created_at": "<timestamp>", "days": ["YYYY-MM-DD", ...] }, ...]
+-- Habits are added in list order, so that's the order on screen.
+-- ---------------------------------------------------------------------------
+create function public.reseed_demo_habits(p_habits jsonb)
+returns integer
+language plpgsql
+volatile
+security invoker
+set search_path = ''
+as $$
+declare
+  me uuid := (select auth.uid());
+  item jsonb;
+  new_id uuid;
+  added integer := 0;
+begin
+  if me is null then
+    raise exception 'reseed_demo_habits: not logged in' using errcode = '42501';
+  end if;
+  if p_habits is null or jsonb_typeof(p_habits) <> 'array' then
+    raise exception 'reseed_demo_habits: expected a list of habits' using errcode = '22023';
+  end if;
+
+  -- One seed per user at a time; released when this transaction ends.
+  perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended('hold.reseed_demo_habits:' || me::text, 0));
+
+  delete from public.habits as h where h.user_id = me;
+
+  for item in select value from jsonb_array_elements(p_habits) loop
+    insert into public.habits (name, created_at)
+    values (item ->> 'name', coalesce((item ->> 'created_at')::timestamptz, now()))
+    returning id into new_id;
+
+    insert into public.habit_checkins (habit_id, day)
+    select new_id, d.value::date
+    from jsonb_array_elements_text(coalesce(item -> 'days', '[]'::jsonb)) as d(value);
+
+    added := added + 1;
+  end loop;
+
+  return added;
+end;
+$$;
+
 revoke all on function public.habits_enforce_limit() from public, anon, authenticated;
 revoke all on function public.habit_streaks(date) from public, anon, authenticated;
 revoke all on function public.reorder_habits(uuid[]) from public, anon, authenticated;
+revoke all on function public.reseed_demo_habits(jsonb) from public, anon, authenticated;
 grant execute on function public.habit_streaks(date) to authenticated;
 grant execute on function public.reorder_habits(uuid[]) to authenticated;
+grant execute on function public.reseed_demo_habits(jsonb) to authenticated;
 
 commit;

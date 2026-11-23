@@ -71,6 +71,29 @@ export function daysBetween(from: string, to: string): number {
   return Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / MS_PER_DAY);
 }
 
+/**
+ * A moment that falls at local noon on `day` in `timeZone`: used to
+ * back-date the demo's habits so "created on" is exactly that day there.
+ *
+ * Noon, not midnight: midnight doesn't exist on the days daylight saving
+ * starts at 00:00 (Havana, Santiago), and noon stays on the same date for
+ * anyone up to 11 hours away.
+ *
+ * Starts at noon UTC and moves by the difference between the local
+ * wall-clock time and the noon we want. Two steps settle it in every zone,
+ * even across a DST change.
+ */
+export function instantOnDay(day: string, timeZone: string | undefined): Date {
+  let t = Date.parse(`${day}T12:00:00Z`);
+  for (let i = 0; i < 3; i++) {
+    const now = new Date(t);
+    const offMinutes = daysBetween(todayIn(timeZone, now), day) * 1440 + (720 - minutesIntoDay(timeZone, now));
+    if (offMinutes === 0) break;
+    t += offMinutes * 60_000;
+  }
+  return new Date(t);
+}
+
 /** The `n` days ending with `today`, oldest first: lastDays("2026-11-23", 3) -> ["2026-11-21", "2026-11-22", "2026-11-23"]. */
 export function lastDays(today: string, n: number): string[] {
   return Array.from({ length: n }, (_, i) => addDays(today, i - (n - 1)));

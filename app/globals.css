@@ -1,26 +1,114 @@
 @import "tailwindcss";
 
+/*
+  Hold's design tokens (plans/habit-tracker.md, Design direction).
+  The colours here must match lib/palette.ts: lib/palette.test.ts checks
+  both, and their contrast. Use the token classes (bg-surface,
+  text-ink-muted, ...), never a raw colour, in components.
+*/
+
+/* light */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  color-scheme: light;
+  --background: #F4EFE6;
+  --surface: #FFFDF9;
+  --surface-sunk: #EAE3D6;
+  --ink: #2A211A;
+  --ink-muted: #6B5E52;
+  --line: #E0D8CA;
+  --accent: #B8420E;
+  --on-accent: #FFFFFF;
+  --accent-tint: #F6D9C8;
+  --accent-lip: #8A300A;
+  --danger: #A1173A;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
+/* dark */
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    color-scheme: dark;
+    --background: #191613;
+    --surface: #26221E;
+    --surface-sunk: #120F0D;
+    --ink: #F3ECE2;
+    --ink-muted: #B4A797;
+    --line: #3A342E;
+    --accent: #FF8F57;
+    --on-accent: #1E120A;
+    --accent-tint: #5A3220;
+    --accent-lip: #C2602F;
+    --danger: #FF8FA8;
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+@theme inline {
+  /* Only Hold's colours exist as classes: Tailwind's default palette is
+     switched off, so a stray bg-gray-100 can't sneak in. */
+  --color-*: initial;
+  --color-background: var(--background);
+  --color-surface: var(--surface);
+  --color-surface-sunk: var(--surface-sunk);
+  --color-ink: var(--ink);
+  --color-ink-muted: var(--ink-muted);
+  --color-line: var(--line);
+  --color-accent: var(--accent);
+  --color-on-accent: var(--on-accent);
+  --color-accent-tint: var(--accent-tint);
+  --color-accent-lip: var(--accent-lip);
+  --color-danger: var(--danger);
+
+  --font-sans: var(--font-bricolage), ui-sans-serif, system-ui, sans-serif;
+
+  /* Type: page title 34, habit name 22; body 16 (text-base) and labels 14
+     (text-sm) are Tailwind's own. */
+  --text-title: 2.125rem;
+  --text-title--line-height: 1.05;
+  --text-habit: 1.375rem;
+  --text-habit--line-height: 1.2;
+
+  /* The wordmark only: 52 px, extra bold. */
+  --text-display: 3.25rem;
+  --text-display--line-height: 1;
+  /* The one-line promise under the wordmark. */
+  --text-lead: 1.125rem;
+  --text-lead--line-height: 1.4;
+
+  /* Shapes: the habit "key" is 24 px round, text boxes 16 px; buttons are pills. */
+  --radius-key: 24px;
+  --radius-field: 16px;
+}
+
+/* Motion timings, shared with lib/motion.ts (same numbers). */
+:root {
+  --motion-fast: 150ms;
+  --motion-base: 200ms;
+  --motion-pop: 250ms;
+  --motion-hold: 650ms;
+  --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+@layer base {
+  html {
+    background: var(--background);
+    color: var(--ink);
+    -webkit-tap-highlight-color: transparent;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    font-family: var(--font-sans);
+    font-optical-sizing: auto;
+  }
+
+  /* One focus ring everywhere: persimmon, just outside the element, so it
+     sits on the page background (4.8:1 light, 8.0:1 dark). */
+  :focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 3px;
+  }
+
+  ::selection {
+    background: var(--accent-tint);
+    color: var(--ink);
+  }
 }
