@@ -20,7 +20,9 @@ export type ColorRole =
   | "on-accent"
   | "accent-tint"
   | "accent-lip"
-  | "danger";
+  | "accent-key"
+  | "danger"
+  | "danger-lip";
 
 export type Mode = "light" | "dark";
 
@@ -36,7 +38,9 @@ export const PALETTE: Record<Mode, Record<ColorRole, string>> = {
     "on-accent": "#FFFFFF",
     "accent-tint": "#F6D9C8", // the hold fill while pressing
     "accent-lip": "#8A300A", // the darker bottom edge of a persimmon key
+    "accent-key": "#B8420E", // a done habit key: the accent itself in light
     danger: "#A1173A", // crimson, kept apart from persimmon
+    "danger-lip": "#6E0F28", // the darker bottom edge of a Delete button
   },
   dark: {
     background: "#191613", // warm graphite, never pure black
@@ -48,8 +52,12 @@ export const PALETTE: Record<Mode, Record<ColorRole, string>> = {
     accent: "#FF8F57", // lighter persimmon so it doesn't glare at night
     "on-accent": "#1E120A",
     "accent-tint": "#5A3220",
-    "accent-lip": "#C2602F", // darker than the accent in dark mode too: a lip, never a highlight
+    "accent-lip": "#A84F24", // darker than the done key in dark mode too: a lip, never a highlight
+    // A done key in dark: calmer than the accent. Five full-width keys of
+    // #FF8F57 glare in a dark room; dots, rings and buttons keep the accent.
+    "accent-key": "#D9733F",
     danger: "#FF8FA8",
+    "danger-lip": "#B24A63",
   },
 };
 
@@ -69,8 +77,10 @@ export const TEXT_PAIRS: readonly [text: ColorRole, on: ColorRole][] = [
   ["accent", "background"],
   ["accent", "surface"],
   ["on-accent", "accent"],
+  ["on-accent", "accent-key"], // names and streaks on a done key
   ["danger", "background"],
   ["danger", "surface"],
+  ["surface", "danger"], // the Delete button: light text on crimson
 ];
 
 /** Dots, icons and focus rings, and what they sit on. Each must be 3:1. */
@@ -79,6 +89,9 @@ export const NON_TEXT_PAIRS: readonly [mark: ColorRole, on: ColorRole][] = [
   ["accent", "background"], // focus ring (drawn just outside the element, on the page)
   ["ink-muted", "surface"], // missed / today rings on a row
   ["on-accent", "accent"], // dots and check on a done row
+  ["on-accent", "accent-key"], // dots and check on a done key
+  ["accent-key", "background"], // a done key against the page
+  ["ink-muted", "surface-sunk"], // unavailable arrows are ink-muted at lower opacity: never below this
   ["ink-muted", "background"], // edge of a text box, so you can find it
   ["danger", "surface"], // edge of a text box with an error
 ];

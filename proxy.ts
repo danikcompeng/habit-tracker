@@ -59,12 +59,13 @@ export async function proxy(request: NextRequest) {
 /**
  * Sets the timezone cookie again from the server, for another year. Safari
  * deletes cookies written by page scripts after 7 days; one the server sets
- * lasts as long as it says, so an app left open for weeks keeps its timezone.
+ * lasts as long as it says, so an app left open for weeks keeps its
+ * timezone. ("Tap to complete" is set by the server in the first place:
+ * lib/preference-actions.ts.)
  */
-function keepTimezoneCookie(request: NextRequest, response: NextResponse) {
-  const tz = request.cookies.get(TZ_COOKIE)?.value;
-  if (!tz) return;
-  response.cookies.set(TZ_COOKIE, tz, { path: "/", maxAge: 60 * 60 * 24 * 365, sameSite: "lax" });
+export function keepTimezoneCookie(request: NextRequest, response: NextResponse) {
+  const value = request.cookies.get(TZ_COOKIE)?.value;
+  if (value) response.cookies.set(TZ_COOKIE, value, { path: "/", maxAge: 60 * 60 * 24 * 365, sameSite: "lax" });
 }
 
 // A redirect is a brand-new response, so copy over any refreshed cookies.

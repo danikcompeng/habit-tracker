@@ -34,7 +34,7 @@ test("'I already have a code' without an email says what's missing", async ({ pa
 test("Reset demo puts the sample habits back and says so (needs the migration)", async ({ page }) => {
   await signInDemo(page);
   await page.getByRole("button", { name: "Reset demo" }).click();
-  await expect(page.getByRole("status")).toHaveText("Demo reset. The sample habits are back.");
+  await expect(page.getByRole("status").filter({ hasText: "Demo reset" })).toHaveText("Demo reset. The sample habits are back.");
 });
 
 test("'I already have a code' opens the code step for the typed email", async ({ page }) => {

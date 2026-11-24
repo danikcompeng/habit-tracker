@@ -20,7 +20,9 @@
   --on-accent: #FFFFFF;
   --accent-tint: #F6D9C8;
   --accent-lip: #8A300A;
+  --accent-key: #B8420E;
   --danger: #A1173A;
+  --danger-lip: #6E0F28;
 }
 
 /* dark */
@@ -36,8 +38,10 @@
     --accent: #FF8F57;
     --on-accent: #1E120A;
     --accent-tint: #5A3220;
-    --accent-lip: #C2602F;
+    --accent-lip: #A84F24;
+    --accent-key: #D9733F;
     --danger: #FF8FA8;
+    --danger-lip: #B24A63;
   }
 }
 
@@ -55,6 +59,8 @@
   --color-on-accent: var(--on-accent);
   --color-accent-tint: var(--accent-tint);
   --color-accent-lip: var(--accent-lip);
+  --color-accent-key: var(--accent-key);
+  --color-danger-lip: var(--danger-lip);
   --color-danger: var(--danger);
 
   --font-sans: var(--font-bricolage), ui-sans-serif, system-ui, sans-serif;
@@ -72,6 +78,9 @@
   /* The one-line promise under the wordmark. */
   --text-lead: 1.125rem;
   --text-lead--line-height: 1.4;
+  /* A habit's name in the /habits list (smaller than on Today's keys). */
+  --text-list: 1.125rem;
+  --text-list--line-height: 1.35;
 
   /* Shapes: the habit "key" is 24 px round, text boxes 16 px; buttons are pills. */
   --radius-key: 24px;
@@ -85,6 +94,18 @@
   --motion-pop: 250ms;
   --motion-hold: 650ms;
   --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+/* The check drawing itself in when a habit is completed (motion-safe only). */
+@keyframes draw-check {
+  from {
+    stroke-dasharray: 24;
+    stroke-dashoffset: 24;
+  }
+  to {
+    stroke-dasharray: 24;
+    stroke-dashoffset: 0;
+  }
 }
 
 @layer base {

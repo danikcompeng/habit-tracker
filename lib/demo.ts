@@ -6,7 +6,7 @@ import "server-only";
 // this line also makes the build fail if a browser file imports this one.
 
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { CLEARED_MARKERS, demoSeedPayload, seededMarkers } from "./demo-seed";
+import { demoSeedPayload, seededMarkers } from "./demo-seed";
 
 /** The demo login, or null if the env vars aren't set (no demo then). */
 export function demoCredentials(): { email: string; password: string } | null {
@@ -28,9 +28,12 @@ export function isDemoEmail(email: unknown): boolean {
  *
  * `user` is checked first as well, so a bug can never wipe a real account.
  *
- * The markers are cleared first and written last, so a failure looks like
- * "never seeded" and the next demo sign-in tries again. The habits
- * themselves change all at once or not at all (one database transaction).
+ * The habits change all at once or not at all (reseed_demo_habits is one
+ * database transaction), so there's no half-made seed to guard against.
+ * The markers are written once, after it: if that fails, the old markers
+ * stay and the next sign-in simply reseeds again. (One auth call per seed,
+ * not two: Supabase rate-limits auth calls per address, and the demo
+ * shares that limit with Staple.)
  */
 export async function seedDemo(
   supabase: SupabaseClient,
@@ -39,9 +42,6 @@ export async function seedDemo(
   timeZone: string | undefined,
 ): Promise<void> {
   if (!isDemoEmail(user.email)) throw new Error("seedDemo: not the demo account");
-
-  const cleared = await supabase.auth.updateUser({ data: CLEARED_MARKERS });
-  if (cleared.error) throw new Error(`seedDemo: clear markers: ${cleared.error.message}`);
 
   const { error } = await supabase.rpc("reseed_demo_habits", { p_habits: demoSeedPayload(today, timeZone) });
   if (error) throw new Error(`seedDemo: reseed: ${error.message} (${error.code})`);

@@ -1,5 +1,6 @@
 import "server-only";
 import { createServerClient } from "@supabase/ssr";
+import { io } from "next/cache";
 import { cookies } from "next/headers";
 import { AUTH_COOKIE_OPTIONS } from "./cookie";
 
@@ -8,6 +9,11 @@ import { AUTH_COOKIE_OPTIONS } from "./cookie";
 // request; never share one between users.
 export async function createClient() {
   const cookieStore = await cookies();
+  // Supabase checks the login token's expiry against the clock. With
+  // Partial Prefetching, Next prerenders a per-login App Shell and refuses
+  // clock reads in it ("unstable value Date.now()"), so wait for the real
+  // request first. In actions and real requests this returns at once.
+  await io();
 
   return createServerClient(supabaseUrl(), supabaseKey(), {
     cookieOptions: AUTH_COOKIE_OPTIONS,

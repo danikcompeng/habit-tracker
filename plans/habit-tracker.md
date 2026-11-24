@@ -59,8 +59,10 @@ Decisions made while building, and why. Newest at the bottom of each group.
 | `accent` | `#B8420E` persimmon | `#FF8F57` | done rows, done dots, primary buttons, focus ring |
 | `on-accent` | `#FFFFFF` | `#1E120A` | text and icons on accent |
 | `accent-tint` | `#F6D9C8` | `#5A3220` | the hold fill while pressing (text stays `ink`) |
-| `accent-lip` | `#8A300A` | `#C2602F` | the bottom edge of a persimmon key: darker than `accent` in **both** themes (a lip, never a highlight) |
-| `danger` | `#A1173A` crimson | `#FF8FA8` | errors and delete: crimson, so it never reads as persimmon; always with an alert icon |
+| `accent-lip` | `#8A300A` | `#A84F24` | the bottom edge of a persimmon key: darker than the key in **both** themes (a lip, never a highlight) |
+| `accent-key` | `#B8420E` | `#D9733F` | a **done habit key**: the accent in light; calmer in dark, so five full-width done keys don't glare at night (dots, rings and buttons keep `accent`) |
+| `danger` | `#A1173A` crimson | `#FF8FA8` | errors and delete: crimson, so it never reads as persimmon; always with an icon (alert, or trash for delete) |
+| `danger-lip` | `#6E0F28` | `#B24A63` | the bottom edge of a Delete button (a key like every filled button) |
 
 All text pairs must pass 4.5:1 (`ink-muted` on `background` and `surface`, `on-accent` on `accent`, `ink` on `accent-tint`); dots, borders and focus rings 3:1 against what they sit on. Dark mode is warm, not pure black, and shows depth by lightness (background < surface), never by shadows. The accent gets lighter in dark mode, so it doesn't glare at night.
 
@@ -68,21 +70,21 @@ All text pairs must pass 4.5:1 (`ink-muted` on `background` and `surface`, `on-a
 - Display 52 px / 800: the "Hold" wordmark on the login screen only (`text-display`)
 - Lead 18 px / 400: the one-line promise under the wordmark (`text-lead`)
 - Page title 34 px / 700, tight leading ("Today")
-- Habit name 22 px / 600
+- Habit name 22 px / 600 on Today's keys; 18 px / 600 in the `/habits` list (`text-list`)
 - Body and buttons 16 px / 500–600 (16 px stops iOS zooming into inputs)
 - Labels and captions 14 px / 500, `ink-muted`
 - Numbers are `tabular-nums`.
 
 **Space and shape**
 - 4 px grid. Page gutter 20 px. Gap between habit rows 12 px. Row padding 20 px. Header-to-list gap 28 px.
-- Habit rows are at least 88 px tall, full width, radius 24 px. Each row is a key: `surface` with a 4 px `surface-sunk` lip along the bottom edge. Pressed, it moves down 2 px and the lip shrinks to 2 px.
-- Buttons are pills (fully rounded), at least 48 px tall for primary actions and at least 44×44 px for every tap target. Primary and secondary buttons sit on a 3 px **outer** lip (`accent-lip` / `surface-sunk`); pressed, the face moves down 2 px and the lip becomes 1 px, so the bottom edge stays put and the key sinks.
+- Habit rows are at least 96 px tall, full width, radius 24 px. Each row is a key: `surface` with a 4 px `surface-sunk` outer lip along the bottom edge (`accent-lip` once done). Pressed, it moves down 2 px and the lip shrinks to 2 px.
+- Buttons are pills (fully rounded), 48 px tall (`md`) or 44 px for compact header pills (`sm`), never stretched to full width unless they're the main action (`block`); at least 44×44 px for every tap target. Primary and secondary buttons sit on a 3 px **outer** lip (`accent-lip` / `surface-sunk`); pressed, the face moves down 2 px and the lip becomes 1 px, so the bottom edge stays put and the key sinks.
 - Text boxes: 16 px corners (`--radius-field`), a 1 px `ink-muted` edge (3:1 to be findable).
 - Icons: simple 2 px stroke line icons drawn inline (check, plus, grip, arrows, trash, pencil). No emoji.
 
 **Motion**: purposeful and physical.
 - **Hold (signature)**: on press, an `accent-tint` circle grows out from the exact touch point until it covers the row, over 650 ms, linear so progress reads as honest. Let go early and it shrinks back in 150 ms.
-- **Done pop**: the row snaps to `accent` with `on-accent` text, scales 1 → 1.03 → 1 (about 250 ms, spring-like), the check draws in, and the streak number ticks up. One short vibration where the device supports it.
+- **Done pop**: the row **snaps** to `accent-key` with `on-accent` text (no colour fade into done), scales 1 → 1.03 → 1 (about 250 ms), the check draws in, and the streak number updates. One short vibration where the device supports it.
 - **Undo**: the colour fades back to `surface` in 200 ms and the streak ticks down. No scale.
 - UI feedback 150–250 ms. Nothing loops, nothing moves on its own.
 - **Reduce Motion**: no growing circle, no scale. The hold shows as the row's tint fading in over the same 650 ms (opacity only), and done or undone changes colour instantly.
@@ -271,21 +273,36 @@ Order: 1 data model → 2 login and demo → 3 Today → 4 manage habits → 5 i
 - Empty: no habits, so a short line and a primary "Add your first habit" that links to `/habits`. (Until Feature 4 lands, that link 404s. Features 3 and 4 ship back to back.)
 - Loading: three key-shaped skeletons. Error: `app/error.tsx` with "Couldn't load your habits" and Try again.
 
-**A habit key** (at least 96 px tall, full width)
+**A habit key** (at least 96 px tall, full width; Design direction updated to match)
 - Line 1: the name (22/600, wraps to two lines, never truncated mid-word). On the right, a 32 px check circle: an empty ring while not done; filled with the check drawn in when done.
 - Line 2: the 7 dots (10 px, oldest left, today right) and the streak on the right ("12-day streak", "Start today" at 0).
 - Dots: `done` filled; `missed` a 1.5 px ring in `ink-muted`; `open` (today, not done) a 2 px ring in `accent`, so today stands out; `before` a 4 px faint dot. On a done (persimmon) key, dots and text use `on-accent`.
 - Not done: `surface` with the 4 px `surface-sunk` lip. Done: `accent` with `on-accent` text.
 
-**The gesture** (a small, tested state machine in `lib/hold.ts` plus `components/habit-key.tsx`)
-- **Hold to complete.** `pointerdown` (primary pointer only) starts a fill: an `accent-tint` circle grows from the touch point until it covers the key, over 650 ms (linear). The animation's own `finish` is the trigger, so what you see and what happens can't drift apart. It cancels if the pointer moves more than 10 px (you're scrolling: the key has `touch-action: pan-y`), lifts early, or the browser cancels it. Cancelling shrinks the fill back in 150 ms.
-- **Pop** on completion: the key turns `accent`, scales 1 → 1.03 → 1 (about 250 ms), the check draws in, the streak ticks up, and one short vibration plays where supported (`navigator.vibrate`, which iOS ignores).
-- **Tap a done key to undo**: it fades back in 200 ms. The `click` that follows the `pointerup` of a completing hold is swallowed, so finishing a hold never undoes it.
-- **A quick tap on a not-done key** doesn't complete it. It shows "Keep holding…" under the name for 1.5 s and announces it, so people learn the gesture.
-- **Keyboard**: Space or Enter held down holds (keyup cancels); on a done key, Enter or Space undoes. The keys' default "click" is prevented, so it can't double-fire.
-- **Assistive tech**: a `click` with no `pointerdown` from us before it (VoiceOver double-tap, Switch Control, voice control) completes at once. Those users can't usefully hold, and an accidental touch always has a `pointerdown` first. The instruction is in the key's description: "Hold to complete" or "Done today. Tap to undo".
+**The gesture**: one pure state machine, `lib/hold.ts` (`next(state, event) → { state, effects }`), tested sequence by sequence. The component (`components/habit-key.tsx`) only feeds it events and draws. _(Revised after logic-checker: the first plan spread the rules across event handlers, which is where the keyboard and click bugs it found came from.)_
+- **Hold to complete.** A `pointerdown` with `button === 0` starts a hold. The component captures the pointer (`setPointerCapture`), so a drag off the key still reports back. A fill (`accent-tint`) grows from the touch point until it covers the key, over 650 ms (linear).
+  - The hold **cancels** on:
+    - the pointer moving more than 10 px (you're scrolling: the key has `touch-action: pan-y`);
+    - `pointerup` before 650 ms, `pointercancel` or `lostpointercapture`;
+    - `blur`, the page going hidden, or `pagehide`.
+  - Cancelling shrinks the fill back in 150 ms.
+  - When the fill's animation finishes, the machine completes **only if the same pointer (or key) is still down**. A finish that arrives after any cancel is ignored.
+- **Pop** on completion: the key turns `accent`, scales 1 → 1.03 → 1 (250 ms), the check draws in, and the streak ticks up. Phones that support `navigator.vibrate` (Android) give one short buzz; iOS ignores it.
+- **Undo is decided from the pointer sequence itself**: a short `pointerdown` → `pointerup` (no move beyond 10 px) on a key that was **already done when the press began**.
+  - `click` events that follow any pointer sequence are ignored, so nothing depends on whether a platform fires a click after a long press (Android doesn't).
+  - Every `pointerdown` clears the gesture's state, so a stale flag can never eat the next tap.
+- **A quick tap on a not-done key** doesn't complete it. "Keep holding…" shows under the name for 1.5 s and is announced.
+- **Keyboard** (Space or Enter):
+  - `keydown` with `repeat` is ignored, and the default is prevented on both `keydown` and `keyup`, so the button never fires its own click.
+  - A fresh `keydown` on a not-done key starts a hold. On a done key it undoes, on that `keydown`.
+  - `keyup` before 650 ms cancels the hold. The `keyup` that ends a completed hold does nothing.
+  - So holding Space completes once and stays done.
+- **Assistive tech and a "Tap to complete" setting**: a `click` with no pointer or keyboard sequence in the last second (VoiceOver double-tap, Switch Control) completes or undoes at once.
+  - The reviewer pointed out that iOS Voice Control and Switch Control may simulate real touches, which would make holding impossible. So there's also a guaranteed path: a **"Tap to complete"** switch in Today's footer, saved in a cookie so the server draws the right instruction.
+  - With it on, a short tap completes and a tap on a done key undoes. The instruction reads "Tap to complete".
+  - Real devices (VoiceOver, Voice Control, TalkBack) go on the phone-check list at the end.
 - **Semantics**: `<button aria-pressed>` with `aria-label` = the habit name, and `aria-describedby` pointing at the streak, a text summary of the 7 days ("Last 7 days: 5 done, 1 missed, today not done yet") and the instruction. Changes are announced in one polite live region ("Read 10 pages done. 5-day streak.").
-- **Reduce Motion**: no growing circle and no scale. The key's tint fades in over the same 650 ms (opacity only), and done or undone switches colour instantly. Holding is still required: Reduce Motion is about animation, not about the gesture.
+- **Reduce Motion**: no growing circle and no scale. The key's tint fades in over the same 650 ms (opacity only), and done or undone switches colour instantly. Holding is still required (the switch above exists for people who can't hold).
 - iOS details: `-webkit-touch-callout: none`, `user-select: none`, and `contextmenu` prevented on keys, so a long press never opens the iOS or Android menu.
 
 **Data** (server, `app/page.tsx` behind `<Suspense>`)
@@ -295,35 +312,166 @@ Order: 1 data model → 2 login and demo → 3 Today → 4 manage habits → 5 i
   - check-ins from `today − 6` to `today` (at most 700 rows for 100 habits, under Supabase's 1,000 limit);
   - `habit_streaks(today)`.
 - Each habit becomes `{ id, name, doneToday, streak, dots }`, with `createdDay = todayIn(tz, created_at)`. That's a pure function (`lib/today.ts`), tested.
+- The date label ("Monday, November 23") is formatted from the `YYYY-MM-DD` string with `timeZone: "UTC"`, so it's the same day on the server and in every browser. Formatting `new Date("2026-11-23")` locally would say Sunday in the Americas.
+- The account bar shows the **signed-in email**, so a forged login link (Feature 2, code-review #9) is visible.
 
-**Saving** (`lib/checkin-actions.ts`: `setCheckin(habitId, day, done)`)
+**Saving** (`lib/checkin-actions.ts`: `setCheckin(habitId, day, done)`), wrapped in `guarded`, so it **always returns a result and never throws**:
 1. `requireUser()`, then validate `habitId` (a UUID) and `done` (a boolean).
-2. `checkinDayStatus(day, tz)`: `invalid` → error, `stale` → `{ ok: false, reason: "stale" }`.
-3. If done: upsert with `ignoreDuplicates` (already done is fine). A foreign-key error means `"gone"`: the habit was deleted, or the demo was reseeded.
-4. If undo: delete the row for that habit and day. If nothing was deleted and the habit no longer exists, `"gone"`; if it still exists, `ok` (it was already undone).
-5. `refresh()` so the page re-renders with server truth, then return `ok`.
+2. `checkinDayStatus(day, tz)`: `invalid` → error; `stale` → `refresh()` and `{ ok: false, reason: "stale" }`. The new screen comes back in the same response.
+3. If done: upsert with `ignoreDuplicates` (already done is fine). A foreign-key error → `refresh()` and `{ ok: false, reason: "gone" }`: the habit was deleted, or the demo was reseeded.
+4. If undo: delete the row for that habit and day. 0 rows is fine (already undone or gone), and the refresh shows the truth. There's no extra "does it exist" query.
+5. `refresh()`, then `{ ok: true, savedFor: day, newDay: day !== todayIn(tz) }`.
 
 **On the screen**
-- `useOptimistic` holds the done state per habit. The streak shown is `adjustStreak(serverStreak, serverDone, optimisticDone)`, and today's dot follows too.
-- On `stale` or `gone`, the screen reloads (`router.refresh()`) and says "It's a new day, so Today was refreshed" or "That habit changed, so the list was refreshed".
-- On any other failure, the optimistic change falls away on its own and the live region says "Couldn't save. Check your connection and try again."
+- `useOptimistic` holds the done state per habit. The streak shown is `adjustStreak(serverStreak, serverDone, optimisticDone)`, and today's dot and the summary line ("2 of 5 done") follow the optimistic state.
+- The client call is in `try/catch`: a lost connection or a "Server Action not found" after a deploy never reaches the error boundary. The optimistic change falls away, the live region says "Couldn't save. Check your connection and try again.", and one `router.refresh()` shows what the server really has (a save whose answer got lost may have worked).
+- `stale`: "It's a new day, so Today was refreshed." `gone`: "That habit changed, so the list was refreshed." `newDay` (saved in the grace minutes for yesterday): "Saved for Monday. It's a new day now."
 - Server actions from one page run one after another, and each save says done or not done (it isn't a toggle), so complete, undo, complete always ends complete.
 
-**Day rollover** (`components/day-watcher.tsx`): on `visibilitychange` to visible, on focus, and every 30 s, it compares the device's today with the page's `today`. If they differ, it refreshes the `tz` cookie and calls `router.refresh()`. That covers an app left open overnight and a phone resumed in the morning.
+**Day rollover** (`components/day-watcher.tsx`):
+- It refreshes Today **every time the app comes back to the foreground** (`visibilitychange` or `focus`, debounced to once per 2 s), which also picks up changes from other devices and demo reseeds.
+- It also refreshes when the **device's** date changes since its last check (every 30 s), never just because it differs from the server's. A phone with a wrong clock therefore can't loop.
+- Before each refresh it writes the `tz` cookie again. The proxy also re-sets the cookie from the server on every request (Feature 2), so Safari's 7-day limit on script-set cookies can't empty it.
+- It never refreshes in the middle of a hold.
 
 **Tests**
-- Vitest: `lib/hold.ts` (fill radius from any touch point, move tolerance, release classification); `lib/today.ts` (view model: dot states, createdDay in tz, streak passthrough, done today); `setCheckin` with a fake Supabase (stale, invalid id, gone on foreign-key error, undo of a deleted habit, already done).
+- Vitest:
+  - `lib/hold.ts` sequences:
+    - hold complete; early release (hint); move cancel;
+    - `lostpointercapture`, blur and hidden cancel; a finish after a cancel is ignored;
+    - a right-button press is ignored;
+    - tap to undo; a click after a pointer sequence is ignored; a click with no sequence completes;
+    - Space with auto-repeat completes once and stays done; a keyup after completion does nothing; Enter on a done key undoes;
+    - "Tap to complete" mode.
+  - `lib/today.ts`: the view model, and the date label west of UTC.
+  - `setCheckin` with a fake Supabase: stale (with refresh), invalid id, gone on a foreign-key error, undo of nothing, `newDay` in the grace minutes, and a thrown error becomes `{ ok: false }`.
 - Playwright, after the migration:
-  - hold a key for 700 ms: it's done and the streak goes +1;
-  - release at 300 ms: not done, and the hint shows;
+  - hold a key for 700 ms: done, streak +1;
+  - release at 300 ms: not done, hint shown;
   - move 30 px while holding: cancelled;
   - tap a done key: undone, streak −1;
-  - reload: state persisted;
-  - keyboard Space held: done;
-  - a stale day returns "stale" (the clock can be faked in the browser);
+  - reload: the state persisted;
+  - keyboard Space held: done once;
+  - "Tap to complete": a tap completes;
   - axe in light and dark.
+  - `stale` is tested at the action level (it's the server's clock, so a faked browser clock can't produce it).
 - Screenshots: Today in light and dark, mid-hold (the fill at about 50%), all done, and empty.
 
+### Feature 4: Manage habits (add, rename, reorder, delete)
+
+**Goal**: full CRUD for habits on one calm screen, `/habits`, reached from Today's "Edit" and from the empty state.
+
+**Layout (390 px)**
+- Header: the title "Habits" (34/700) and a "Done" pill on the right that goes back to Today. If a save is still running, Done says "Saving…" and goes back once it's finished, so Today never shows the old order.
+- **Add** at the top: a "New habit" text box and an "Add" primary button.
+  - Enter or Add submits. The box empties **only once the habit is saved**, so a failure keeps what you typed. Focus returns to the box either way, so you can add several in a row.
+  - The new habit appears at the **bottom**, as on Today, and it's announced: "Added Meditate. 6 habits."
+  - Add is busy while saving, so a double Enter can't create two.
+  - Duplicate names are allowed: the app doesn't second-guess you.
+- **The list**: one row per habit (`surface`, 16 px corners, at least 64 px tall), in Today's order. Each row has the name (it wraps) and an "Edit" button on the right (pencil icon, 44×44, labelled "Edit Read 10 pages").
+- **The editor** opens inline under its row (one at a time), with focus in the name box. Escape means Cancel.
+  - The name box with Save (primary) and Cancel. Saving is **not optimistic**: the editor stays open with "Saving…", so a failure keeps your text, and you see it.
+  - An unchanged name (after normalising) closes it without a request. An empty name is an error next to the box.
+  - On Save or Cancel, focus goes back to that row's Edit button. "Renamed to X." is announced.
+  - "Move to top" and "Move to bottom" (secondary). With a long list, these are what make big moves quick.
+  - "Delete habit" (danger text). It asks inline first: "Delete Read 10 pages? Its streak and history go too." with **Delete** (danger) and **Keep it**.
+    - Keep it puts focus back on "Delete habit".
+    - Delete isn't optimistic either ("Deleting…"). Afterwards, focus moves to the next row's Edit button, else the previous one, else the New habit box, and "Deleted X." is announced.
+    - If the habit was already gone (0 rows deleted), the message is "The list changed, so it was refreshed."
+- **Name rules**: the counter "54/60" appears under a name box past 50 characters. It counts `nameLength(normalizeHabitName(v))`, and there's no `maxLength`, which counts emoji as 2. Names go through `normalizeHabitName` and `validateHabitName` (Feature 1), the same rules as the database.
+- Empty: "No habits yet. Add one above." Loading: row-shaped skeletons. At 100 habits, Add says "You can have up to 100 habits." (from the database's limit).
+- **Leaving and coming back**: with Cache Components, Next keeps a hidden route alive (`<Activity>`), so an editor, a confirmation or Arrange mode would still be open on return. They reset when the route is hidden (a layout-effect cleanup, as `preserving-ui-state.md` shows); a half-typed new habit is kept.
+
+**Reordering: an "Arrange" mode, not drag** _(revised after logic-checker)_
+- An "Arrange" button above the list switches every row to show ↑ and ↓ buttons (44×44, labelled "Move Read 10 pages up"/"down"). Edit buttons hide while arranging, and a "Done arranging" button ends the mode.
+- A tap moves the row one place at once. Other rows slide (a FLIP transform, 150 ms; instant with Reduce Motion).
+- **Focus stays on the button you pressed**, restored by habit id after React moves the row. The ↑ on the first row and ↓ on the last stay in place but are `aria-disabled`, and pressing them says "Already first" or "Already last". Each move is announced: "Read 10 pages, position 2 of 5."
+- On a keyboard, the same buttons work with Enter or Space; nothing new to learn.
+- Saving: the order on screen is kept in local state (the full list of ids, never "a move"). It's saved as **one request 600 ms after the last tap**, and at once on "Done arranging" or Done.
+  - If the list from the server changes while arranging (an add finishing, another device), ids no longer there are dropped and new ones are added at the end, so the saved list always matches the database's set.
+  - Arrange is unavailable while an add is saving.
+  - A stale list (`HR001`) → refresh, and "The list changed, so it was refreshed. Your order wasn't saved."
+- Why not drag (for now): on iOS a drag handle has to block scrolling, so it needs edge auto-scroll to move a habit more than a screen away, plus careful handling of lost capture and mid-drag refreshes. Arrange plus Move to top/bottom works the same for touch, VoiceOver, Switch Control and keyboard. Drag can come later on top of the same saving code.
+- The order maths is pure (`lib/reorder.ts`: `move(ids, from, to)`, `reconcile(localIds, serverIds)`) and tested.
+
+**Saving** (`lib/habit-actions.ts`, server actions; each is wrapped so it **never throws**, checks the login, and validates its input):
+- `createHabit(name)`: normalize and validate, then insert. The limit (`54000`) → "You can have up to 100 habits."
+- `renameHabit(id, name)`: validate the id (UUID) and the name, then update `name` with `.select("id")`, so 0 rows can be detected → "gone".
+- `deleteHabit(id)`: delete with `.select("id")` (check-ins cascade). 0 rows → "gone".
+- `reorderHabits(ids)`: an array of at most 100 unique UUIDs, checked before the RPC. Then `reorder_habits(ids)`: `HR001` → "stale", `22023` → "invalid".
+- Every action calls `refresh()`, which also clears the client cache, so Today refetches when you go back.
+- On the client, a failure to reach the server at all (offline, "Server Action not found" after a deploy) is caught the way Today does it: a visible error line with the icon, an announcement, and `router.refresh()`.
+
+**Fixed in Feature 3 because of this review**: a Today key removed mid-hold (deleted elsewhere, or a demo reset) never reported "not holding", so Today's day watcher stopped refreshing. `HabitKey` now reports it when it unmounts.
+
+**Demo**: visitors can add, rename, reorder and delete freely. "Reset demo" and the hourly reseed put the samples back. Renames are visible to the next visitor for up to an hour; that's accepted for a shared demo.
+
+**Tests**
+- Vitest:
+  - `lib/reorder.ts`: move to start, end and the same place; `reconcile` drops removed ids, appends new ones and keeps the local order.
+  - `habit-actions` with a fake Supabase: invalid id, empty or too-long name, normalized before saving, the limit message, rename and delete of something gone, reorder input checks, a stale reorder, never throws.
+- Playwright (demo account):
+  - add two habits (the second at the bottom); a failed add keeps the text;
+  - rename (focus returns to Edit);
+  - Move to top;
+  - Arrange: ↓ twice in a row keeps focus on the same button, and the order is saved once;
+  - delete with confirm (focus moves to the next row), and Keep it;
+  - reload: all of it persisted;
+  - Today shows the same order;
+  - leaving and coming back closes the editor;
+  - axe in light and dark.
+- Screenshots: the list, an open editor, the delete confirmation, Arrange mode, and empty.
+
+### Feature 5: Installable (home screen)
+
+**Goal**: "Add to Home Screen" on iPhone and "Install" on Android give Hold its own icon and name, open full screen on Today, and match the status bar to the page.
+
+- `app/manifest.ts`:
+  - name "Hold", short_name "Hold", a description;
+  - `id: "/"` (the app's identity stays the same even if `start_url` changes), `start_url: "/"`, `scope: "/"`, `display: "standalone"`;
+  - **no orientation lock**: WCAG 1.3.4 says don't, and people with a phone mounted in landscape need it _(revised after logic-checker)_;
+  - `background_color` and `theme_color` = light `background`, imported from `lib/palette.ts` (no new hex values);
+  - icons 192, 512 and a maskable 512.
+- Icons are drawn in code (`app/icons/[file]/route.tsx` with `ImageResponse`):
+  - `icon-192.png` and `icon-512.png` (shape **rounded**), `icon-maskable-512.png` (**maskable**: full-bleed, the key inside the middle 60%) and `apple-touch-icon.png` (180, **full**: an opaque square, because iOS shows see-through corners as black). The shape is part of the icon list and tested.
+  - Any other name gives 404 from the handler. `dynamicParams` is never exported, since it fails the build under Cache Components.
+  - They're prerendered at build (`generateStaticParams`), and served under `/icons/`, which the proxy already skips (Feature 2): phones fetch icons without cookies, so a login redirect would give them the login page instead.
+  - The drawing: the persimmon field with one bone-coloured "key" (a rounded square with its darker lip) and a persimmon check on it, the app's gesture in one picture.
+  - The maskable version keeps everything inside the middle 60%, because Android crops it to its own shape.
+- `app/layout.tsx` metadata: `appleWebApp: { capable, title: "Hold", statusBarStyle: "default" }`, the apple-touch icon, and the 192 icon as the tab icon. **The create-next-app `app/favicon.ico` is deleted**: file-based icons win over metadata, so the Next triangle would show in tabs.
+- Icon URLs carry `?v=1`. Next serves these PNGs as immutable for a year, so a redrawn icon needs a new URL to reach existing installs.
+  - The status bar is solid, so content never sits under the clock or the Dynamic Island.
+  - `themeColor` already follows light and dark.
+- **No service worker, no offline mode** (out of v1). Neither phone needs one to install any more, which Staple's PWA work confirmed. Opening Hold offline shows the browser's offline page.
+- **Login on iPhone** _(corrected after logic-checker)_: since iOS 17.2, Safari's cookies are copied into the app once, when you add it, so adding while logged in opens logged in. The hard case is logging in *inside* the app: you ask for a code, switch to Gmail, and iOS may close the app. It reopens on the email step, so you retype the email and tap "I already have a code". Tapping the email's button instead logs Safari in, not the app, and uses up the code. Remembering the pending email across a relaunch is left for later; it's on the phone checklist.
+- **Tests**:
+  - Vitest: the icon list (every manifest icon has a route file name, and sizes match).
+  - Playwright:
+    - `/manifest.webmanifest` and every icon load **without a login** (200, `image/png`, the right pixel size);
+    - `/icons/nope.png` gives 404 (not the login page);
+    - the page links the manifest and the apple-touch icon, its only `rel=icon` is the 192 icon, and nothing links `/favicon.ico`;
+    - axe still passes.
+  - The build output lists `/icons/[file]` and `/manifest.webmanifest` as prerendered.
+- No new screen, so no design-critic. The icon itself is checked by looking at the PNGs, and I'll show them in the final summary.
+
+### Feature 6: Deploy, README and CLAUDE.md
+
+Order matters _(revised after logic-checker)_:
+1. The migration is applied to the shared project (a precondition for everything below).
+2. Push to GitHub (the user creates the repo).
+3. Create the Vercel project with **all 4 env vars on the import screen**. Vercel builds straight away, and a build without `NEXT_PUBLIC_SUPABASE_URL` breaks every page. If they're added later, redeploy.
+4. Add the production `/auth/confirm` to Supabase's Redirect URLs (exact, no wildcard).
+5. Against production, run a **smoke subset**, not the whole suite: the login redirect, Try the demo, one hold, and the manifest and icons without login (`e2e/smoke.e2e.ts`). Every demo sign-in from Vercel's IPs spends the per-IP limit Staple's live demo shares, and `screens.e2e.ts` would overwrite the committed screenshots.
+6. **The phone check** (the user, once): add to home screen on iPhone (and Android if available). Check:
+   - icon, name and the status bar in light and dark;
+   - it opens on Today, even when added from `/habits`;
+   - holding a key feels right, the pop and the vibration on Android, and Reduce Motion;
+   - VoiceOver, plus Voice Control or Switch Control if possible: can you complete a habit? ("Tap to complete" is the fallback);
+   - log out inside the app, then log in with the code, with an app switch to the email in between.
+- `README.md`: what Hold is, the live link, how to run it locally, env vars, how to apply the migration, tests, and the review workflow with a pointer to the Reviews log.
+- `CLAUDE.md`: what the app is, the stack and its Next 16 particulars (Cache Components, `io()`, `refresh()`, `proxy.ts`), the data rules (calendar days, the derived streak, RLS, revoke-then-grant), the design tokens, the per-feature workflow with the three reviewers, and the commands.
+
+## Reviews
 
 _One entry per feature. Every agent finding is logged with its severity and what was done about it, so the log shows what each reviewer caught and what changed as a result._
 
@@ -435,6 +583,169 @@ Screenshots: `docs/screenshots/feature-2/` (taken again after the fixes)
 - The most valuable finding of the whole project so far was in **my setup instructions**, not in code: a convenience wildcard would have handed out account takeover for two production apps. Reviewing the plan text as part of the diff paid off.
 - The design-critic and code-reviewer independently flagged the same silent "I already have a code" button, from screenshots and from code respectively.
 - My first dark screenshots caught buttons mid-transition (150 ms after the colour-scheme switch). Screenshots now wait for transitions; worth remembering for every screen.
+
+### Feature 3: Today, with press-and-hold (2026-11-23)
+
+#### logic-checker (plan review)
+Verdict: **Ready after fixes**. "The data path is sound; the fixes are in failure handling, the keyboard path, gesture cancellation and keeping the tz cookie alive."
+
+| # | Severity | Finding | Outcome | What changed |
+|---|----------|---------|---------|--------------|
+| 1 | High | A failed save (network drop, logged out, "Server Action not found" after a deploy) throws inside the transition and replaces Today with the error page. A save that worked but whose answer was lost would show as failed. | Fixed | `setCheckin` is `guarded` (never throws); the client call is in try/catch; after an unknown failure, one `router.refresh()` shows the server's truth. |
+| 2 | High | Holding Space: auto-repeat `keydown`s after 650 ms undo the habit just completed, then re-hold, flickering until release; a keyup or Space's native click could also undo it. Playwright wouldn't notice (no repeats). | Fixed | `repeat` ignored; default prevented on keydown and keyup; undo only on a fresh keydown on a key that was already done; unit-tested as sequences. |
+| 3 | High | Safari caps script-set cookies at 7 days, so the `tz` cookie expires on a home-screen app; every hold then returns "stale" and the refresh renders in UTC, which matches the local date for most of the day, so nothing fixes it until evening. | Fixed | The proxy re-sets `tz` from the server on every request (not capped; done in Feature 2); the watcher writes it before every refresh. |
+| 4 | Medium | "Swallow the click after a completing hold": Android sends no click after a long press, so the flag eats the next real undo; a right-click would start a hold. | Fixed | Undo is decided from the pointer sequence (short press on a key that was already done); clicks after any pointer sequence are ignored; flags reset on every pointerdown; `button === 0`. |
+| 5 | Medium | A hold can finish with no finger on the key: a mouse dragged off (no implicit capture), an app switch with a lost `pointercancel`, focus moving away mid-Space. | Fixed | `setPointerCapture`; cancel on `lostpointercapture`, blur, hidden and `pagehide`; finish only completes if the same pointer or key is still down. |
+| 6 | Medium | "A click with no pointerdown completes" is unproven: iOS Voice Control and Switch Control may simulate real touches, so those users couldn't complete at all. | Fixed | A **"Tap to complete"** switch as a guaranteed path, plus the click rule; real-device checks added to the final phone check. |
+| 7 | Medium | The day watcher compares the device's date with the server's, so a wrong device clock or a zone the server doesn't know refreshes every 30 s forever; a stale day can't be faked from the browser. | Fixed | Refresh on every foreground return (debounced) and when the *device's* date changes since the last check; never mid-hold. `stale` is tested at the action level. |
+| 8 | Medium | A date label formatted on the client from `new Date("2026-11-23")` shows Sunday in the Americas and mismatches hydration. | Fixed | The label is formatted from the string in UTC, server-side; a test covers it west of UTC. |
+| 9 | Low | A hold finished just after midnight saves to yesterday, then the refreshed Today shows it undone: looks like a failure. | Fixed | The action returns `newDay`; the screen says "Saved for Monday. It's a new day now." |
+| 10 | Low | `stale` and `gone` cost a second round trip; the "does the habit exist" query on undo isn't needed. | Fixed | `refresh()` inside the action for all outcomes; the extra query is dropped. |
+| 11 | Low | The summary line must follow the optimistic state; key height 88 vs 96; `lib/hold.ts` tests only covered geometry. | Fixed | Summary from optimistic state; 96 px everywhere; `lib/hold.ts` is a pure event → state machine with sequence tests. |
+
+Open questions: (1) The guaranteed path for assistive tech is the "Tap to complete" switch. (2) A single tap undoes, as the brief asked ("tap again to undo"). (3) The `tz` cookie is now also set by the server. (4) Both: refresh on every foreground return and on a date change.
+
+#### code-reviewer (diff review)
+Verdict: **Ship after fixes**. No security hole, no bug in the main hold, undo or keyboard flows; "one fix promised in the logic-checker log doesn't work". _(Reviewed before the migration was applied, so before any end-to-end run; its browser-only notes are checked in Playwright.)_
+
+| # | Severity | Finding (file:line) | Outcome | What changed |
+|---|----------|---------------------|---------|--------------|
+| 1 | Medium | The "Saved for Monday" and "new day" messages never show: the refreshed page has a new `today`, so `<TodayScreen key={today}>` remounts and drops them. That breaks the logic-checker's fix #9. (today-screen.tsx, page.tsx) | Fixed | No `key` on Today; the message is set inside the transition, so it arrives with the new data. |
+| 2 | Medium | No usable timezone (cookie cleared, or a zone the server's ICU doesn't know) makes every hold "stale", forever: refresh, render in UTC, stale again. (checkin-actions.ts) | Fixed | Its own `timezone` reason with a real message; the cookie is written before every save. |
+| 3 | Medium | Any press on a done key undoes it on release, however long, so someone holding again "to check it registered" undoes it. (hold.ts) | Fixed | In hold mode, undo is a tap (under 650 ms); tested. |
+| 4 | Medium | A date change seen mid-hold was used up and never retried; a key unmounted mid-hold left the hold counter stuck, so Today stopped refreshing. (Also found by the Feature 4 logic-checker.) (day-watcher.tsx, habit-key.tsx) | Fixed | A pending reload is kept until the hold ends; the key reports "not holding" on unmount. |
+| 5 | Low | Movement was measured relative to the key, so the key moving (the 2 px press, a message inserted above) cancelled holds as "scrolls". | Fixed | Viewport coordinates for movement; key-relative only for the fill's origin. |
+| 6 | Low | Errors were announced twice (alert + status). | Fixed | Errors use only their alert. |
+| 7 | Low | With Reduce Motion, done and undone still faded over 200 ms. | Fixed | `motion-safe:` on the key's transition. |
+| 8 | Low | The proxy re-setting `hold-mode` from an in-flight request could switch "Tap to complete" back on just after you turned it off. | Fixed | The server owns that cookie (a server action sets it); the proxy only keeps `tz`. |
+| 9 | Low | The root `error.tsx` said "Couldn't load your habits" on every page, including login. | Fixed | Neutral wording. |
+| — | Tests | Missing: long-press on done, cancelled tap, a pointer during a key hold, a finish after the press is decided, the optimistic derivation, more `setCheckin` cases, the proxy cookie refresh. | Fixed (mostly) | All added (`applyDone` moved into `lib/today.ts` and tested). Component-level wiring tests (Testing Library) are **deferred** to Playwright, which drives the real component in a real browser. |
+
+#### End-to-end, after the migration
+All of Today's browser tests pass (hold, early release, scroll-cancel, undo, long-press on done, Space held, Tap to complete, axe in light and dark). Found and fixed on the way:
+- Supabase's `getClaims()` checks token expiry with `Date.now()`, which Partial Prefetching's per-session shell refuses ("unstable value Date.now() while prerendering"). Fixed once: `await io()` in `createClient()`.
+- The demo reset made **two** auth calls (clear and write markers), and the tests hit Supabase's auth rate limit, which production shares with Staple. The seed is one transaction now, so the "clear first" step is gone (one call per seed), and the tests share one sign-in and reseed through the database function directly.
+- axe failed on contrast twice. The first was real timing (measured mid-transition after a theme switch; the check now waits). The second was a stale dev-server stylesheet (restart fixed it). Each was checked by reading the colours axe measured, not assumed.
+
+#### design-critic (screens: Today, mid-hold, one more done, all done, footer, empty)
+Verdict: **Ship after fixes**. "The keys, colours and the hold read well; one header bug breaks the top of every state."
+Screenshots: `docs/screenshots/feature-3/` (retaken after the fixes)
+
+| # | Severity | Finding | Outcome | What changed |
+|---|----------|---------|---------|--------------|
+| 1 | High | The Edit pill filled half the header (`w-auto` lost to the button's `w-full`: no class merger), wrapping the date onto three lines. Also flagged independently by the Habits critic. (I'd noticed it in the screenshot and left it to the critic.) | Fixed | Buttons take `size` and `block` options instead of override classes; Edit is a compact pill; the date never wraps. |
+| 2 | Medium | Completing faded over 200 ms and flashed back to the surface colour for a frame when the fill was removed; the direction says it snaps. | Fixed | The colour transition lives only on the not-done state: completing snaps, undoing fades. |
+| 3 | Medium | The instruction vanished after the first completion, so a demo visitor (who opens on "2 of 5 done") never saw "hold". | Fixed | "2 of 5 done · Hold a habit to complete it." until all done; tabular numbers. |
+| 4 | Medium | "Keep holding…" appeared under the thumb, in muted text; the plan said under the name. | Fixed | It takes the dots' place at the left, in ink, 14/600. |
+| 5 | Medium | The empty check ring (`line`, about 1.4:1) was nearly invisible: the "press me" cue. | Fixed | `ink-muted` ring (6:1). |
+| 6 | Medium | Dark, all done: five full-width #FF8F57 keys glare at night. | Fixed | New `accent-key` token (dark #D9733F) for done keys only; contrast-tested. |
+| 7 | Low | Content shifted 1 px between done (no border) and not-done keys. | Fixed | A transparent border on done keys. |
+| 8 | Low | The focus ring overlapped the key's lip. | Fixed | `outline-offset: 6px` on keys. |
+| 9 | Low | Empty state: the summary said "hold" with nothing to hold; spacing off the scale. | Fixed | "Add a habit to get started."; `mt-7`, `p-5`. |
+| 10 | Low | Footer: the switch was indented 4 px, Log out's text sat 12 px inside the gutter, the hit areas touched, the caption was 400. | Fixed | All aligned to the 20 px gutter; `gap-2`; `font-medium`. |
+| 11 | Low | The Demo chip vanished in dark and used an off-scale 12 px. | Fixed | Surface with a line border, 14/500. |
+| 12 | Low | The check disc switched instantly on undo while the key faded; the direction promised a streak "tick". | Fixed | The disc fades with the key; the direction now says the streak "updates". |
+| 13 | Low | The skeleton keys were shorter than real ones, so the list jumped on load. | Fixed | Skeleton matches a key plus its lip. |
+
+### Feature 4: Manage habits (2026-11-23)
+
+#### logic-checker (plan review)
+Verdict: **Ready after fixes**. "The server side is sound: `reorder_habits` catches every cross-device race I traced. The gaps are client-side."
+
+| # | Severity | Finding | Outcome | What changed |
+|---|----------|---------|---------|--------------|
+| 1 | High | An optimistic reorder stored as "moves" gets replayed by React on top of a refreshed base, so two quick drags produce, and can save, an order nobody chose. | Fixed | The local order is always the full id list, reconciled against the server's set (`reconcile`), saved as one request. |
+| 2 | High | Drag on iOS can't reach rows beyond the screen: the handle blocks scrolling, and there's no auto-scroll. With 100 habits, drag is useless for long moves. | Fixed (design change) | Drag replaced by an **Arrange mode** (↑/↓ on every row) plus Move to top/bottom in the editor. Drag is deferred, with the reasons in the plan. |
+| 3 | High | Focus is lost when React moves the focused row (↓, Move down), and a "Move up" hidden at the top vanishes while focused, so keyboard and VoiceOver users can't make two moves in a row. | Fixed | Focus restored by habit id after each move; edge buttons stay, `aria-disabled`, and say "Already first/last". |
+| 4 | Medium | A reorder right after an add is refused (`HR001`) because of the user's own add, blamed on "another device"; the Add box emptied before the save, losing text on failure. | Fixed | Arrange is unavailable while an add is saving; reconcile adds new ids; the Add box empties only on success. |
+| 5 | Medium | Drag cancel and refresh mid-drag weren't defined. | Fixed (n/a) | No drag in v1; Arrange taps are atomic. |
+| 6 | Medium | **Feature 3 bug**: a Today key removed mid-hold never reports "not holding", so the day watcher stops refreshing for good. | Fixed (in Feature 3) | `HabitKey` reports it on unmount. |
+| 7 | Medium | With Cache Components, hidden routes stay alive (`<Activity>`), so an editor or confirmation reappears stale on return; "Done" can beat a pending save, so Today shows the old order. | Fixed | Panels reset on hide (layout-effect cleanup); Done waits for pending saves ("Saving…"). |
+| 8 | Medium | Focus targets and announcements after add, save, cancel and delete were unspecified. | Fixed | Every target defined in the plan, plus the announcements. |
+| 9 | Medium | Optimistic rename and delete lose typed text on failure; `update().eq()` returns no row count unless asked. | Fixed | Rename and delete wait for the server with a pending state; `.select("id")` counts rows; unchanged names send nothing. |
+| 10 | Low | Deleting an already-gone habit (demo reseed) "succeeds" while the refreshed list still shows a habit of that name. | Fixed | 0 rows → "The list changed, so it was refreshed." |
+| 11 | Low | Reorder input unchecked (10,000 ids, non-UUIDs); `22023` unmapped; no client network-failure path. | Fixed | At most 100 unique UUIDs checked first; `22023` → invalid; Today's catch-and-refresh path reused. |
+| 12 | Low | `maxLength=60` counts emoji as 2. | Fixed | No `maxLength`; the counter uses code points. |
+| 13 | Low | Keyboard handle details (arrows scrolling the page, chatty saves). | Fixed (n/a) | No handle; Arrange buttons use Enter or Space, saves are batched. |
+
+Open questions answered: the Add draft survives leaving the page but editors don't; new habits show after the server answers; drag is not in v1; duplicate names are allowed; demo renames are visible to the next visitor (accepted).
+
+#### code-reviewer (diff review)
+Verdict: **Ship after fixes**. "The server side is sound; every bug is on the client, in the parts unit tests can't reach." _(Reviewed before the migration was applied; its browser findings are now covered by e2e.)_
+
+| # | Severity | Finding (file:line) | Outcome | What changed |
+|---|----------|---------------------|---------|--------------|
+| 1 | High | "Done arranging" switched straight to the server's (old) order, so the list snapped back until the save returned, and re-entering Arrange in that window would save an order built from the old one, undoing the change. (habits-manager.tsx) | Fixed | A pure `visibleOrder()` in `lib/reorder.ts` (tested) keeps the on-screen order while arranging **or a save is pending**; Arrange starts from what's visible; an e2e test checks there's no snap-back. |
+| 2 | Medium | Editor moves set focus and announcements *after* `await`, which in React 19 commit a frame before the refreshed tree: Move to bottom dropped focus to `<body>` and nothing slid. Same cause for one-frame flashes after rename, delete and add. | Fixed | Editor moves now change the order on screen at once (like Arrange), with the slide and focus in the same commit, then save. Every post-`await` update is wrapped in `startTransition` (per Next's `interactive-apps.md`). An e2e test checks focus after Move to bottom and Move to top. |
+| 3 | Medium | Adding while arranging got your own pending order refused ("the list changed"): the reorder queued behind the add. | Fixed | Add waits while an order is being arranged or saved ("Finish arranging first, then add."). |
+| 4 | Medium | Done navigated away even when the pending save had failed, so the error was never seen. | Fixed | Any failure clears `leaving`; you stay on the page with the message. |
+| 5 | Medium | Editor errors appeared at the top of the page, far from a lower editor, and stayed after a later success. | Fixed | Rename and delete problems show inside the editor; any success clears the page notice. |
+| 6 | Low | An add whose answer was lost didn't refresh, so a retry could create a duplicate. | Fixed | A connection failure on add reloads the list too. |
+| 7 | Low | "Gone" closed the editor without a focus target. | Fixed | Same target as a delete: the next row, else the previous, else New habit. |
+| 8 | Low | Arrange could get stuck with no "Done arranging" if the list shrank below 2. | Fixed | "Done arranging" always shows while arranging. |
+| 9 | Low | Leaving with Back within 600 ms of a tap shows the old order on Today briefly (the hide cleanup saves, but Today renders first). | Accepted | Rare and self-correcting (Today updates when the save returns); the Done button path waits. |
+| 10 | Low | The character counters were live regions that mounted already filled, then spoke every keystroke. | Fixed | No live region; the limit is enforced by the validation message, which is announced. |
+| 11 | Low | The e2e tests slept instead of waiting for the save; the screenshot run left the shared demo empty. | Fixed | Tests wait for the action's response; the screenshot run resets the demo at the end. |
+| — | Tests | Missing: no snap-back, focus after editor moves, one save for several taps, edge announcements, Done during a pending save, a failed add keeps text, reloads after add/delete/move, Escape/Cancel focus; action tests when logged out, on a throwing call, invalid input not refreshing, emoji length, an empty reorder. | Fixed | All added (19 action tests, 10 e2e tests for `/habits`). |
+
+#### design-critic (screens: list, editor, delete confirmation, Arrange, empty)
+Verdict: **Ship after fixes**. "Structure, tokens and dark mode work."
+Screenshots: `docs/screenshots/feature-4/` (retaken after the fixes)
+
+| # | Severity | Finding | Outcome | What changed |
+|---|----------|---------|---------|--------------|
+| 1 | High | The delete confirmation **autofocused the destructive Delete**; Enter twice (or a held, repeating Enter) would delete a habit and its whole history. | Fixed | Focus goes to the question; the danger button ignores key repeat. |
+| 2 | Medium | Done, Arrange and Done arranging stretched to fill the row (the same class conflict as Today's Edit). | Fixed | Compact `sm` pills; header aligned on its centre line. |
+| 3 | Medium | Two persimmon primaries at once (Add with Done arranging, Add with Save), and Add looked live while blocked. | Fixed | Add turns secondary while editing and dimmed and read-only while arranging, with the reason shown in advance; header Done is hidden while arranging. |
+| 4 | Medium | The editor was a stack of equal-weight pills; "Move to bottom" wrapped. | Fixed | Moves are a light row with arrow icons ("To top" / "To bottom", full names for screen readers); tighter gaps. |
+| 5 | Medium | The delete confirmation was a card inside a card (a black well in dark). | Fixed | The question replaces "Delete habit" in place, under a hairline. |
+| 6 | Medium | The Delete pill wasn't a key (flat, no press). | Fixed | A `danger` button variant with `danger-lip` (contrast-tested). |
+| 7 | Medium | Danger actions relied on colour alone. | Fixed | A trash icon on "Delete habit" and "Delete". |
+| 8 | Low | The placeholder "Drink a glass of water" duplicated the first demo habit. | Fixed | "Call a friend". |
+| 9 | Low | 18/600 list names weren't in the type scale; the empty state borrowed the login lead size. | Fixed | `text-list` token added to the direction; empty state is body text. |
+| 10 | Low | Row gap 8 px vs the direction's 12. | Fixed | `gap-3`. |
+| 11 | Low | Arrange arrows were close together, and the unavailable arrow nearly vanished in dark. | Fixed | `gap-2`; unavailable arrows are `ink-muted` at 35% instead of `line`. |
+| 12 | Low | While saving, bystander buttons looked tappable. | Fixed | Bystanders dim while the acting button keeps its "Saving…" label. |
+| 13 | Low | The 50+ counter turned red with no icon, left-aligned like an error. | Fixed | Right-aligned; an alert icon past 60. |
+
+#### Takeaways
+- Both design-critics independently traced the stretched pills to the same root cause (no class merging), which made it a component fix (`size`/`block` options) rather than two screen patches.
+- The most important design finding was about safety, not looks: an autofocused destructive button.
+- The e2e suite caught a real platform cost the reviewers couldn't see: Supabase's auth rate limit, which is shared with Staple's production demo.
+
+### Features 5 and 6: Installable, Deploy (2026-11-23)
+
+#### logic-checker (plan review)
+Verdict: **Ready after fixes**. No Critical or High; "most of it reuses a pattern already proven in Staple under the same config".
+
+| # | Severity | Finding | Outcome | What changed |
+|---|----------|---------|---------|--------------|
+| 1 | Medium | `app/favicon.ico` (the Next triangle) is still there, and file-based icons win over metadata, so tabs would show it. | Fixed | Deleted; e2e asserts the only `rel=icon` is ours. |
+| 2 | Medium | One drawing for all four files: iOS shows a rounded tile's see-through corners as black. | Fixed | A shape per file (rounded / maskable / full); the apple icon is opaque full-bleed; tested. |
+| 3 | Medium | `orientation: "portrait"` fails WCAG 1.3.4 (Orientation, AA): mounted phones need landscape. | Fixed | No orientation lock. |
+| 4 | Medium | Install can only really be checked on a phone after deploy, and nothing ensured it would be. | Fixed | A phone checklist is an explicit Feature 6 step (status bar, opens on Today, gesture feel, VoiceOver and Voice Control, login in the app). |
+| 5 | Medium | Vercel builds on import; env vars added afterwards leave a live build with no Supabase URL, so every page breaks while icons look fine. | Fixed | The order is written down: migration, push, env vars on the import screen (or redeploy), Redirect URL, then tests. |
+| 6 | Medium | The full e2e suite against production means about 21 demo sign-ins from Vercel's IPs, which spends the per-IP limit Staple's live demo shares, and it overwrites the committed screenshots. | Fixed | A smoke subset for production (`e2e/smoke.e2e.ts`). |
+| 7 | Low | The iPhone login story was wrong: since iOS 17.2 cookies are copied once on Add, so the real trouble is logging in *inside* the app around an app switch. | Fixed | Plan corrected; on the phone checklist; remembering the pending email is deferred. |
+| 8 | Low | No manifest `id`, so changing `start_url` later makes Android see a new app. | Fixed | `id: "/"`. |
+| 9 | Low | "Any other name 404s" must be in the handler: `dynamicParams` breaks the build under Cache Components. | Fixed | Handler 404; e2e checks `/icons/nope.png`. |
+| 10 | Low | `ImageResponse` icons are cached as immutable for a year, so a redrawn icon wouldn't reach installs. | Fixed | `?v=1` on icon URLs. |
+| 11 | Low | Manifest and icon colours should come from `PALETTE`, not new hex values. | Fixed | Imported from `lib/palette.ts`. |
+| 12 | Low | iOS may open the page you added from, not `start_url`. | Fixed | On the phone checklist. |
+
+#### code-reviewer (Feature 5 diff)
+Verdict: **Ship after fixes**. "The install pieces are correct; the fixes are in the production smoke test."
+
+| # | Severity | Finding (file:line) | Outcome | What changed |
+|---|----------|---------------------|---------|--------------|
+| 1 | Medium | The smoke test asserted the optimistic `aria-pressed`, so it would pass with saves broken in production, and could close the page before the undo was sent, leaving the shared demo changed (and eventually skip itself). (e2e/smoke.e2e.ts) | Fixed | Waits for each server action's response and reloads to check the saved state; "all done" fails instead of skipping; picks the key by position (names can repeat). |
+| 2 | Medium | The install checks had only run on `next dev`, which serves icons differently; the documented production command left them out. | Fixed | Ran on `next build && next start`: the build lists the four icons as prerendered (●) and the manifest as static; the 10 install checks pass. They're part of the production run. |
+| 3 | Medium | Nothing stopped the full suite (about 20 demo sign-ins, Reset demo, screenshots) being pointed at production. (playwright.config.ts) | Fixed | A non-local `BASE_URL` runs only the smoke and install checks, with no retries. |
+| 4 | Low | The icon's key sat `lip/2` above centre despite the comment. (components/app-icon.tsx) | Fixed | The key and lip pair is centred. |
+| 5 | Low | The `ICON_VERSION` comment overpromised for iPhone, which copies its icon once at Add. | Fixed | Comment says existing iPhone installs need re-adding. |
+| — | Tests | Missing: icon pixel corners, iPhone meta tags, `/favicon.ico` 404, a proxy-skip test built from the icon list. | Fixed | All added (canvas reads the corners: iPhone opaque, tab icon see-through, maskable persimmon). |
+
+Found while fixing: on a production build the head holds each icon and meta tag **twice** after streaming (Partial Prerendering emits the metadata again), with identical values, so it's harmless to browsers. The tests check distinct values. It's also a candidate for Next.js's agent-feedback report. And `next start` serves the prerendered icons with `max-age=0, must-revalidate`, not the year-long cache the reviewer expected, so `?v=1` is a cheap safeguard rather than a necessity.
 
 <!--
 Template — copy for each feature:

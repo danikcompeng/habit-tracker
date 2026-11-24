@@ -1,0 +1,296 @@
+"use client";
+
+// One habit on Today: a big key you press and hold to complete, and tap to
+// undo (plans/habit-tracker.md, Feature 3). All the rules about WHAT
+// happens live in lib/hold.ts; this file turns browser events into its
+// events and draws the result: the fill under your finger, the pop, the dots.
+
+import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { CheckIcon } from "@/components/icons";
+import { HINT_MS, HOLD_MS, IDLE, fillRadius, isActivationKey, next, type HoldEvent, type HoldMode, type HoldState, type Point } from "@/lib/hold";
+import { EASE_OUT, MOTION } from "@/lib/motion";
+import type { Dot } from "@/lib/streaks";
+import { dotsSummary, streakText } from "@/lib/today";
+
+export type KeyHabit = { id: string; name: string; done: boolean; streak: number; dots: Dot[] };
+
+type Props = {
+  habit: KeyHabit;
+  mode: HoldMode;
+  onComplete: (habit: KeyHabit) => void;
+  onUndo: (habit: KeyHabit) => void;
+  /** "Keep holding…": the parent announces it. */
+  onHint: (habit: KeyHabit) => void;
+  /** A hold started or ended, so the page doesn't refresh under a finger. */
+  onHoldingChange: (holding: boolean) => void;
+};
+
+function prefersReducedMotion(): boolean {
+  return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+}
+
+export function HabitKey({ habit, mode, onComplete, onUndo, onHint, onHoldingChange }: Props) {
+  const keyRef = useRef<HTMLButtonElement>(null);
+  const fillRef = useRef<HTMLSpanElement>(null);
+  const state = useRef<HoldState>(IDLE);
+  const fill = useRef<Animation | null>(null);
+  // When this key last saw a pointer or key event: a click soon after
+  // belongs to that sequence (see lib/hold.ts "click").
+  const lastSequenceAt = useRef(-Infinity);
+  const [hint, setHint] = useState(false);
+  const [justDone, setJustDone] = useState(false);
+  const hintTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+
+  // Always the latest props, for event handlers and animation callbacks.
+  const latest = useRef({ habit, mode, onComplete, onUndo, onHint, onHoldingChange });
+  useEffect(() => {
+    latest.current = { habit, mode, onComplete, onUndo, onHint, onHoldingChange };
+  });
+
+  function dispatch(event: HoldEvent) {
+    const { mode: currentMode } = latest.current;
+    const wasHolding = state.current.kind === "pointer-hold" || state.current.kind === "key-hold";
+    const step = next(state.current, event, currentMode);
+    state.current = step.state;
+    const isHolding = step.state.kind === "pointer-hold" || step.state.kind === "key-hold";
+    if (wasHolding !== isHolding) latest.current.onHoldingChange(isHolding);
+    for (const effect of step.effects) {
+      if (effect.type === "start-fill") startFill(effect.origin);
+      else if (effect.type === "cancel-fill") cancelFill();
+      else if (effect.type === "complete") complete();
+      else if (effect.type === "undo") latest.current.onUndo(latest.current.habit);
+      else if (effect.type === "hint") showHint();
+    }
+  }
+
+  /** `clientOrigin`: where the finger is, in viewport coordinates (null: keyboard). */
+  function startFill(clientOrigin: Point | null) {
+    const key = keyRef.current;
+    const el = fillRef.current;
+    if (!key || !el) return;
+    fill.current?.cancel();
+    const { width, height, left, top } = key.getBoundingClientRect();
+    const origin = clientOrigin && { x: clientOrigin.x - left, y: clientOrigin.y - top };
+    let animation: Animation;
+    if (prefersReducedMotion()) {
+      // Reduce Motion: no growing circle; the tint just fades in.
+      Object.assign(el.style, { left: "0", top: "0", width: "100%", height: "100%", borderRadius: "0" });
+      animation = el.animate([{ opacity: 0 }, { opacity: 1 }], { duration: HOLD_MS, easing: "linear", fill: "forwards" });
+    } else {
+      // A circle centred on the finger, big enough to reach the far corner.
+      const r = fillRadius(width, height, origin);
+      const { x, y } = origin ?? { x: width / 2, y: height / 2 };
+      Object.assign(el.style, { left: `${x - r}px`, top: `${y - r}px`, width: `${2 * r}px`, height: `${2 * r}px`, borderRadius: "9999px" });
+      animation = el.animate(
+        [
+          { transform: "scale(0)", opacity: 1 },
+          { transform: "scale(1)", opacity: 1 },
+        ],
+        { duration: HOLD_MS, easing: "linear", fill: "forwards" },
+      );
+    }
+    // The animation reaching its end IS the trigger, so what you see and
+    // what happens can't drift apart. lib/hold.ts ignores it if the hold
+    // was cancelled in the meantime.
+    animation.onfinish = () => {
+      if (fill.current === animation) dispatch({ type: "finish" });
+    };
+    fill.current = animation;
+  }
+
+  function cancelFill() {
+    const animation = fill.current;
+    fill.current = null;
+    if (!animation) return;
+    // Shrink back from wherever it got to, quickly (150 ms for a full fill).
+    animation.onfinish = () => animation.cancel();
+    animation.updatePlaybackRate(-HOLD_MS / MOTION.fast);
+  }
+
+  function complete() {
+    const animation = fill.current;
+    fill.current = null;
+    latest.current.onComplete(latest.current.habit);
+    setJustDone(true);
+    // The key is persimmon now; the tint underneath can go.
+    requestAnimationFrame(() => animation?.cancel());
+    if (!prefersReducedMotion()) {
+      keyRef.current?.animate([{ transform: "scale(1)" }, { transform: "scale(1.03)" }, { transform: "scale(1)" }], {
+        duration: MOTION.pop,
+        easing: EASE_OUT,
+      });
+    }
+    // One short buzz where phones support it (Android; iOS ignores this).
+    navigator.vibrate?.(12);
+  }
+
+  function showHint() {
+    setHint(true);
+    latest.current.onHint(latest.current.habit);
+    clearTimeout(hintTimer.current);
+    hintTimer.current = setTimeout(() => setHint(false), HINT_MS);
+  }
+
+  // Leaving the page (app switch, notification, lock) mid-hold cancels it,
+  // even if the browser never sends pointercancel.
+  useEffect(() => {
+    const interrupt = () => dispatch({ type: "interrupt" });
+    const onVisibility = () => {
+      if (document.visibilityState === "hidden") interrupt();
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    window.addEventListener("pagehide", interrupt);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisibility);
+      window.removeEventListener("pagehide", interrupt);
+      clearTimeout(hintTimer.current);
+      fill.current?.cancel();
+      // Removed mid-hold (deleted elsewhere, or the demo was reset): say the
+      // hold is over, or Today would wait for it forever and stop refreshing.
+      const kind = state.current.kind;
+      if (kind === "pointer-hold" || kind === "key-hold") latest.current.onHoldingChange(false);
+    };
+    // dispatch only reads refs, so it's safe to bind once.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Viewport coordinates: if the key itself moves (the 2 px press, a
+  // message appearing above the list), that isn't the finger moving.
+  function pointFrom(event: ReactPointerEvent<HTMLButtonElement>): Point {
+    return { x: event.clientX, y: event.clientY };
+  }
+
+  const ids = { streak: `${habit.id}-streak`, week: `${habit.id}-week`, how: `${habit.id}-how` };
+  const instruction = habit.done
+    ? "Done today. Tap to undo."
+    : mode === "tap"
+      ? "Tap to complete."
+      : "Press and hold to complete.";
+
+  return (
+    <button
+      ref={keyRef}
+      type="button"
+      aria-pressed={habit.done}
+      aria-label={habit.name}
+      aria-describedby={`${ids.streak} ${ids.week} ${ids.how}`}
+      onPointerDown={(e) => {
+        lastSequenceAt.current = performance.now();
+        if (e.button === 0 && e.isPrimary) e.currentTarget.setPointerCapture(e.pointerId);
+        dispatch({
+          type: "pointerdown",
+          pointerId: e.pointerId,
+          button: e.button,
+          isPrimary: e.isPrimary,
+          point: pointFrom(e),
+          done: habit.done,
+          time: performance.now(),
+        });
+      }}
+      onPointerMove={(e) => dispatch({ type: "pointermove", pointerId: e.pointerId, point: pointFrom(e) })}
+      onPointerUp={(e) => {
+        lastSequenceAt.current = performance.now();
+        dispatch({ type: "pointerup", pointerId: e.pointerId, point: pointFrom(e), time: performance.now() });
+      }}
+      onPointerCancel={(e) => {
+        lastSequenceAt.current = performance.now();
+        dispatch({ type: "pointercancel", pointerId: e.pointerId });
+      }}
+      onLostPointerCapture={() => dispatch({ type: "interrupt" })}
+      onKeyDown={(e) => {
+        if (!isActivationKey(e.key)) return;
+        // The button's own click (Enter on keydown, Space on keyup) would
+        // double up with ours.
+        e.preventDefault();
+        lastSequenceAt.current = performance.now();
+        dispatch({ type: "keydown", key: e.key, repeat: e.repeat, done: habit.done });
+      }}
+      onKeyUp={(e) => {
+        if (!isActivationKey(e.key)) return;
+        e.preventDefault();
+        lastSequenceAt.current = performance.now();
+        dispatch({ type: "keyup", key: e.key });
+      }}
+      onClick={() => dispatch({ type: "click", msSinceSequence: performance.now() - lastSequenceAt.current, done: habit.done })}
+      onBlur={() => dispatch({ type: "interrupt" })}
+      // No iOS/Android long-press menu or text selection on a key.
+      onContextMenu={(e) => e.preventDefault()}
+      className={
+        "relative isolate mb-1 flex min-h-24 w-full touch-pan-y flex-col justify-between gap-3 overflow-hidden rounded-key p-5 text-left select-none [-webkit-touch-callout:none] " +
+        "motion-safe:active:translate-y-[2px] focus-visible:outline-offset-[6px] border " +
+        // Completing SNAPS to persimmon (no colour transition into the done
+        // state); undoing fades back over 200 ms (the not-done state carries
+        // the transition). With Reduce Motion, both are instant.
+        (habit.done
+          ? "border-transparent bg-accent-key text-on-accent shadow-[0_4px_0_var(--accent-lip)] active:shadow-[0_2px_0_var(--accent-lip)] " +
+            "motion-safe:transition-[box-shadow,transform] motion-safe:duration-(--motion-fast)"
+          : "border-line bg-surface text-ink shadow-[0_4px_0_var(--surface-sunk)] active:shadow-[0_2px_0_var(--surface-sunk)] " +
+            "motion-safe:transition-[background-color,color,border-color,box-shadow,transform] motion-safe:duration-(--motion-base) motion-safe:ease-(--ease-out)")
+      }
+    >
+      {/* The hold fill: grows from the finger (or fades in, with Reduce Motion). */}
+      <span ref={fillRef} aria-hidden="true" className="pointer-events-none absolute -z-10 bg-accent-tint opacity-0" />
+
+      <span className="flex items-start justify-between gap-3">
+        <span className="text-habit font-semibold text-pretty">{habit.name}</span>
+        <CheckCircle done={habit.done} animate={justDone} />
+      </span>
+
+      <span className="flex min-h-5 items-center justify-between gap-3">
+        {/* "Keep holding…" takes the dots' place, at the left: away from a
+            right thumb resting on the key, and in ink, as an instruction. */}
+        {hint ? (
+          <span className="text-sm font-semibold text-ink">Keep holding…</span>
+        ) : (
+          <Dots dots={habit.dots} onAccent={habit.done} />
+        )}
+        <span id={ids.streak} className={`text-sm font-medium tabular-nums ${habit.done ? "" : "text-ink-muted"}`}>
+          {streakText(habit.streak)}
+        </span>
+      </span>
+
+      <span id={ids.week} className="sr-only">
+        {dotsSummary(habit.dots)}
+      </span>
+      <span id={ids.how} className="sr-only">
+        {instruction}
+      </span>
+    </button>
+  );
+}
+
+function CheckCircle({ done, animate }: { done: boolean; animate: boolean }) {
+  return (
+    <span
+      aria-hidden="true"
+      className={
+        // The empty ring is ink-muted (6:1), so "not done, press me" is
+        // visible; it fades with the key on undo.
+        "flex size-8 shrink-0 items-center justify-center rounded-full border-2 motion-safe:transition-colors motion-safe:duration-(--motion-base) " +
+        (done ? "border-on-accent bg-on-accent text-accent-key" : "border-ink-muted bg-transparent")
+      }
+    >
+      {done && <CheckIcon size={20} strokeWidth={2.5} className={animate ? "motion-safe:animate-[draw-check_200ms_ease-out_both]" : ""} />}
+    </span>
+  );
+}
+
+const DOT_STYLE: Record<Dot["state"], [onSurface: string, onAccent: string]> = {
+  done: ["size-2.5 bg-accent", "size-2.5 bg-on-accent"],
+  missed: ["size-2.5 border-[1.5px] border-ink-muted", "size-2.5 border-[1.5px] border-on-accent"],
+  open: ["size-2.5 border-2 border-accent", "size-2.5 border-2 border-on-accent"],
+  before: ["size-1 bg-line", "size-1 bg-on-accent/40"],
+};
+
+/** The last 7 days, oldest left, today right. Described in words for screen readers elsewhere. */
+function Dots({ dots, onAccent }: { dots: Dot[]; onAccent: boolean }) {
+  return (
+    <span aria-hidden="true" className="flex items-center gap-1.5">
+      {dots.map((dot) => (
+        <span key={dot.day} className="flex size-2.5 items-center justify-center">
+          <span className={`rounded-full ${DOT_STYLE[dot.state][onAccent ? 1 : 0]}`} />
+        </span>
+      ))}
+    </span>
+  );
+}

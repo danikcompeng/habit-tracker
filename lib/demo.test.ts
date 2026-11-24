@@ -52,18 +52,18 @@ describe("seedDemo", () => {
     expect(calls).toEqual([]);
   });
 
-  it("clears the markers, reseeds, then marks it done with the finish time and day", async () => {
+  it("reseeds in one transaction, then marks it done with the finish time and day (one auth call)", async () => {
     const { client, raw, calls } = fakeSupabase();
     await seedDemo(client, { email: DEMO }, "2026-11-23", "America/Toronto");
-    expect(calls).toEqual(["updateUser clear", "rpc reseed_demo_habits", "updateUser mark"]);
-    const marked = raw.auth.updateUser.mock.calls[1][0].data;
+    expect(calls).toEqual(["rpc reseed_demo_habits", "updateUser mark"]);
+    const marked = raw.auth.updateUser.mock.calls[0][0].data;
     expect(marked[SEEDED_DAY_KEY]).toBe("2026-11-23");
     expect(Math.abs(Date.parse(marked[SEEDED_AT_KEY] as string) - Date.now())).toBeLessThan(5_000);
   });
 
-  it("leaves the markers cleared when the reseed fails, so the next sign-in tries again", async () => {
+  it("doesn't mark a failed reseed as done, so the next sign-in tries again", async () => {
     const { client, calls } = fakeSupabase({ rpcError: { message: "boom", code: "XX000" } });
     await expect(seedDemo(client, { email: DEMO }, "2026-11-23", "UTC")).rejects.toThrow(/reseed/);
-    expect(calls).toEqual(["updateUser clear", "rpc reseed_demo_habits"]);
+    expect(calls).toEqual(["rpc reseed_demo_habits"]);
   });
 });
