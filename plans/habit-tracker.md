@@ -745,7 +745,7 @@ Verdict: **Ship after fixes**. "The install pieces are correct; the fixes are in
 | 5 | Low | The `ICON_VERSION` comment overpromised for iPhone, which copies its icon once at Add. | Fixed | Comment says existing iPhone installs need re-adding. |
 | — | Tests | Missing: icon pixel corners, iPhone meta tags, `/favicon.ico` 404, a proxy-skip test built from the icon list. | Fixed | All added (canvas reads the corners: iPhone opaque, tab icon see-through, maskable persimmon). |
 
-Found while fixing: on a production build the head holds each icon and meta tag **twice** after streaming (Partial Prerendering emits the metadata again), with identical values, so it's harmless to browsers. The tests check distinct values. It's also a candidate for Next.js's agent-feedback report. And `next start` serves the prerendered icons with `max-age=0, must-revalidate`, not the year-long cache the reviewer expected, so `?v=1` is a cheap safeguard rather than a necessity.
+Found while fixing: after the page loads, the head holds each icon and meta tag **twice**, with identical values, so it's harmless to browsers. The server's HTML has each tag once; the second copy is added in the browser. This happens in `next dev` too, not only in production builds (checked at deploy). The tests check distinct values. It's also a candidate for Next.js's agent-feedback report. And `next start` serves the prerendered icons with `max-age=0, must-revalidate`, not the year-long cache the reviewer expected, so `?v=1` is a cheap safeguard rather than a necessity.
 
 #### Deploy (Feature 6, steps 1–5)
 Done in the order the logic-checker asked for:
