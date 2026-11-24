@@ -69,7 +69,7 @@ describe("reseed_demo_habits", () => {
 
   it("is all or nothing: a bad check-in day keeps the old habits", async () => {
     await reseed(USER_A, SAMPLE);
-    const bad = [...SAMPLE, { name: "Too old", created_at: null, days: [ago(61)] }]; // outside the 60-day window
+    const bad = [...SAMPLE, { name: "Too old", created_at: null, days: [ago(101)] }]; // outside the 100-day window
     expect(await errorCode(reseed(USER_A, bad))).toBe("42501");
     expect((await habitsOf(USER_A)).map((h) => h.name)).toEqual(["Drink water", "Read", "New one"]);
   });

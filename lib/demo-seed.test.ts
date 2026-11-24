@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { todayIn } from "./dates";
+import { buildHistory, toHistoryHabits } from "./history";
 import {
   CLEARED_MARKERS,
   DEMO_HABITS,
+  checkinDaysAgo,
+  createdDaysAgo,
   RESEED_AFTER_MS,
   demoSeedPayload,
   needsReseed,
@@ -17,9 +20,13 @@ describe("demo sample habits", () => {
   const payload = demoSeedPayload(TODAY, "America/Toronto");
   const streaks = payload.map((h) => currentStreak(h.days, TODAY));
 
-  it("has valid names and stays inside the database's 60-day window", () => {
+  it("has valid names, and every day is inside the database's 100-day window and on or after the habit was made", () => {
     expect(DEMO_HABITS.every((h) => validateHabitName(h.name) === null)).toBe(true);
-    expect(DEMO_HABITS.flatMap((h) => h.checkinDaysAgo).every((n) => n >= 0 && n <= 60)).toBe(true);
+    for (const habit of DEMO_HABITS) {
+      expect(habit.history, habit.name).toMatch(/^[x.]+$/);
+      expect(createdDaysAgo(habit), habit.name).toBeLessThanOrEqual(89);
+      expect(checkinDaysAgo(habit).every((n) => n >= 0 && n <= createdDaysAgo(habit)), habit.name).toBe(true);
+    }
   });
 
   it("shows the intended streaks: 12 done today, 4 waiting for today, 0, 2 and 1", () => {
@@ -39,7 +46,39 @@ describe("demo sample habits", () => {
     for (const tz of ["Pacific/Kiritimati", "Pacific/Pago_Pago", "America/Santiago", "Asia/Kathmandu"]) {
       const habits = demoSeedPayload(TODAY, tz);
       expect(todayIn(tz, new Date(habits[4].created_at)), tz).toBe("2026-11-21");
-      expect(todayIn(tz, new Date(habits[0].created_at)), tz).toBe("2026-10-24");
+      expect(todayIn(tz, new Date(habits[0].created_at)), tz).toBe("2026-08-26");
+    }
+  });
+});
+
+describe("demo history (Feature 7)", () => {
+  const habits = toHistoryHabits(
+    demoSeedPayload(TODAY, "America/Toronto").map((h, i) => ({
+      habit_id: String(i),
+      name: h.name,
+      created_at: h.created_at,
+      days: h.days,
+      lead_in: 0,
+      current_streak: currentStreak(h.days, TODAY),
+    })),
+    "America/Toronto",
+  );
+
+  it("looks believable over 90 days: between 60% and 85% done, a habit added mid-range, and an old run longer than today's best", () => {
+    const view = buildHistory(habits, TODAY, 90);
+    expect(view.percent).toBeGreaterThanOrEqual(60);
+    expect(view.percent).toBeLessThanOrEqual(85);
+    expect(view.habits.find((h) => h.name === "Stretch for 5 minutes")?.addedOn).toBe("2026-10-09");
+    expect(view.bestNow).toBe(12);
+    expect(view.longest).toBeGreaterThan(view.bestNow);
+    expect(view.empty).toBeNull();
+  });
+
+  it("has history in every range, never a blank chart", () => {
+    for (const range of [7, 30, 90] as const) {
+      const view = buildHistory(habits, TODAY, range);
+      expect(view.days.every((d) => d.scheduled > 0), String(range)).toBe(true);
+      expect(view.days.some((d) => d.done === d.scheduled), String(range)).toBe(true);
     }
   });
 });

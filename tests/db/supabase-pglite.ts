@@ -13,11 +13,16 @@
 // default PGlite user is a superuser that skips RLS entirely, so it's only
 // used for setup.
 
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { PGlite, type Transaction } from "@electric-sql/pglite";
 
-const MIGRATION = fileURLToPath(new URL("../../supabase/migrations/20261123120000_habits.sql", import.meta.url));
+// Every migration, in name order (the timestamp prefix), exactly as they're
+// applied to the real project: the tests always see the current schema.
+const MIGRATIONS_DIR = fileURLToPath(new URL("../../supabase/migrations/", import.meta.url));
+export const MIGRATIONS = readdirSync(MIGRATIONS_DIR)
+  .filter((name) => name.endsWith(".sql"))
+  .sort();
 
 const SUPABASE_SHIM = `
   create role anon nologin;
@@ -49,7 +54,7 @@ export const USER_B = "00000000-0000-4000-8000-00000000000b";
 export async function freshDatabase(): Promise<PGlite> {
   const db = new PGlite();
   await db.exec(SUPABASE_SHIM);
-  await db.exec(readFileSync(MIGRATION, "utf8"));
+  for (const name of MIGRATIONS) await db.exec(readFileSync(MIGRATIONS_DIR + name, "utf8"));
   await db.query("insert into auth.users (id, email) values ($1, 'a@example.com'), ($2, 'b@example.com')", [
     USER_A,
     USER_B,

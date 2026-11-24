@@ -17,14 +17,14 @@ async function settle(page: Page) {
   await page.waitForTimeout(400);
 }
 
-async function shoot(page: Page, folder: string, name: string) {
+async function shoot(page: Page, folder: string, name: string, options: { fullPage?: boolean } = {}) {
   // Wait until React has taken over the page (hydrated): a screenshot
   // before that would touch the page and confuse it.
   await page.waitForLoadState("networkidle");
   for (const scheme of SCHEMES) {
     await page.emulateMedia({ colorScheme: scheme, reducedMotion: "reduce" });
     await settle(page);
-    await page.screenshot({ path: `docs/screenshots/${folder}/${name}-${scheme}.png` });
+    await page.screenshot({ path: `docs/screenshots/${folder}/${name}-${scheme}.png`, fullPage: options.fullPage });
   }
 }
 
@@ -122,4 +122,46 @@ test("habits screens", async ({ page }) => {
 
   // Put the shared demo back, so the next visitor doesn't find it empty.
   await reseedDemo();
+});
+
+test("history screens", async ({ page }) => {
+  const folder = "feature-7";
+  await freshDemo(page);
+  // Today's header, now with History beside Edit.
+  await shoot(page, folder, "today-header");
+
+  await page.getByRole("link", { name: "History" }).click();
+  await expect(page.getByRole("button", { name: "30 days" })).toHaveAttribute("aria-pressed", "true");
+  await shoot(page, folder, "history-30");
+  await shoot(page, folder, "history-30-full", { fullPage: true });
+
+  // Pointing at a day about a third of the way in.
+  const box = (await page.getByRole("slider", { name: "Choose a day" }).boundingBox())!;
+  await page.mouse.move(box.x + box.width * 0.35, box.y + box.height / 2);
+  await shoot(page, folder, "history-30-scrub");
+  await page.mouse.move(0, 0);
+
+  for (const range of [7, 90] as const) {
+    await page.getByRole("button", { name: `${range} days` }).click();
+    await expect(page.getByRole("button", { name: `${range} days` })).toHaveAttribute("aria-pressed", "true");
+    await shoot(page, folder, `history-${range}`);
+    await shoot(page, folder, `history-${range}-full`, { fullPage: true });
+  }
+
+  try {
+    // Prove the samples can be put back before emptying the shared demo.
+    await reseedDemo();
+    await reseedDemo([]);
+    await page.goto("/history");
+    await expect(page.getByText("No habits yet.")).toBeVisible();
+    await shoot(page, folder, "history-empty");
+
+    await reseedDemo([{ name: "Brand new", created_at: new Date().toISOString(), days: [] }]);
+    await page.goto("/history");
+    await expect(page.getByText("Your history starts today.")).toBeVisible();
+    await shoot(page, folder, "history-starts-today");
+  } finally {
+    // Put the shared demo back, even if a step failed.
+    await reseedDemo();
+  }
 });

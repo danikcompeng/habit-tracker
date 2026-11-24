@@ -60,18 +60,26 @@ async function Today() {
 
   return (
     <>
-      <header className="flex min-h-12 items-center justify-between gap-3">
-        <div className="flex min-w-0 items-center gap-2">
-          <p className="text-sm font-medium whitespace-nowrap text-ink-muted">{dayLabel(today)}</p>
-          {demo && (
-            <span className="rounded-full border border-line bg-surface px-2.5 py-0.5 text-sm font-medium text-ink-muted">Demo</span>
-          )}
-        </div>
-        <Link href="/habits" className={buttonClass("secondary", { size: "sm", block: false }, "shrink-0")}>
-          Edit
-        </Link>
+      {/* flex-wrap: with zoomed text the pills drop below the date instead
+          of running off the screen. */}
+      <header className="flex min-h-12 flex-wrap items-center justify-between gap-x-3 gap-y-2">
+        <p className="text-sm font-medium whitespace-nowrap text-ink-muted">{dayLabel(today)}</p>
+        <nav aria-label="Pages" className="flex shrink-0 items-center gap-2">
+          <Link href="/history" className={buttonClass("secondary", { size: "sm", block: false })}>
+            History
+          </Link>
+          <Link href="/habits" className={buttonClass("secondary", { size: "sm", block: false })}>
+            Edit
+          </Link>
+        </nav>
       </header>
-      <h1 className="mt-3 text-title font-bold tracking-tight">Today</h1>
+      {/* The Demo chip sits beside the heading, not in it: the heading is "Today". */}
+      <div className="mt-3 flex items-center gap-3">
+        <h1 className="text-title font-bold tracking-tight">Today</h1>
+        {demo && (
+          <span className="rounded-full border border-line bg-surface px-2.5 py-0.5 text-sm font-medium text-ink-muted">Demo</span>
+        )}
+      </div>
 
       {/* Not keyed by the day: messages like "Saved for Monday" arrive
           together with the new day's data and must survive it. */}
@@ -100,7 +108,10 @@ function TodaySkeleton() {
     <div aria-hidden="true">
       <div className="flex min-h-12 items-center justify-between">
         <div className="h-4 w-48 rounded bg-surface-sunk" />
-        <div className="h-11 w-[70px] rounded-full bg-surface-sunk" />
+        <div className="flex gap-2">
+          <div className="h-11 w-[92px] rounded-full bg-surface-sunk" />
+          <div className="h-11 w-[70px] rounded-full bg-surface-sunk" />
+        </div>
       </div>
       <div className="mt-3 h-9 w-32 rounded bg-surface-sunk" />
       <div className="mt-3 h-5 w-64 rounded bg-surface-sunk" />

@@ -108,6 +108,17 @@
   }
 }
 
+/* History's bars growing from the baseline when you switch range
+   (motion-safe only; never on first load). */
+@keyframes bar-grow {
+  from {
+    transform: scaleY(0);
+  }
+  to {
+    transform: scaleY(1);
+  }
+}
+
 @layer base {
   html {
     background: var(--background);

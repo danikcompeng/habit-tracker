@@ -8,9 +8,9 @@ days as dots. Mobile-first, installable to the home screen.
 **Live:** [habit-tracker-ifaf.vercel.app](https://habit-tracker-ifaf.vercel.app) · Tap **Try the demo** on the
 login screen: a shared account with sample habits, no email needed.
 
-| Today | Mid-hold | Habits |
-|---|---|---|
-| ![Today](docs/screenshots/feature-3/today-light.png) | ![Holding a habit](docs/screenshots/feature-3/today-mid-hold-dark.png) | ![Managing habits](docs/screenshots/feature-4/habits-light.png) |
+| Today | Mid-hold | Habits | History |
+|---|---|---|---|
+| ![Today](docs/screenshots/feature-3/today-light.png) | ![Holding a habit](docs/screenshots/feature-3/today-mid-hold-dark.png) | ![Managing habits](docs/screenshots/feature-4/habits-light.png) | ![History, 30 days](docs/screenshots/feature-7/history-30-light.png) |
 
 ## What it does
 
@@ -19,6 +19,10 @@ login screen: a shared account with sample habits, no email needed.
   confirms. "Tap to complete" is a switch for anyone who can't hold.
 - **Habits**: add, rename, delete (with an inline confirmation), and reorder
   with an Arrange mode (up and down on every row, Move to top and bottom).
+- **History**: 7, 30 or 90 days. Completion rate, best current streak and
+  longest streak; a bar per day (done, against how many habits you had) that
+  you scrub with a finger, the keyboard or VoiceOver; and a row of dots per
+  habit. The chart also exists as a table for screen readers.
 - **Login**: a one-time code by email (works inside the iPhone home-screen
   app, where email links don't), or **Try the demo**.
 - **Installable**: its own icon and name, full screen, status bar matched in
@@ -79,8 +83,9 @@ npm run dev                  # http://localhost:3000
 
 ### Database
 
-Paste [`supabase/migrations/20261123120000_habits.sql`](supabase/migrations/20261123120000_habits.sql)
-into the Supabase SQL editor and run it once (one transaction). In
+Paste each file in [`supabase/migrations/`](supabase/migrations/) into the
+Supabase SQL editor, in name order, and run each once (each is one
+transaction): `20261123120000_habits.sql`, then `20261123180000_history.sql`. In
 Authentication → URL Configuration, add `http://localhost:3000/auth/confirm`
 and your production `/auth/confirm` to Redirect URLs: exact addresses, never
 a wildcard on a domain you don't own.
@@ -88,7 +93,7 @@ a wildcard on a domain you don't own.
 ## Tests
 
 ```bash
-npm test             # Vitest: unit tests + database tests in PGlite (~300)
+npm test             # Vitest: unit tests + database tests in PGlite (~340)
 npm run test:e2e     # Playwright on an iPhone-sized browser, with axe (needs .env.local)
 npm run screens      # screenshots in docs/screenshots/
 ```

@@ -7,7 +7,7 @@
 // then plain database calls. The button itself has its own test.
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { todayIn } from "../../lib/dates";
-import { demoSeedPayload } from "../../lib/demo-seed";
+import { demoSeedPayload, type SeedHabit } from "../../lib/demo-seed";
 
 let client: Promise<SupabaseClient> | null = null;
 
@@ -32,10 +32,21 @@ function demoClient(): Promise<SupabaseClient> {
   return client;
 }
 
-/** The sample habits, fresh, dated from today in this machine's timezone (the browser's too). */
-export async function reseedDemo(): Promise<void> {
-  const supabase = await demoClient();
+/** This machine's timezone (the browser's too) and its today. */
+export function localToday(): { timeZone: string; today: string } {
   const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-  const { error } = await supabase.rpc("reseed_demo_habits", { p_habits: demoSeedPayload(todayIn(timeZone), timeZone) });
+  return { timeZone, today: todayIn(timeZone) };
+}
+
+/**
+ * The sample habits, fresh, dated from today in this machine's timezone.
+ * Or `habits` instead, for a test that needs another state (an empty
+ * account): that test must put the samples back afterwards, even if it
+ * fails (afterEach), because real visitors share this demo.
+ */
+export async function reseedDemo(habits?: SeedHabit[]): Promise<void> {
+  const supabase = await demoClient();
+  const { timeZone, today } = localToday();
+  const { error } = await supabase.rpc("reseed_demo_habits", { p_habits: habits ?? demoSeedPayload(today, timeZone) });
   if (error) throw new Error(`e2e: reseed failed: ${error.message}`);
 }

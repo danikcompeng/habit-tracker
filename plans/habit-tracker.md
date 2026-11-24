@@ -108,7 +108,7 @@ All three agents are read-only (Read, Grep, Glob). They report; they never edit.
 
 ## Features
 
-Order: 1 data model → 2 login and demo → 3 Today → 4 manage habits → 5 install (PWA) → 6 deploy and docs. Login comes before Today because Today needs a signed-in user; the demo account is also how Playwright reaches Today.
+Order: 1 data model → 2 login and demo → 3 Today → 4 manage habits → 5 install (PWA) → 6 deploy and docs → 7 History (after v1; it brings in the longest-streak stat that v1 left out). Login comes before Today because Today needs a signed-in user; the demo account is also how Playwright reaches Today.
 
 ### Feature 1: Data model and migration
 
@@ -141,7 +141,7 @@ Order: 1 data model → 2 login and demo → 3 Today → 4 manage habits → 5 i
 
 **Limits** (added after code review): anyone logged in, including demo visitors, can call Supabase directly with their token and skip the app. The project's storage is shared with Staple, so the database itself bounds what one user can write:
 - At most **100 habits** per user, enforced by a `before insert` trigger. It has to be a trigger: a count inside a policy can't see the other rows of the same bulk insert.
-- New check-ins only for days from **60 days ago to tomorrow (UTC)**, enforced in the insert policy. That covers today everywhere up to UTC+14 and the demo's sample history. It's a policy, not a check constraint, because it depends on `now()`. Rows already saved aren't affected, so streaks keep growing past 60 days.
+- New check-ins only for days from **60 days ago to tomorrow (UTC)**, enforced in the insert policy. That covers today everywhere up to UTC+14 and the demo's sample history. It's a policy, not a check constraint, because it depends on `now()`. Rows already saved aren't affected, so streaks keep growing past 60 days. _(Widened to 100 days by Feature 7, for the demo's 90-day history.)_
 - The migration is one transaction (`begin … commit`), so a failure leaves nothing half-made.
 
 **Functions** (`security invoker` so RLS applies, `set search_path = ''` with fully qualified names):
@@ -471,6 +471,146 @@ Order matters _(revised after logic-checker)_:
 - `README.md`: what Hold is, the live link, how to run it locally, env vars, how to apply the migration, tests, and the review workflow with a pointer to the Reviews log.
 - `CLAUDE.md`: what the app is, the stack and its Next 16 particulars (Cache Components, `io()`, `refresh()`, `proxy.ts`), the data rules (calendar days, the derived streak, RLS, revoke-then-grant), the design tokens, the per-feature workflow with the three reviewers, and the commands.
 
+### Feature 7: History
+
+_(The request called this "Feature 6"; 6 was already deploy, so it's 7 here.)_
+
+A **History** page with charts of what's been logged. It's reachable from Today and looks like the rest of Hold.
+
+**Where it lives**
+- Route: `/history?range=7|30|90`. Anything else, or no value, means 30; a repeated `?range=` takes the first value. The range is in the URL so a reload and the screenshot script land on the same view. Switching uses `history.replaceState` (no new back-button entry per switch), so Back still goes to Today. _(Revised after logic-checker: switching by `<Link>` would show the skeleton for uncached per-user data and drop focus from the switch.)_
+- Today's header gets a **History** pill next to **Edit** (both `secondary`, `sm`). Measured at 390 px, the longest date ("Wednesday, September 30", about 161 px) plus both pills (about 92 + 67 px) and the gaps fit in the 350 px row only without the **Demo** badge, so the badge moves to the title row, beside the `h1`, not inside it (the heading stays "Today"). `TodaySkeleton` gets the second pill. The row may also wrap (`flex-wrap`), so zoomed text never overflows.
+- History's own header matches Habits: an `h1` "History" on the left and a **Done** pill on the right that goes back to Today.
+- The page reuses `DayWatcher`, so it moves to the new day after midnight or when the app comes back to the foreground.
+
+**The day rules (reused, not re-derived)**
+- `today` comes from `userToday()` (the `tz` cookie). Each habit's created day is `todayIn(tz, created_at)`, exactly as on Today.
+- Each habit's day states come from **`weekDots(days, today, createdDay, range)`**, the function that draws Today's 7 dots, with `n` set to the range. So a day is `done`, `open` (today, not done yet), `missed`, or `before` (the habit didn't exist yet) by the same rule everywhere.
+- **Counted days** are `done` plus `missed`.
+  - `before` doesn't count, because the habit didn't exist yet, so a habit added mid-range only counts from its created day.
+  - Today: a habit **done** today counts (as done), one still **open** doesn't, because the day isn't over. So completing a habit raises the rate straight away, a morning visit isn't dragged down, and at midnight the habits still open become misses. _(Wording corrected after logic-checker: the first draft said today wasn't counted at all, which wasn't what the formula did.)_
+- A habit's **completion %** is `done / counted`, and the page's **completion rate** is Σdone / Σcounted over all habits (habit-days).
+- **Per-day bar:** `done` is the number of habits done that day, and `scheduled` is the number of habits that existed that day (any state but `before`). Today's bar therefore reads "3 of 5" with 2 still open.
+  - The rate, the summary sentence and every habit's % all use the one counted rule above; only the bars and the day table show today live ("3 of 5").
+  - A day before any habit existed reads "No habits yet", never "0 of 0".
+- **Deleted habits** don't appear: the query reads only existing habits, and deleting a habit already deletes its check-ins.
+- **Best streak now:** the highest current streak of any habit, from `habit_streaks(today)`, the same SQL that Today's streak text uses. It always matches Today.
+- **Longest streak:** the longest run of back-to-back days of any habit **that reaches into the range**, counted in full, even if it started before the range.
+  - Why in full: clipped to the range, the 7-day view could say "longest 7" next to "best now 45", which reads as a contradiction.
+  - With this definition, longest ≥ best now in every range, because a current streak ends today or yesterday, inside the range. A wider range can show an older, longer run.
+  - This reads "for the range" a little loosely, so it's flagged to the user as a decision: clipping to the range is a one-line change.
+- **Check-ins dated after today** (saved further east, then viewed further west) are left out of days, counts and streaks: the SQL filters to `≤ p_today`.
+
+**Data: one new SQL function, `habit_history(p_from date, p_today date)`**, called once per page load with the 90-day window (`p_from = today − 89`). 7 and 30 are sub-windows of it, so switching range needs no request. (`security invoker`, so RLS applies; `search_path = ''`).
+- It returns one row per habit of the caller, in screen order (`position, created_at, id`), with these columns:
+  - `habit_id`, `name`, `created_at`;
+  - `days date[]`: the check-ins between `p_from` and `p_today`, and only those;
+  - `lead_in int`: the length of the run that ends exactly on `p_from − 1`, so a longest streak that started before the window can be counted in full. It only counts if `p_from` itself is done (a run that stops the day before doesn't reach in): tested;
+  - `current_streak int`: joined from `habit_streaks(p_today)`, not recomputed (`coalesce`d to 0).
+- Every subquery filters `user_id = auth.uid()` as well as relying on RLS, so the `(user_id, day)` index is used. The window is capped at 366 days (`greatest(p_from, p_today − 365)`).
+- **Why in SQL:**
+  - PostgREST returns at most 1,000 rows. 100 habits × 90 days of single check-ins could reach 9,000, while one row per habit is at most 100.
+  - The two streak numbers need days before the range. SQL looks at those days, but only the range's days ever leave the database.
+- "Read check-ins for the range only": the page reads one bounded window, the largest range (90 days), never the whole history. The two streak numbers look further back inside SQL, as `habit_streaks` already does for Today.
+- Pure TypeScript in `lib/history.ts` (tested):
+  - `parseRange`;
+  - `buildHistory(rows, today, timeZone, range)`, which returns the days with done/scheduled counts, the habit rows with their dots, %, counted and created day, the totals, best now, longest, and the empty state;
+  - `longestRun(days, from, today, leadIn)`;
+  - `percent(done, counted)`. It never shows 100% unless everything was done, or 0% when something was. With nothing counted it returns null and the page shows "—".
+  - `dayReadout(day, today)`: "Today", "Yesterday", or "Mon, Nov 23".
+
+**Migration** `supabase/migrations/20261123180000_history.sql` (new; the first one stays untouched), in one transaction:
+1. `create function habit_history(...)`, revoked from PUBLIC/anon and granted to `authenticated`.
+2. **Widen the check-in insert window from 60 to 100 days back.** `reseed_demo_habits` is `security invoker`, so the demo's 90 days of history must pass the insert policy. 90 local days can be 90 UTC days back (UTC is one day ahead of the Americas in the evening), so 60 is too few; 100 leaves room. The policy is dropped and recreated with the same rule otherwise. It still stops anyone filling years of dates.
+- The PGlite helper runs **every** file in `supabase/migrations` in name order, so the tests always see the real schema.
+- It's backward compatible: the code live now doesn't call the new function, and a wider window only allows more. So the user can apply it before the code is pushed, and must: the new demo seed needs it.
+
+**The demo seed: about 90 days of believable history** (`lib/demo-seed.ts`)
+- Each sample habit becomes a literal **history string**, oldest day on the left and today on the right (`x` done, `.` missed), one character per day from its created day. It's readable in review and has no random generator.
+- The last two weeks keep every state the Today tests rely on: streaks of 12 (done today), 4 (not yet), 0, 2 (done today) and 1, and "2 of 5 done".
+- Shape (the strings are relative to today, so there's no weekday pattern: it would land on a different weekday each day):
+  - **Water** and **Walk**: 89 days old.
+  - **Read**: 75 days old.
+  - **Stretch**: 45 days old, so the 90-day view shows a habit added mid-range.
+  - **No phone in bed**: 2 days old.
+  - The early weeks are patchier than the recent ones, with runs and lapses, and Walk has an old 3-week run, so "longest" (90 days) beats "best now".
+- Tests check:
+  - the streaks, as before;
+  - every day lies 0–89 days back and never before the habit's created day;
+  - the overall rate is believable (between 60 and 85% over 90 days);
+  - in the 90-day view, longest is greater than best now.
+
+**Layout (top to bottom)**
+1. **Header**: "History" and **Done**.
+2. **Range switch**: a segmented control in a `surface-sunk` track with **7 days · 30 days · 90 days**.
+   - The selected segment is a raised key (`surface` with a lip, like every key in Hold) **with a 1 px `ink-muted` edge** and `ink` semibold text; the others lie flat in `ink-muted`. The edge is what passes 3:1, since surface on sunk is only 1.2:1. _(Added after logic-checker.)_
+   - They're buttons with `aria-pressed`, each 44 px tall.
+3. **Three numbers**, side by side on the background (no card-on-card), with big `tabular-nums` values and 14 px `ink-muted` labels: **75%** *completed* · **12** *best streak now* · **23** *longest streak*.
+4. **Chart**, one bar per day with today on the right:
+   - Above the bars, a readout line for the selected day ("Today · 3 of 5 done", or "Sat, Nov 14 · 4 of 5 done"). Today is selected to start.
+   - **Bars** (`accent`) show how many habits were done. An **`ink-muted` step line** above them shows how many were scheduled, so a gap under the line is a miss. Both pass 3:1 against the page. The step only moves when a habit was added.
+   - Day labels: the first date on the left and "Today" on the right; for 7 days, a weekday letter under each bar.
+   - It's drawn as **one SVG** in day units (`viewBox = n × maxScheduled`, `preserveAspectRatio="none"`, the line with `vector-effect: non-scaling-stroke`), so it fills any width without measuring. The geometry is a pure function, so it's tested: a small top inset so the line at the top isn't clipped, no `rx` (it would stretch), and the scrub index clamped to the last day.
+   - The chart and the habit rows sit on `surface` cards (one level, nothing nested), so the faint `before` dots stay visible.
+5. **The summary sentence** under the chart, visible to everyone: "112 of 150 habit-days done in the last 30 days."
+6. **Per habit**, one row each:
+   - the name (`text-list`) and its % on the right;
+   - "Added Oct 9" in `ink-muted` when the habit started after the range's first day, which explains its faint "before" dots;
+   - a dot strip using Today's dot styles (done filled, missed ring, open accent ring, before faint).
+     - The strip is one line of 7 or 30, or **three lines of 30** for 90 days, so the dots keep a readable size instead of a 3 px barcode.
+     - The dot styles move from `habit-key.tsx` to a shared `components/dots.tsx` with a size prop; Today looks unchanged.
+7. **Empty states**:
+   - No habits: "No habits yet" with a link to add one.
+   - Habits but nothing counted yet (all created today, nothing done): "Your history starts today. Hold a habit on Today and it shows up here."
+
+**Interaction and accessibility**
+- **Scrubbing:**
+  - A pointer down or move anywhere on the chart selects the nearest day (index = ⌊x / width × n⌋), and so does a mouse hover. At 90 days a bar is about 3.7 px wide, too thin to tap one by one.
+  - `touch-action: pan-y`, so a vertical swipe still scrolls the page.
+- **Keyboard and VoiceOver:** a native `<input type="range">` labelled "Choose a day", with `aria-valuetext` such as "Monday, November 23: 3 of 5 done". It's laid over the chart's box (opacity 0, `pointer-events: none`), so VoiceOver finds it by touch and its frame is the chart. _(Revised after logic-checker: a 1 px `sr-only` box couldn't be found by touch.)_
+  - It's native because iOS VoiceOver only adjusts native sliders (swipe up or down); custom ARIA sliders get no events there.
+  - Arrow keys work by default. When it has focus, the chart shows the focus ring (`has-[:focus-visible]`).
+- The readout line is **not** a live region: scrubbing would chatter, and the slider's value text already speaks.
+- The selection goes back to today when you leave the page (`<Activity>` keeps it alive; reset in a `useLayoutEffect` cleanup).
+- **Visually hidden table:** "Habits done each day", with columns Day, Done and Habits, one row per day. It holds the chart's numbers for screen readers. The SVG is `aria-hidden`.
+- Each habit row has a screen-reader sentence: "Read 10 pages: 41 of 60 days done, 68%."
+- **Motion:**
+  - Bars grow from the baseline (`--motion-pop`, `--ease-out`, `motion-safe` only) **when you switch range**, never on first load ("nothing moves on its own").
+  - The selection marker moves instantly.
+  - With Reduce Motion nothing animates.
+- **Contrast:** accent bars and dots, `ink-muted` rings and the line pass 3:1, and all text passes 4.5:1, in light and dark (`lib/palette.test.ts` already covers these pairs; axe checks the page).
+
+**Tests**
+- **Unit tests** (`lib/history.test.ts`):
+  - ranges and their parsing;
+  - counted days: open and before aren't counted, a habit added mid-range, and done before the created day still counts;
+  - check-ins dated after today are excluded; a lead-in is ignored when the window's first day isn't done;
+  - percent rounding at the edges;
+  - longest with a lead-in, longest ≥ best now, and the empty states;
+  - readout labels in UTC, DST weeks and the year end;
+  - chart geometry.
+- **PGlite** (`tests/db/history.db.test.ts`):
+  - own habits only, in order;
+  - days only inside the range;
+  - `lead_in` correct;
+  - `current_streak` equals `habit_streaks`;
+  - a deleted habit is gone;
+  - anon refused, no PUBLIC grant;
+  - **300 random histories:** for ranges 7, 30 and 90, `longestRun` from the function's output equals a brute force over the full history;
+  - the new window: 100 days back allowed, 101 refused (the reseed test's "too old" day moves from 61 to 101; CLAUDE.md and the Feature 1 note are updated).
+- **e2e** (`e2e/history.e2e.ts`, signed-in):
+  - Today → History;
+  - the 30-day default with its seeded numbers;
+  - switching to 7 and 90, URL included;
+  - axe in light and dark on every range;
+  - the keyboard slider moves the readout;
+  - a hover over the first bar shows the start date;
+  - the hidden table has one row per day;
+  - the empty states, via a reseed with an empty list and with one habit created today. The demo is restored in `afterEach`, so a failed test can't leave the shared demo empty for visitors. _(Revised after logic-checker.)_
+- **Screenshots** (`docs/screenshots/feature-7/`): History at 7, 30 and 90 days, mid-scrub, both empty states, and Today's new header. All in light and dark.
+
+**Order:** plan → logic-checker → build with the unit and PGlite tests → code-reviewer → **stop: the user applies the migration** (e2e and screenshots need it on the real project, and so does the deployed demo seed) → e2e and screenshots → design-critic → fix → commit → push → the phone check.
+
 ## Reviews
 
 _One entry per feature. Every agent finding is logged with its severity and what was done about it, so the log shows what each reviewer caught and what changed as a result._
@@ -760,6 +900,64 @@ Production check: `BASE_URL=https://habit-tracker-ifaf.vercel.app npx playwright
 - The smoke test passed: logged out goes to login, Try the demo opens Today, and a hold is saved and survives a reload, then the undo is saved too.
 
 No new code, so no reviewers ran. Step 6, the phone check, is still open.
+
+### Feature 7: History (2026-11-23)
+
+#### logic-checker (plan review)
+Verdict: **Ready after fixes**. No Critical.
+
+| # | Severity | Finding | Outcome | What changed |
+|---|----------|---------|---------|--------------|
+| 1 | High | Range links inside the `<Suspense>`: for uncached per-user data a navigation shows the fallback, so every switch would flash the skeleton, unmount the switch (focus drops to `<body>`), and "animate only on a switch" couldn't be told apart from arriving. | Fixed | One 90-day fetch; 7 and 30 are sub-windows switched in client state; the URL follows with `history.replaceState` (no back-button pile-up). |
+| 2 | Medium | The plan said the rate leaves today out, but the formula counts done-today and not open-today; the summary sentence and per-habit lines could each use a different denominator. | Fixed | One rule, stated plainly: done today counts, open today doesn't. The rate, the sentence and each habit's % share it; only the bars and day table show today live. |
+| 3 | Medium | "Longest streak, counted in full" stretches the request's "for the range"; and a `lead_in` must be ignored when the window's first day isn't done. | Kept, flagged | Kept in full (clipped, the 7-day view could show "longest 7" beside "best now 45"); flagged to the user as a decision. The lead-in case gets its own unit test, and the 300-history brute force uses the same "reaches into" rule. |
+| 4 | Medium | The empty-state e2e reseeds the shared demo with nothing; a failure before the restore leaves it empty for real visitors for up to an hour (the markers aren't touched). | Fixed | Restore in `afterEach`. |
+| 5 | Low | "Weekends dip" can't hold in strings indexed by days-ago. | Fixed | Claim dropped. |
+| 6 | Low | A 1 px `sr-only` slider can't be found by touching the chart with VoiceOver. | Fixed | The native range input is laid over the chart (opacity 0, no pointer events). |
+| 7 | Low | The selected segment, surface on sunk, is 1.2:1: fails 1.4.11. | Fixed | A 1 px `ink-muted` edge plus ink semibold text on the selected one. |
+| 8 | Low | Geometry gaps: a zero-height viewBox, a clipped top line, stretched `rx`, an out-of-range scrub index, "0 of 0" wording. | Fixed | Top inset, no `rx`, clamped index, "No habits yet"; tested. |
+| 9 | Low | Tests and docs encode the 60-day window (reseed test `ago(61)`, demo-seed `≤ 60`, CLAUDE.md "one migration"). | Fixed | Moved to 101 / 89; docs updated. |
+| 10 | Low | "A habit created tomorrow after a move west" can't happen; the real case is check-ins dated after today. | Fixed | Test renamed to that case. |
+| 11 | Low | Smaller: reset the selection on leaving (`<Activity>`); the Demo chip outside the `h1`; the skeleton's second pill; dots shrink to ~7 px at 30 a line; `coalesce` the streak; filter `user_id` explicitly; cap the window; `?range` given twice; "Added" only after the first day; the readout not a live region. | Fixed | All taken into the plan. |
+
+Open questions it raised, and my answers: the longest definition (kept in full, flagged to the user); today in the rate (done counts, open doesn't); "habits but nothing ever done" (an honest page of zeros, with gentle copy; the encouraging empty state is for "nothing counted yet"); one 90-day fetch (yes, see 1).
+
+#### code-reviewer (diff review)
+Verdict: **Ship after fixes**. No Critical or High.
+
+| # | Severity | Finding (file:line) | Outcome | What changed |
+|---|----------|---------------------|---------|--------------|
+| 1 | Medium | The number and its unit had no space between them in the text ("12days"): the e2e would fail and screen readers in browse mode read it run together. (history-screen.tsx, Numbers) | Fixed | A real space before the unit. |
+| 2 | Medium | The empty-state e2e and the screens script empty the shared demo before anything has shown the restore can work. Before the migration the 90-day seed is refused, so the demo would stay empty for visitors for up to an hour. (e2e/history.e2e.ts, e2e/screens.e2e.ts) | Fixed | Both reseed the samples **first**, so they fail before emptying anything; they still restore in `afterEach` / `finally`. |
+| 3 | Low | After one switch, coming back to History (`<Activity>` restores from `display: none`) replays the bars' grow. | Fixed | The switch count resets in the `useLayoutEffect` cleanup; e2e checks `animation-name` on first load, on a switch, and with Reduce Motion. |
+| 4 | Low | A vertical swipe that starts on the chart moved the selection (pointerdown picked at once). | Fixed | Touch selects on a tap, or once the finger moves more sideways than down (8 px); a scroll's `pointercancel` leaves the selection alone. Mouse and pen are unchanged. |
+| 5 | Low | "Hold a habit on Today" in the empty state, for people who use Tap to complete. | Fixed | "Complete a habit on Today…". |
+| 6 | Low | `longest` wasn't held at or above `bestNow`, and the test named for that used an inconsistent fixture. | Fixed | Clamped; the test uses a consistent 95-day streak (window + lead-in 5) and checks equality in every range. The database brute force still compares without the clamp. |
+| 7 | Low | "112 of 148 check-ins" counts missed days as check-ins. | Fixed | "habit-days". |
+| 8 | Low | "Added Oct 9" was hidden from screen readers. | Fixed | Part of each habit's sentence. |
+| 9 | Low | The range in state could outlive its URL when `<Activity>` keeps the page (90 shown, URL `/history`). | Fixed | Fresh server data resets the range to the URL's (adjusting state during render, React's pattern). |
+| — | Tests | Missing: odd `?range=` values; leaving and coming back resets to today; the animation rules; `toHistoryHabits` without a timezone; `habit_history` with reversed or null windows. | Fixed | All added. A touch-drag e2e (CDP touch events) is left out; the phone check covers it. |
+
+Found while testing on the real database (after the migration was applied): all 45 browser tests passed on the first run. Then the 90-day full-page screenshot showed **about 1,400 px of blank page** below the last habit. A `<table>` ignores `height: 1px`, so `sr-only` on the table itself left its 90 rows stretching the page, and on a phone you could scroll into nothing. The table now sits inside an `sr-only` div that clips it. An e2e check measures the space below the last habit; my first version of it also matched list items in pages kept alive by `<Activity>`, so it's scoped to History's own list.
+
+#### design-critic (screenshots: `docs/screenshots/feature-7/`, 7 / 30 / 90, scrub, both empty states, Today's header; light and dark)
+Verdict: **Ship after fixes**. No High. "Every text pair passes contrast, the hierarchy is right, and the page matches Habits."
+
+| # | Severity | Finding | Outcome | What changed |
+|---|----------|---------|---------|--------------|
+| 1 | Medium | At 90 days the selected day is nearly invisible (a 3 px band, a 3 px tick), and in dark the band (`surface-sunk`) reads as a hole, not a highlight. | Fixed | The band is `line` in dark (lighter than the card); a 1 px `ink-muted` rule runs from the top down to the bar's top (3:1 at any width; after a look at the result, it stops at the bar instead of crossing it); the tick is centred and at least 8 px. |
+| 2 | Medium | Dark: the selected range segment's lip (`line`) was lighter than its face: a highlight, the Feature 2 #1 mistake again. In light it was invisible anyway. | Fixed | No lip; the `ink-muted` edge and the surface face carry the state. |
+| 3 | Medium | Dark: 30 and 90 bars in `accent` were the brightest block in the app, brighter than a done key. | Fixed | Bars and the legend swatch use `accent-key` (4.0:1 on the dark card; identical in light). |
+| 4 | Medium | 90 bars: a 0.6 px gap anti-aliases unevenly, so some bars merge. | Fixed | At 90 days the bars touch and a 1 px `surface` non-scaling stroke separates them exactly (`separators` in the geometry; tested). |
+| 5 | Low | The 7-day dots were packed left, not under their weekdays. | Fixed | A 7-column grid matching the day labels. |
+| 6 | Low | The range switch broke the button rules: 14 px, no press, no easing. | Fixed | 16 px, `ease-(--ease-out)`, and a press on the unselected segments (sunk 1 px, surface fill). |
+| 7 | Low | "Best streak now" had no room to spare; a 3-digit streak would wrap and break the row. | Fixed | Values and labels share rows (subgrid); values never wrap, at 28 px so "123 days" fits; labels `text-pretty`. |
+| 8 | Low | The 90-day summary left "days." alone on a line. | Fixed | `text-pretty`. |
+| 9 | Low | At 7 px, open and missed dots differed only by colour; "before" was a different colour at 7 days than at 30 and 90. | Fixed | Open is a 2 px ring at both sizes; "before" is `ink-muted/35` at both (Today's faint dots are slightly more visible). |
+| 10 | Low | The empty state's "Add a habit" had no plus icon, unlike Today and Habits. | Fixed | Added. |
+| 11 | Low | The selected day carried across a range switch (the 90-day shot showed Nov 4), but only sometimes. | Fixed | A switch starts on today; shots retaken. |
+
+Not seen in the screenshots: the loading skeleton, the error page, the chart's focus ring, long names, the longest date in Today's header (measured to fit, about 339 of 350 px), the bar-grow motion, and touch scrubbing. The last two are on the phone checklist.
 
 <!--
 Template — copy for each feature:

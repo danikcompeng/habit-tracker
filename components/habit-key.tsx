@@ -6,6 +6,7 @@
 // events and draws the result: the fill under your finger, the pop, the dots.
 
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { Dots } from "@/components/dots";
 import { CheckIcon } from "@/components/icons";
 import { HINT_MS, HOLD_MS, IDLE, fillRadius, isActivationKey, next, type HoldEvent, type HoldMode, type HoldState, type Point } from "@/lib/hold";
 import { EASE_OUT, MOTION } from "@/lib/motion";
@@ -271,26 +272,6 @@ function CheckCircle({ done, animate }: { done: boolean; animate: boolean }) {
       }
     >
       {done && <CheckIcon size={20} strokeWidth={2.5} className={animate ? "motion-safe:animate-[draw-check_200ms_ease-out_both]" : ""} />}
-    </span>
-  );
-}
-
-const DOT_STYLE: Record<Dot["state"], [onSurface: string, onAccent: string]> = {
-  done: ["size-2.5 bg-accent", "size-2.5 bg-on-accent"],
-  missed: ["size-2.5 border-[1.5px] border-ink-muted", "size-2.5 border-[1.5px] border-on-accent"],
-  open: ["size-2.5 border-2 border-accent", "size-2.5 border-2 border-on-accent"],
-  before: ["size-1 bg-line", "size-1 bg-on-accent/40"],
-};
-
-/** The last 7 days, oldest left, today right. Described in words for screen readers elsewhere. */
-function Dots({ dots, onAccent }: { dots: Dot[]; onAccent: boolean }) {
-  return (
-    <span aria-hidden="true" className="flex items-center gap-1.5">
-      {dots.map((dot) => (
-        <span key={dot.day} className="flex size-2.5 items-center justify-center">
-          <span className={`rounded-full ${DOT_STYLE[dot.state][onAccent ? 1 : 0]}`} />
-        </span>
-      ))}
     </span>
   );
 }

@@ -230,13 +230,13 @@ describe("habit_checkins: own rows only", () => {
     expect(code).toBe(PERMISSION_DENIED);
   });
 
-  it("only accepts new days from 60 days ago to tomorrow (UTC)", async () => {
+  it("only accepts new days from 100 days ago to tomorrow (UTC; widened from 60 by the History migration)", async () => {
     const id = await habitOf(USER_A);
-    for (const day of [addDays(TODAY, -60), addDays(TODAY, -1), TODAY, addDays(TODAY, 1)]) {
+    for (const day of [addDays(TODAY, -100), addDays(TODAY, -60), addDays(TODAY, -1), TODAY, addDays(TODAY, 1)]) {
       const { affectedRows } = await asUser(db, USER_A, (tx) => tx.query(CHECK_IN, [id, day]));
       expect(affectedRows, day).toBe(1);
     }
-    for (const day of [addDays(TODAY, -61), addDays(TODAY, 2), addDays(TODAY, 5), "5000-01-01"]) {
+    for (const day of [addDays(TODAY, -101), addDays(TODAY, 2), addDays(TODAY, 5), "5000-01-01"]) {
       expect(await errorCode(asUser(db, USER_A, (tx) => tx.query(CHECK_IN, [id, day]))), day).toBe(PERMISSION_DENIED);
     }
   });

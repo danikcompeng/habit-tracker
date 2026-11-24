@@ -6,22 +6,46 @@ import { addDays, instantOnDay } from "./dates";
 
 type SampleHabit = {
   name: string;
-  /** Made this many days ago (in the visitor's timezone). */
-  createdDaysAgo: number;
-  /** Done on these days: 0 = today, 1 = yesterday... */
-  checkinDaysAgo: readonly number[];
+  /**
+   * One character per day, from the day it was made (left) to today
+   * (right): "x" done, "." missed. Its length sets how old the habit is.
+   * Relative to today, so it looks the same whichever day you visit.
+   */
+  history: string;
 };
 
-// Chosen so the first screen shows every state: a long streak done today,
-// a streak still waiting for today, a broken streak, a short one, and a
-// new habit whose older dots are "before".
+// Today's first screen shows every state: a long streak done today, a
+// streak still waiting for today, a broken streak, a short one, and a new
+// habit whose older dots are "before" (e2e/today.e2e.ts relies on these).
+// Behind that, about 90 days of runs and lapses for the History page
+// (Feature 7): patchier early on, steadier lately, one habit added
+// mid-range (Stretch), and an old 22-day run on Walk that beats today's
+// best streak. Oldest day is 89 days ago: inside the database's 100-day
+// window for new check-ins.
 export const DEMO_HABITS: readonly SampleHabit[] = [
-  { name: "Drink a glass of water", createdDaysAgo: 30, checkinDaysAgo: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 14, 15, 20] },
-  { name: "Read 10 pages", createdDaysAgo: 30, checkinDaysAgo: [1, 2, 3, 4, 6, 7, 9, 12, 13] },
-  { name: "Stretch for 5 minutes", createdDaysAgo: 30, checkinDaysAgo: [2, 3, 5, 6, 8, 10, 11] },
-  { name: "Walk outside", createdDaysAgo: 30, checkinDaysAgo: [0, 1, 3, 4, 5, 9, 16, 17, 18] },
-  { name: "No phone in bed", createdDaysAgo: 2, checkinDaysAgo: [1] },
+  {
+    name: "Drink a glass of water",
+    history: "xx.....x.xx.xxxxx...xxxx.x.xxxx....xxxxxxxx.xxxxxx..xxxxxxxxxxxxxxxxxxx.xxxx..xxxxxxxxxxxx",
+  },
+  { name: "Read 10 pages", history: "xx...x.xxx.xxxx.xxx...xxxx......xx..x...xxxxxx.xxxxxx..xxx.xxxx.xxxxx..xxxx." },
+  { name: "Stretch for 5 minutes", history: "..x.....x.xxxx...xx..xxxxxxxx.x.xxx...xxxxxx.." },
+  {
+    name: "Walk outside",
+    history: "xxxx...xx...x..x.xxxxxxxxxxxxxxxxxxxxxx....xxxxx.x..xxxxxxxx...x...xxxxxxxxxx........xx.xx",
+  },
+  { name: "No phone in bed", history: ".x." },
 ];
+
+/** How many days ago a sample habit was made. */
+export function createdDaysAgo(habit: SampleHabit): number {
+  return habit.history.length - 1;
+}
+
+/** The days a sample habit was done, as days ago: 0 = today. */
+export function checkinDaysAgo(habit: SampleHabit): number[] {
+  const last = habit.history.length - 1;
+  return [...habit.history].flatMap((mark, i) => (mark === "x" ? [last - i] : []));
+}
 
 export type SeedHabit = { name: string; created_at: string; days: string[] };
 
@@ -29,8 +53,10 @@ export type SeedHabit = { name: string; created_at: string; days: string[] };
 export function demoSeedPayload(today: string, timeZone: string | undefined): SeedHabit[] {
   return DEMO_HABITS.map((habit) => ({
     name: habit.name,
-    created_at: instantOnDay(addDays(today, -habit.createdDaysAgo), timeZone).toISOString(),
-    days: habit.checkinDaysAgo.map((n) => addDays(today, -n)),
+    created_at: instantOnDay(addDays(today, -createdDaysAgo(habit)), timeZone).toISOString(),
+    days: checkinDaysAgo(habit)
+      .map((n) => addDays(today, -n))
+      .sort(),
   }));
 }
 

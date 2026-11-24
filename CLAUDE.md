@@ -46,9 +46,12 @@ Things this app relies on:
 
 ## Data rules
 
-- Tables `habits` and `habit_checkins`, one migration:
-  `supabase/migrations/20261123120000_habits.sql` (applied by pasting into
-  the Supabase SQL editor). RLS: own rows only. Privileges are written
+- Tables `habits` and `habit_checkins`. Migrations in
+  `supabase/migrations/`, applied in name order by pasting each into the
+  Supabase SQL editor (never edit one that's applied: add a new file):
+  `20261123120000_habits.sql` (the schema), `20261123180000_history.sql`
+  (`habit_history()`, and new check-ins up to 100 days back). The PGlite
+  tests run them all. RLS: own rows only. Privileges are written
   revoke-then-grant, because Supabase's defaults grant everything.
 - A check-in is a **calendar day in the user's timezone** (`date`), never a
   timestamp. "Today" comes from the `tz` cookie; without it, saves are
@@ -57,6 +60,11 @@ Things this app relies on:
   (`lib/checkin-day.ts`).
 - Streaks are **derived** (`habit_streaks()` in SQL, `currentStreak` in
   `lib/streaks.ts`; tests check they agree), never stored.
+- History reuses Today's day rules (`weekDots` states; counted days are
+  done + missed, so "before" and today-still-open don't count). It reads one
+  90-day window through `habit_history()` (one row per habit, under the
+  1,000-row API limit) and switches 7 / 30 / 90 in the browser
+  (`lib/history.ts`).
 - Saves say done/not done (idempotent), never "toggle", and never throw.
 - New habits go to the bottom (identity `position`); orders are saved as
   full id lists (`reorder_habits` refuses a stale list with `HR001`).
