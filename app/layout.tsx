@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Bricolage_Grotesque } from "next/font/google";
 import { TimezoneSync } from "@/components/timezone-sync";
+import { APP_DESCRIPTION, APP_NAME, iconByFile, iconUrl } from "@/lib/app-identity";
 import { PALETTE } from "@/lib/palette";
 import "./globals.css";
 
@@ -13,10 +14,22 @@ const bricolage = Bricolage_Grotesque({
   axes: ["opsz"],
 });
 
+// Both are in APP_ICONS (lib/app-identity.test.ts checks the list).
+const tabIcon = iconByFile("icon-192.png")!;
+const iPhoneIcon = iconByFile("apple-touch-icon.png")!;
+
 export const metadata: Metadata = {
   // A page's own title gets the app name after it ("Log in · Hold").
-  title: { default: "Hold", template: "%s · Hold" },
-  description: "Habits you press and hold. A streak and a week of dots for each.",
+  title: { default: APP_NAME, template: `%s · ${APP_NAME}` },
+  description: APP_DESCRIPTION,
+  icons: {
+    icon: { url: iconUrl(tabIcon), type: "image/png", sizes: "192x192" },
+    apple: { url: iconUrl(iPhoneIcon), sizes: "180x180" },
+  },
+  // What iPhone uses for Share → Add to Home Screen. The title stops it
+  // suggesting a page title like "Log in · Hold". A solid ("default")
+  // status bar: the page starts below the clock and the Dynamic Island.
+  appleWebApp: { capable: true, title: APP_NAME, statusBarStyle: "default" },
 };
 
 export const viewport: Viewport = {

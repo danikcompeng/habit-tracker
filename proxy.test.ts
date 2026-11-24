@@ -39,3 +39,29 @@ describe("isPublicPath", () => {
     expect(isPublicPath("/habits")).toBe(false);
   });
 });
+
+describe("keepTimezoneCookie", () => {
+  it("re-sets tz from the server for a year, and sets nothing without it", async () => {
+    const { NextRequest, NextResponse } = await import("next/server");
+    const { keepTimezoneCookie } = await import("./proxy");
+    const withTz = new NextRequest("https://hold.example/", { headers: { cookie: "tz=America%2FToronto" } });
+    const response = NextResponse.next();
+    keepTimezoneCookie(withTz, response);
+    const cookie = response.cookies.get("tz");
+    expect(decodeURIComponent(cookie?.value ?? "")).toBe("America/Toronto");
+    expect(cookie?.maxAge).toBe(60 * 60 * 24 * 365);
+
+    const without = NextResponse.next();
+    keepTimezoneCookie(new NextRequest("https://hold.example/"), without);
+    expect(without.cookies.get("tz")).toBeUndefined();
+  });
+});
+
+describe("the proxy skips every install file (built from the icon list, so a rename can't drift)", () => {
+  it("never runs on the manifest or any icon", async () => {
+    const { APP_ICONS, iconUrl } = await import("./lib/app-identity");
+    for (const path of ["/manifest.webmanifest", ...APP_ICONS.map((icon) => iconUrl(icon).replace(/\?.*$/, ""))]) {
+      expect(runsOn(path), path).toBe(false);
+    }
+  });
+});
