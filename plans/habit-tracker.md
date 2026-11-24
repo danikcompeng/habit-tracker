@@ -747,6 +747,20 @@ Verdict: **Ship after fixes**. "The install pieces are correct; the fixes are in
 
 Found while fixing: on a production build the head holds each icon and meta tag **twice** after streaming (Partial Prerendering emits the metadata again), with identical values, so it's harmless to browsers. The tests check distinct values. It's also a candidate for Next.js's agent-feedback report. And `next start` serves the prerendered icons with `max-age=0, must-revalidate`, not the year-long cache the reviewer expected, so `?v=1` is a cheap safeguard rather than a necessity.
 
+#### Deploy (Feature 6, steps 1–5)
+Done in the order the logic-checker asked for:
+1. The migration was applied in the SQL editor.
+2. The code was pushed to `main`.
+3. The Vercel project was created with all four env vars set before the first build.
+4. `https://habit-tracker-ifaf.vercel.app/auth/confirm` was added to Redirect URLs as an exact address.
+5. The shared login email was made neutral by the user: the subject is "{{ .Token }} is your login code" and the body says "Your login code". Staple's repo copy of the template is the user's to update.
+
+Production check: `BASE_URL=https://habit-tracker-ifaf.vercel.app npx playwright test` ran only the production project and passed **11 of 11**.
+- The 10 install checks passed: the manifest and icons load without a login, each icon has the right size and corners, the iPhone tags are present, and `/favicon.ico` is a plain 404.
+- The smoke test passed: logged out goes to login, Try the demo opens Today, and a hold is saved and survives a reload, then the undo is saved too.
+
+No new code, so no reviewers ran. Step 6, the phone check, is still open.
+
 <!--
 Template — copy for each feature:
 

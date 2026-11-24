@@ -5,7 +5,7 @@ complete it (a fill grows out from under your finger, a small pop when it's
 done), tap it again to undo. Every habit shows its streak and the last seven
 days as dots. Mobile-first, installable to the home screen.
 
-**Live:** _(link added after the first deploy)_ · Tap **Try the demo** on the
+**Live:** [habit-tracker-ifaf.vercel.app](https://habit-tracker-ifaf.vercel.app) · Tap **Try the demo** on the
 login screen: a shared account with sample habits, no email needed.
 
 | Today | Mid-hold | Habits |
