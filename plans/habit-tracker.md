@@ -959,6 +959,19 @@ Verdict: **Ship after fixes**. No High. "Every text pair passes contrast, the hi
 
 Not seen in the screenshots: the loading skeleton, the error page, the chart's focus ring, long names, the longest date in Today's header (measured to fit, about 339 of 350 px), the bar-grow motion, and touch scrubbing. The last two are on the phone checklist.
 
+Shipped in `7b6396c`, after the user applied the migration:
+- Locally: 345 unit and database tests, 45 browser tests on the real database, tsc, eslint and `next build` all pass.
+- Production: Vercel deployed. The smoke and install checks passed 11 of 11.
+- On the live site, History shows the new demo: 30 days 71% · 12 · 19; 90 days 67% · 12 · 22; the URL follows the range.
+
+**Phone check for History:**
+1. History opens from Today and Done returns to Today.
+2. Switching ranges is instant, and the bars grow only on a switch (and not at all with Reduce Motion).
+3. A sideways drag across the chart moves the day; a vertical swipe that starts on the chart scrolls the page without moving it; a tap picks a bar.
+4. With VoiceOver, touching the chart lands on "Choose a day", and swiping up or down reads each day.
+5. Light and dark.
+6. After midnight, or on coming back to the app, the chart moves to the new day.
+
 <!--
 Template — copy for each feature:
 
