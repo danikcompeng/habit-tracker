@@ -254,13 +254,20 @@ describe("chartGeometry", () => {
   it("steps the 'how many habits' line, and breaks it on days with none", () => {
     const h = 3 + CHART_TOP_INSET;
     const g = chartGeometry([day(0, 0, 0), day(1, 1, 2), day(2, 1, 2), day(3, 0, 3), day(4, 0, 0), day(5, 1, 1)]);
-    expect(g.line).toBe(`M1 ${h - 2}H2H3V${h - 3}H4M5 ${h - 1}H6`);
+    expect(g.steps).toEqual([
+      { x1: 1, x2: 3, y: h - 2 },
+      { x1: 3, x2: 4, y: h - 3 },
+      { x1: 5, x2: 6, y: h - 1 },
+    ]);
+    // A riser joins the 2 and the 3; none across the day with no habits.
+    expect(g.risers).toEqual([{ x: 3, y1: h - 3, y2: h - 2 }]);
   });
 
   it("never has a zero-height chart, even with no habits", () => {
     const g = chartGeometry([day(0, 0, 0)]);
     expect(g.height).toBeGreaterThan(0);
-    expect(g.line).toBe("");
+    expect(g.steps).toEqual([]);
+    expect(g.risers).toEqual([]);
   });
 
   it("uses thinner gaps as the bars get thinner, and exact separators instead of a gap at 90", () => {

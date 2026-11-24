@@ -21,6 +21,7 @@ export type ColorRole =
   | "accent-tint"
   | "accent-lip"
   | "accent-key"
+  | "accent-soft"
   | "danger"
   | "danger-lip";
 
@@ -39,6 +40,7 @@ export const PALETTE: Record<Mode, Record<ColorRole, string>> = {
     "accent-tint": "#F6D9C8", // the hold fill while pressing
     "accent-lip": "#8A300A", // the darker bottom edge of a persimmon key
     "accent-key": "#B8420E", // a done habit key: the accent itself in light
+    "accent-soft": "#CD7A55", // History: a day with some (not all) habits done
     danger: "#A1173A", // crimson, kept apart from persimmon
     "danger-lip": "#6E0F28", // the darker bottom edge of a Delete button
   },
@@ -56,6 +58,8 @@ export const PALETTE: Record<Mode, Record<ColorRole, string>> = {
     // A done key in dark: calmer than the accent. Five full-width keys of
     // #FF8F57 glare in a dark room; dots, rings and buttons keep the accent.
     "accent-key": "#D9733F",
+    // Partly done days on History: softer than the done-key colour, still 3:1 on the card.
+    "accent-soft": "#AD5A2E",
     danger: "#FF8FA8",
     "danger-lip": "#B24A63",
   },
@@ -91,6 +95,8 @@ export const NON_TEXT_PAIRS: readonly [mark: ColorRole, on: ColorRole][] = [
   ["on-accent", "accent"], // dots and check on a done row
   ["on-accent", "accent-key"], // dots and check on a done key
   ["accent-key", "background"], // a done key against the page
+  ["accent-key", "surface"], // History: a day with every habit done, on the chart card
+  ["accent-soft", "surface"], // History: a day with some habits done, on the chart card
   ["ink-muted", "surface-sunk"], // unavailable arrows are ink-muted at lower opacity: never below this
   ["ink-muted", "background"], // edge of a text box, so you can find it
   ["danger", "surface"], // edge of a text box with an error

@@ -253,8 +253,14 @@ export type ChartGeometry = {
   height: number;
   /** One per day (height 0 when nothing was done). */
   bars: { x: number; y: number; width: number; height: number }[];
-  /** The "how many habits existed" step line; breaks where there were none. */
-  line: string;
+  /**
+   * The "how many habits existed" step line, as runs of days with the same
+   * count (`x1` to `x2` at height `y`) and the risers joining neighbouring
+   * runs. Drawn as dashed CSS borders, so the dashes are real pixels in
+   * every browser. Breaks where there were no habits.
+   */
+  steps: { x1: number; x2: number; y: number }[];
+  risers: { x: number; y1: number; y2: number }[];
   /**
    * Bars touch and a 1 px stroke separates them: at 90 days a gap would be
    * about 0.6 px, which anti-aliases unevenly (some bars merge).
@@ -273,20 +279,20 @@ export function chartGeometry(days: DayTotal[]): ChartGeometry {
   const gap = barGap(days.length);
   const bars = days.map((d, i) => ({ x: i + gap / 2, y: height - d.done, width: 1 - gap, height: d.done }));
 
-  let line = "";
-  let penY: number | null = null;
+  const steps: ChartGeometry["steps"] = [];
+  const risers: ChartGeometry["risers"] = [];
   days.forEach((d, i) => {
-    if (d.scheduled === 0) {
-      penY = null;
+    if (d.scheduled === 0) return;
+    const y = height - d.scheduled;
+    const last = steps.at(-1);
+    if (last && last.x2 === i && last.y === y) {
+      last.x2 = i + 1;
       return;
     }
-    const y = height - d.scheduled;
-    if (penY === null) line += `M${i} ${y}`;
-    else if (y !== penY) line += `V${y}`;
-    line += `H${i + 1}`;
-    penY = y;
+    if (last && last.x2 === i) risers.push({ x: i, y1: Math.min(last.y, y), y2: Math.max(last.y, y) });
+    steps.push({ x1: i, x2: i + 1, y });
   });
-  return { width: days.length, height, bars, line, separators: gap === 0 };
+  return { width: days.length, height, bars, steps, risers, separators: gap === 0 };
 }
 
 /** Which day a pointer at `x` (0 to `width` across the chart) is over; clamped to the ends. */

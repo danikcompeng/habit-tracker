@@ -131,7 +131,10 @@ function Numbers({ view }: { view: HistoryView }) {
       unit: "",
     },
     {
-      label: "Best streak now",
+      label: "Current streak",
+      // The number is the best current streak of any one habit: said in
+      // full to screen readers, where there's no chart beside it.
+      spokenExtra: ", best habit",
       value: String(view.bestNow),
       unit: view.bestNow === 1 ? "day" : "days",
     },
@@ -148,7 +151,10 @@ function Numbers({ view }: { view: HistoryView }) {
       {items.map((item) => (
         // dt first for screen readers ("Completed, 75%"), number first on screen.
         <div key={item.label} className="row-span-2 grid grid-rows-subgrid">
-          <dt className="row-start-2 text-sm font-medium text-pretty text-ink-muted">{item.label}</dt>
+          <dt className="row-start-2 text-sm font-medium text-pretty text-ink-muted">
+            {item.label}
+            {"spokenExtra" in item && <span className="sr-only">{item.spokenExtra}</span>}
+          </dt>
           <dd className="row-start-1 text-[1.75rem] leading-tight font-bold tracking-tight whitespace-nowrap tabular-nums">
             {item.value}
             {item.unit && (
@@ -198,12 +204,9 @@ function DayChart({
 
   return (
     <section aria-labelledby="chart-title" className="mt-8 rounded-(--radius-field) border border-line bg-surface p-5">
-      <div className="flex items-baseline justify-between gap-3">
-        <h2 id="chart-title" className="text-base font-semibold">
-          Day by day
-        </h2>
-        <Legend />
-      </div>
+      <h2 id="chart-title" className="text-base font-semibold">
+        Day by day
+      </h2>
 
       {/* What the pointer (or the slider) is on. Not a live region: the
           slider's own value is what screen readers hear. */}
@@ -262,45 +265,22 @@ function DayChart({
           preserveAspectRatio="none"
           className="absolute inset-0 size-full overflow-visible"
         >
-          {/* The day being pointed at: a band behind its bar (lighter than
-              the card in dark, so it reads as a highlight, not a hole), and
-              a 1 px ink-muted rule through its middle that shows at 3:1
-              even when a bar is 3 px wide. */}
-          <rect x={index} y={0} width={1} height={geometry.height} className="fill-surface-sunk dark:fill-line" />
+          {/* The day being pointed at: a band ABOVE its bar (lighter than
+              the card in dark, so it reads as a highlight, not a hole; the
+              bar itself stays on the card, where the soft tint is 3:1), and
+              a 1 px ink-muted rule that shows at 3:1 even when a bar is
+              3 px wide. The rule spans that day's missed habits: from the
+              habits line down to the bar. */}
+          <rect x={index} y={0} width={1} height={geometry.bars[index].y} className="fill-surface-sunk dark:fill-line" />
           <line
             x1={index + 0.5}
             x2={index + 0.5}
-            y1={0}
-            // From the top down to the bar, never through it.
+            y1={total.scheduled > 0 ? geometry.height - total.scheduled : geometry.height}
             y2={geometry.bars[index].y}
             className="stroke-ink-muted"
             strokeWidth={1}
             vectorEffect="non-scaling-stroke"
           />
-          <g
-            key={animateKey}
-            style={{ transformBox: "view-box", transformOrigin: "bottom" }}
-            className={animateKey > 0 ? "motion-safe:animate-[bar-grow_var(--motion-pop)_var(--ease-out)_both]" : ""}
-          >
-            {geometry.bars.map((bar, i) =>
-              bar.height > 0 ? (
-                <rect
-                  key={view.days[i].day}
-                  x={bar.x}
-                  y={bar.y}
-                  width={bar.width}
-                  height={bar.height}
-                  // accent-key: the done-key colour, calmer in dark, so a
-                  // wall of bars doesn't glare at night.
-                  className={geometry.separators ? "fill-accent-key stroke-surface" : "fill-accent-key"}
-                  // At 90 days the bars touch, and a 1 px surface edge
-                  // separates them exactly (a fractional gap would blur).
-                  strokeWidth={geometry.separators ? 1 : undefined}
-                  vectorEffect={geometry.separators ? "non-scaling-stroke" : undefined}
-                />
-              ) : null,
-            )}
-          </g>
           <line
             x1={0}
             x2={geometry.width}
@@ -310,8 +290,73 @@ function DayChart({
             strokeWidth={1}
             vectorEffect="non-scaling-stroke"
           />
-          <path d={geometry.line} className="fill-none stroke-ink-muted" strokeWidth={2} vectorEffect="non-scaling-stroke" />
         </svg>
+        {/* How many habits existed: dashed, ink-muted (3:1), and UNDER the
+            bars. CSS borders, not SVG, so the dashes are the same real
+            pixels in every browser. A border is drawn just below its line,
+            so a full day's bar covers it completely: no cap. */}
+        <div aria-hidden="true" className="absolute inset-0">
+          {geometry.steps.map((step) => (
+            <span
+              key={`s${step.x1}`}
+              className="absolute border-t-[1.5px] border-dashed border-ink-muted"
+              style={{
+                left: `${(step.x1 / geometry.width) * 100}%`,
+                width: `${((step.x2 - step.x1) / geometry.width) * 100}%`,
+                top: `${(step.y / geometry.height) * 100}%`,
+              }}
+            />
+          ))}
+          {geometry.risers.map((riser) => (
+            <span
+              key={`r${riser.x}`}
+              className="absolute border-l-[1.5px] border-dashed border-ink-muted"
+              style={{
+                left: `${(riser.x / geometry.width) * 100}%`,
+                top: `${(riser.y1 / geometry.height) * 100}%`,
+                height: `calc(${((riser.y2 - riser.y1) / geometry.height) * 100}% + 1.5px)`,
+              }}
+            />
+          ))}
+        </div>
+        {/* The bars are plain boxes, not SVG, so their tops can be rounded
+            without the chart's stretching distorting the corners: 2 px, or
+            1 px at 90 days, where a bar is about 2.4 px wide. */}
+        <div
+          key={animateKey}
+          aria-hidden="true"
+          className={
+            "absolute inset-0 origin-bottom " +
+            (animateKey > 0 ? "motion-safe:animate-[bar-grow_var(--motion-pop)_var(--ease-out)_both]" : "")
+          }
+        >
+          {geometry.bars.map((bar, i) => {
+            const day = view.days[i];
+            if (bar.height <= 0) return null;
+            const full = day.done === day.scheduled;
+            return (
+              <span
+                key={day.day}
+                className={
+                  "absolute bottom-0 " +
+                  (geometry.separators ? "rounded-t-[1px] " : "rounded-t-[2px] ") +
+                  // Every habit done: full persimmon (the done-key colour,
+                  // calmer in dark). Some: a softer persimmon, still 3:1.
+                  (full ? "bg-accent-key" : "bg-accent-soft")
+                }
+                style={{
+                  left: `${(bar.x / geometry.width) * 100}%`,
+                  // 90 days: a whole 1 px gap taken from each bar (a
+                  // fractional share of a day would blur unevenly).
+                  width: geometry.separators
+                    ? `calc(${(bar.width / geometry.width) * 100}% - 1px)`
+                    : `${(bar.width / geometry.width) * 100}%`,
+                  height: `${(bar.height / geometry.height) * 100}%`,
+                }}
+              />
+            );
+          })}
+        </div>
         <input
           type="range"
           min={0}
@@ -336,8 +381,9 @@ function DayChart({
       </div>
 
       <DayLabels view={view} />
+      <Legend />
 
-      <p className="mt-4 text-sm font-medium text-pretty text-ink-muted">{summarySentence(view)}</p>
+      <p className="mt-6 text-sm font-medium text-pretty text-ink-muted">{summarySentence(view)}</p>
 
       {/* Hidden in a div: a table ignores height: 1px, so sr-only on the table
           itself would leave its rows stretching the page (blank scroll). */}
@@ -368,16 +414,20 @@ function DayChart({
 
 function Legend() {
   return (
-    <span aria-hidden="true" className="flex items-center gap-3 text-sm font-medium text-ink-muted">
+    <p aria-hidden="true" className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm font-medium text-ink-muted">
       <span className="flex items-center gap-1.5">
-        <span className="size-2.5 rounded-[2px] bg-accent-key" />
-        Done
+        <span className="size-2.5 rounded-t-[2px] bg-accent-key" />
+        All done
       </span>
       <span className="flex items-center gap-1.5">
-        <span className="h-0.5 w-3 rounded-full bg-ink-muted" />
+        <span className="size-2.5 rounded-t-[2px] bg-accent-soft" />
+        Some done
+      </span>
+      <span className="flex items-center gap-1.5">
+        <span className="w-3.5 border-t-[1.5px] border-dashed border-ink-muted" />
         Habits
       </span>
-    </span>
+    </p>
   );
 }
 

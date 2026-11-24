@@ -31,7 +31,7 @@ async function expectRange(page: Page, range: Range) {
   await expect(page.getByRole("button", { name: `${range} days` })).toHaveAttribute("aria-pressed", "true");
   const numbers = page.locator("dl");
   await expect(numbers).toContainText(`Completed${view.percent}%`);
-  await expect(numbers).toContainText(`Best streak now${days(view.bestNow)}`);
+  await expect(numbers).toContainText(`Current streak, best habit${days(view.bestNow)}`);
   await expect(numbers).toContainText(`Longest streak${days(view.longest)}`);
   await expect(page.getByText(summarySentence(view))).toBeVisible();
   // The hidden table: one row per day, today last.
@@ -98,7 +98,8 @@ test.describe("with the sample habits", () => {
   });
 
   test("bars only grow on a switch, and never with Reduce Motion", async ({ page }) => {
-    const bars = chart(page).locator("svg g");
+    // The layer of bars (the one element that animates).
+    const bars = chart(page).locator(".origin-bottom");
     const animation = () => bars.evaluate((g) => getComputedStyle(g).animationName);
     await page.goto("/history");
     expect(await animation()).toBe("none"); // first load: nothing moves on its own

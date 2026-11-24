@@ -61,6 +61,7 @@ Decisions made while building, and why. Newest at the bottom of each group.
 | `accent-tint` | `#F6D9C8` | `#5A3220` | the hold fill while pressing (text stays `ink`) |
 | `accent-lip` | `#8A300A` | `#A84F24` | the bottom edge of a persimmon key: darker than the key in **both** themes (a lip, never a highlight) |
 | `accent-key` | `#B8420E` | `#D9733F` | a **done habit key**: the accent in light; calmer in dark, so five full-width done keys don't glare at night (dots, rings and buttons keep `accent`) |
+| `accent-soft` | `#CD7A55` | `#AD5A2E` | History: a day with **some** habits done (a day with all done is `accent-key`). Softer than the key but still 3:1 on the card (3.2 light, 3.2 dark) |
 | `danger` | `#A1173A` crimson | `#FF8FA8` | errors and delete: crimson, so it never reads as persimmon; always with an icon (alert, or trash for delete) |
 | `danger-lip` | `#6E0F28` | `#B24A63` | the bottom edge of a Delete button (a key like every filled button) |
 
@@ -611,6 +612,14 @@ A **History** page with charts of what's been logged. It's reachable from Today 
 
 **Order:** plan → logic-checker → build with the unit and PGlite tests → code-reviewer → **stop: the user applies the migration** (e2e and screenshots need it on the real project, and so does the deployed demo seed) → e2e and screenshots → design-critic → fix → commit → push → the phone check.
 
+**Design pass (after launch, at the user's request)**
+1. **Bars:**
+   - A day with every habit done is full persimmon (`accent-key`); a day with some done is a softer tint (`accent-soft`, a new token, 3:1 on the card in both themes and tested).
+   - Their tops are rounded 2 px. The bars are now absolutely positioned boxes over the SVG, because a radius inside the stretched SVG would distort.
+2. **The "Habits" step line is quieter:** dashed, 1.5 px, and drawn **under** the bars. A full day covers it instead of wearing it like a cap; the dashes stay `ink-muted` (3:1).
+3. **"Best streak now" is renamed "Current streak".**
+- The legend (All done · Some done · Habits) moves below the day labels; three items don't fit beside the title.
+
 ## Reviews
 
 _One entry per feature. Every agent finding is logged with its severity and what was done about it, so the log shows what each reviewer caught and what changed as a result._
@@ -969,8 +978,33 @@ Shipped in `7b6396c`, after the user applied the migration:
 2. Switching ranges is instant, and the bars grow only on a switch (and not at all with Reduce Motion).
 3. A sideways drag across the chart moves the day; a vertical swipe that starts on the chart scrolls the page without moving it; a tap picks a bar.
 4. With VoiceOver, touching the chart lands on "Choose a day", and swiping up or down reads each day.
-5. Light and dark.
+5. Light and dark; the dashed Habits line and the 1 px gaps at 90 days look even in Safari.
 6. After midnight, or on coming back to the app, the chart moves to the new day.
+
+#### Design pass (user request): bar colours, quieter step line, "Current streak"
+
+The request:
+1. Full days in persimmon, partial days a softer tint, tops rounded about 2 px.
+2. A quieter "Habits" line.
+3. "Best streak now" renamed "Current streak".
+
+The new token `accent-soft` (#CD7A55 light) measures 3.2:1 on the card in both themes, and both bar colours are in `lib/palette.test.ts`. The bars became plain boxes so the rounded corners don't stretch.
+
+##### design-critic (7 / 30 / 90, light and dark)
+Verdict: **Ship after fixes**. No High. Full and partial days are told apart at every range, by colour **and** by height (a full bar always reaches the line). The tint reads as "persimmon, softer": the same hue in both themes.
+
+| # | Severity | Finding | Outcome | What changed |
+|---|----------|---------|---------|--------------|
+| 1 | Medium | The selected bar sat on the selection band, so a partial day (today, most mornings) was 2.5:1 light / 2.4:1 dark against it. | Fixed | The band is drawn only **above** the bar; the bar stays on the card at 3.2:1. |
+| 2 | Medium | Rounded tops: lopsided at 90 days (two 2 px radii plus a 1 px border on a 3.4 px bar), near-square at 7. | Fixed, partly | 90 days: 1 px radius and the gap taken from the width (`calc(% - 1px)`, no border), so both corners match. 7 and 30 keep the 2 px you asked for; the critic suggested 4 px at 7. |
+| 3 | Medium | Dashes on `non-scaling-stroke` in a stretched SVG were only verified in Chromium; WebKit may size them in SVG units. | Fixed | The step line is now dashed CSS borders (runs and risers from `chartGeometry`, tested), so the dashes are real pixels in every browser. |
+| 4 | Low | The line, centred on a full bar's top, still showed a thin dashed rim. | Fixed | A border is drawn just **below** its line, so a full bar covers it completely (seen in the 7-day shots). |
+| 5 | Low | Dark: #A35B35 leaned brown across a mostly-partial chart. | Fixed | #AD5A2E: same hue, more saturated, 3.2:1 on the card. |
+| 6 | Low | The selection rule started above the habits line and crossed it like a "+". | Fixed | It spans only the day's missed habits: from the habits line down to the bar. |
+| 7 | Low | The legend was spaced like the lines around it; "Habits" is terse. | Fixed, partly | Legend `mt-3`, summary `mt-6`. "Habits that day" wrapped the legend onto two lines at 390 px, so it's back to "Habits". |
+| 8 | Low | "Current streak" can read as a streak of perfect days. | Fixed, kept the label | The visible label is as you asked; screen readers hear "Current streak, best habit". |
+
+Checks after the fixes: 349 unit and database tests, the 45 browser tests (axe in light and dark at every range) and `next build` pass. Shots retaken. The bar-grow animation and the dashes on iPhone Safari are on the phone checklist.
 
 <!--
 Template — copy for each feature:

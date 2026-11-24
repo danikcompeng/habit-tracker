@@ -21,6 +21,7 @@
   --accent-tint: #F6D9C8;
   --accent-lip: #8A300A;
   --accent-key: #B8420E;
+  --accent-soft: #CD7A55;
   --danger: #A1173A;
   --danger-lip: #6E0F28;
 }
@@ -40,6 +41,7 @@
     --accent-tint: #5A3220;
     --accent-lip: #A84F24;
     --accent-key: #D9733F;
+    --accent-soft: #AD5A2E;
     --danger: #FF8FA8;
     --danger-lip: #B24A63;
   }
@@ -60,6 +62,7 @@
   --color-accent-tint: var(--accent-tint);
   --color-accent-lip: var(--accent-lip);
   --color-accent-key: var(--accent-key);
+  --color-accent-soft: var(--accent-soft);
   --color-danger-lip: var(--danger-lip);
   --color-danger: var(--danger);
 
