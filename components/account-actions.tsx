@@ -1,20 +1,18 @@
 "use client";
 
-// Log out, and for the demo account, Reset demo.
+// Today's footer links: Log out, and for the demo account, Reset demo
+// (Settings is a plain link in the same style: FOOTER_LINK).
 
 import { useActionState } from "react";
+import { FOOTER_LINK } from "@/components/ui/footer-link";
 import { signOut } from "@/lib/auth-actions";
 import { resetDemo } from "@/lib/demo-actions";
 import type { FormState } from "@/lib/types";
 
-const LINK =
-  "inline-flex min-h-11 min-w-11 items-center justify-center rounded-full px-3 text-sm font-semibold whitespace-nowrap text-ink-muted " +
-  "hover:text-ink active:bg-surface-sunk active:text-ink aria-disabled:cursor-not-allowed";
-
 export function LogOutButton() {
   return (
     <form action={signOut}>
-      <button type="submit" className={LINK}>
+      <button type="submit" className={FOOTER_LINK}>
         Log out
       </button>
     </form>
@@ -42,7 +40,7 @@ export function ResetDemoButton() {
         onClick={(event) => {
           if (pending) event.preventDefault();
         }}
-        className={LINK}
+        className={FOOTER_LINK}
       >
         {pending ? "Resetting…" : "Reset demo"}
       </button>

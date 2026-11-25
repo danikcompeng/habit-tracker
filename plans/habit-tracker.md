@@ -471,7 +471,7 @@ Order matters _(revised after logic-checker)_:
    - icon, name and the status bar in light and dark;
    - it opens on Today, even when added from `/habits`;
    - holding a key feels right, the pop and the vibration on Android, and Reduce Motion;
-   - VoiceOver, plus Voice Control or Switch Control if possible: can you complete a habit? ("Tap to complete" is the fallback);
+   - VoiceOver, plus Voice Control or Switch Control if possible: can you complete a habit? ("Tap to complete", in Settings since Feature 8, is the fallback); Voice Control "Tap <habit>" twice shows the hint, and "Tap Settings" opens Settings;
    - log out inside the app, then log in with the code, with an app switch to the email in between.
 - `README.md`: what the app is, the live link, how to run it locally, env vars, how to apply the migration, tests, and the review workflow with a pointer to the Reviews log.
 - `CLAUDE.md`: what the app is, the stack and its Next 16 particulars (Cache Components, `io()`, `refresh()`, `proxy.ts`), the data rules (calendar days, the derived streak, RLS, revoke-then-grant), the design tokens, the per-feature workflow with the three reviewers, and the commands.
@@ -652,6 +652,36 @@ The request: run the impeccable skill over the whole app as a **refinement, not 
 - **Icons at large text**: icon sizes are px props (`size={20}`), so at 200% text a check is a speck in a 64 px disc and the pencils look tiny beside 36 px names. Size them in `em` (e.g. `size="1.25em"` on `Icon`) so they scale with the text and look the same at 100%; retake the 200% shots.
 
 **Tests**: e2e for the delete confirmation's order and the inactive form, Enter and Escape while asking, a failed delete, and axe with the question open (light and dark); a 200%-text check on every screen and the empty states (no sideways scroll, nothing past the right edge, no text wider than its own box); History's numbers at 320 / 360 / 375 / 390 px and 100–150% text; the all-done line's emphasis; the invalid field's ring colour in light and dark; Today's title. Screenshots retaken (`docs/screenshots/feature-2,3,4,7/`), plus 200%-text shots in `docs/screenshots/impeccable-after/`.
+
+### Feature 8: Settings, and a hint toward Tap to complete (2026-11-24)
+
+The request: move "Tap to complete" off Today into a small **Settings** screen reachable from Today's footer, with room for future settings; and, so it stays findable, a polite hint after two short taps on a key that didn't complete it. Everything else on Today stays the same.
+
+**Why change a recorded decision.** The switch's place in Today's footer was decided in Feature 3 ("a guaranteed path: a **Tap to complete** switch in Today's footer", after logic-checker #6), so the people who can't hold always had it on the screen where they need it. Since then, the impeccable critique noted that with five habits it sits below the fold on a 390 px phone (Reviews, Refinement pass, A16), so it was already not where people would see it, and it was the only setting crowding Today. A Settings screen gives it, and future settings, a proper home. What points people to it is the new **hint**: the people the switch is for are the ones who tap instead of holding, so after two quick taps Today tells them where it is. A click with no pointer sequence (VoiceOver double-tap, Switch Control) still completes as in Feature 3, but that behaviour on real devices is **unverified** (logic-checker #6 then, and again now): it's on the phone check, with the hint and the Settings route added. _(Revised after logic-checker.)_
+
+**Settings screen (`/settings`)**
+- Header like History's: the title "Settings" (34/700) and a **Done** pill back to Today. Behind the login like every page (the proxy guards everything but `/login` and `/auth`).
+- One section, "Completing habits", as a card (`surface`, hairline border, 16 px corners): the existing `TapModeSwitch`, moved as is (same label, caption, cookie, server action). Later settings are more sections or more rows in a card, separated by hairlines (no card on card).
+- **Done waits for a switch save still on its way** (like Done on /habits, Feature 4 logic-checker #7), so Today never renders before the cookie changed.
+- Today's footer: the switch is removed; a **Settings** link joins the account links, before Reset demo / Log out, in the same quiet link style. With three links the row no longer fits beside an email, so who's logged in sits above the links (left-aligned on the gutter) instead of beside them. Nothing else on Today changes. _(Revised after design-critic.)_
+- Under the card: "Saved on this device." (it's a cookie: another phone keeps its own). A save that can't reach the server says "Couldn't save. Check your connection and try again." under the switch. _(Added after review.)_
+- **Today refreshes when it's shown again** (coming back from Settings, History or Habits, by Done or by the back gesture): a hidden route is kept alive in `<Activity>` and back/forward reuses its payload, so without this it could keep the old mode (or yesterday, after midnight on another page). `DayWatcher` does it, skipping the first mount, never mid-hold. _(Added after logic-checker.)_
+
+**The hint**
+- What counts: a **quick release** on a not-done key in hold mode: a finger, mouse **or key** (Space / Enter) let go **under 300 ms** after the press began. The gesture machine now records when a hold began and reports `heldMs` with its early-release effect. Releases between 300 and 650 ms are someone learning to hold: "Keep holding…" as before, and they don't count. Not a slide that scrolls (no hint effect; a finger that ends more than 10 px away now counts as a scroll too), not a tap on a done key (that's undo). _(Revised after logic-checker: near-misses and keyboard users.)_
+- When: the **second** quick release since Today was last shown, since the last completion, or since the day changed. Releases on different keys count together; the hint shows under the key released second (by habit id; gone if that habit disappears).
+- **At most once per day** (the user's rule): once shown, the user's day is saved in `localStorage` (`tap-hint-day`, compared for equality only, read only in the handler), and later quick releases that day only show "Keep holding…". To keep it useful when it does show, it **stays** for that visit: it doesn't go on a completion, only when Today is hidden, the day changes, or Tap to complete is on. Blocked `localStorage`: it may show again; never an error. _(The logic-checker's High finding: a once-a-day cap can leave someone who can't hold without the hint after they leave Today. Kept as asked; its alternative, "until this device has completed one hold", is offered to the user.)_
+- Never when Tap to complete is on (no quick releases exist then; checked anyway).
+- Rules in `lib/tap-hint.ts` (pure, tested): `nextTapHint(state, event)` with events `release` (habit, held ms, mode, saved day, today), `complete`, `reset`.
+- Look: a line under the key, inside its list item, aligned with the key's text (`px-5`), 14/500 `ink-muted`, the link in `accent`, underlined, one unbroken piece with a 44 px tall hit area in the gap between the keys: "Hold to complete, or turn on **Tap to complete in Settings**." (the user's words; the link is the last phrase, so it has its own name and Voice Control doesn't find two links called "Settings"). The link goes to `/settings`. No motion. "Keep holding…" still shows on the key as before. Its appearing pushes the keys below down by one line (accepted: it appears after the finger has lifted; it never disappears under a finger, since a completion doesn't remove it).
+- Screen readers: one announcement in Today's polite live region, instead of "Keep holding to complete X.": "Keep holding to complete X, or turn on Tap to complete in Settings."
+
+**Phone check additions**: Voice Control "Tap <habit>" twice shows the hint and "Tap Settings" opens it; a VoiceOver double-tap completes; Switch Control completes or finds the hint.
+
+**Tests**
+- Vitest: `lib/tap-hint.ts` (second quick release shows; slow releases don't count; a completion resets the count but keeps a shown hint; once per day; a new day can show again; never in tap mode); `lib/hold.ts` reports `by` and `heldMs`, and a release > 10 px away is a scroll.
+- Playwright: Settings opens from Today's footer, has the switch, Done returns; turning it on there makes a tap complete on Today, by Done and by the back button, and Today's footer no longer has the switch; two quick taps show the hint under the key with a working link and announce it; a 400 ms release doesn't count; a third pair the same day (after reload) doesn't show it; never in tap mode; axe on Settings and on Today with the hint, light and dark; 200%-text check on Settings and the hint.
+- Screenshots (`docs/screenshots/feature-8/`): Settings off and on, Today with the hint, Today's footer; light and dark.
 
 ## Reviews
 
@@ -1196,6 +1226,61 @@ Verdict: **Ship**. "The stronger fill does its job in both themes, and nothing o
 | 4 | Low | "Before" dots nearly vanish under the fill. | No change | As code-reviewer #4. |
 
 Checks: 361 unit and database tests, tsc, eslint, `next build`, and the full browser suite on `next start` pass.
+
+
+### Feature 8: Settings, and a hint toward Tap to complete (2026-11-25)
+
+#### logic-checker (plan review)
+Verdict: **Ready after fixes**.
+
+| # | Severity | Finding | Outcome | What changed |
+|---|----------|---------|---------|--------------|
+| 1 | High | "At most once per day" can leave someone who can't hold without the hint after they leave Today. Suggested instead: show until this device has completed one real hold. | **Kept the user's rule**, softened | Once per day was asked for explicitly. Softened: only quick (< 300 ms) releases count, so it isn't spent on people learning to hold; once shown it stays for that visit (a completion doesn't remove it). The alternative is offered to the user. |
+| 2 | High | Today kept alive in `<Activity>` (or reused by back/forward) could show the old mode after switching on Settings; Done could beat the save. | Fixed | `DayWatcher` refreshes a page when it's shown again; Settings' Done waits for a switch save on its way. e2e by Done and by the back button. |
+| 3 | Medium | The hint moves the keys below it, and removing it moves them again under a finger. | Partly fixed | It's never removed under a finger (a completion keeps it). Its appearing still pushes the keys down one or two lines, after the finger has lifted: accepted. |
+| 4 | Medium | "Short tap" included near-finished holds and scroll-stopping taps. | Fixed | Only releases under 300 ms count (`heldMs` from the gesture machine); a release > 10 px away is a scroll. |
+| 5 | Medium | Leaving out the keyboard leaves out people who can only press briefly (switch interfaces sending Space, Sticky Keys). | Fixed | Quick key releases count too. |
+| 6 | Medium | "Assistive tech is unaffected" was stated as fact but is unverified on devices. | Fixed | Called unverified; Voice Control, VoiceOver and Switch Control steps added to the phone check. |
+| 7 | Low | Wording repeats "hold"; two links named "Settings"; two announcements could overwrite each other. | Fixed, wording kept | The user's words kept; the link is "Tap to complete in Settings" (its own name); one announcement in place of "Keep holding…". |
+| 8 | Low | Lifecycle gaps: count reset on a new day and on leaving, anchor by habit id, localStorage only in handlers, equality on days, an unsent `dismiss`. | Fixed | All as suggested; no dismiss (no close button by the keys). A time window between taps: not added. |
+| 9 | Low | An early release didn't check distance. | Fixed | As #4. |
+
+#### code-reviewer (diff review)
+Verdict: **Ship after fixes**.
+
+| # | Severity | Finding | Outcome | What changed |
+|---|----------|---------|---------|--------------|
+| 1 | High | Settings' Done stayed "Saving…" (and dead) on every later visit after it once waited: the hidden page keeps its state. Leaving by the back gesture while it waited also pushed a second Today. | Fixed | Reset in a `useLayoutEffect` cleanup; it only navigates if Settings is still showing. e2e (checked that it fails without the fix). |
+| 2 | Low | In dev, StrictMode makes DayWatcher refresh on first mount; a link return renders twice. | Accepted, documented | Cheap, and it's what covers the back gesture. |
+| 3 | Low | `FOOTER_LINK` was a string exported from a `"use client"` file into a server component (a client reference, not the string). | Fixed | Moved to `components/ui/footer-link.ts`. |
+| 4 | Low | A failed switch save flipped back silently. | Fixed | "Couldn't save. Check your connection and try again." (an alert) under the switch. |
+| 5 | Low | Leaving Today mid-hold left the fill at full size (it widened the key's scroll box). | Fixed | The hide cleanup cancels, clears and collapses the fill. |
+| 6 | Low | `heldMs` measured with `performance.now()` in handlers: a busy thread makes presses look shorter. | Fixed | Events' own `timeStamp`. |
+| 7 | Low | The hint's link is a 14 px inline target. | Fixed | With design-critic #1. |
+| 8 | Low | e2e timing margins (a 400 ms hold, a `quickTap` that waited for nothing). | Fixed | 450 ms; `quickTap` waits for "Keep holding…". |
+| — | Tests | Done twice; hint after leaving and coming back the same day; the 10 px edge. | Added | Not added: DayWatcher as a pure function, a blocked-storage e2e, a day change while showing (covered by the pure tests, or a try/catch path). |
+
+#### design-critic (Settings off and on, Today with the hint, Today's footer; light and dark)
+Verdict: **Ship after fixes**. "Nothing fails accessibility and dark mode matches light."
+
+| # | Severity | Finding | Outcome | What changed |
+|---|----------|---------|---------|--------------|
+| 1 | Medium | The hint's link split over two lines ("in Settings." orphaned) and was a ~20 px target, for an audience that may have motor difficulty. | Fixed | `inline-block` (one piece), `py-3 -my-3` (44 px tall, in the gap), `mt-3`. |
+| 2 | Medium | The hint was inset 4 px, lining up with nothing. | Fixed | `px-5`: aligned with the key's name and dots. |
+| 3 | Medium | The footer only stacked because a third link overflowed, so the layout would flip with email length; Settings sat 8 px from Reset demo. | Fixed | Deliberately stacked (who's logged in above, links below on the gutter); `gap-x-4`. |
+| 4 | Low | The Settings card's padding didn't match History's cards. | Fixed | `px-5 py-4`. |
+| 5 | Low | A one-setting page: say the fact people need. | Fixed | "Saved on this device." under the card. |
+| 6 | Low | Header-to-section gap was History's between-sections value. | Fixed | `mt-7`. |
+| 7 | Low (pre-existing) | History's Done pill is narrower than Habits' and Settings'. | Not fixed | Out of scope; noted. |
+| — | Out of scope | Today's header wraps (pills above the title) on long dates, e.g. any Wednesday the 10th or later. | Not fixed, flagged to the user | Pre-existing: date 174 px + pills 168 px don't fit 350 px. Suggested: a short date when it doesn't fit, or pills on the title row. |
+
+Also found while checking the shots: the Settings switch row didn't stretch to the card's width (a `<button>` doesn't stretch by itself); fixed with an explicit width, and the row wraps at 200% text.
+
+Checks: 374 unit and database tests, tsc, eslint, `next build`, and all **71 browser tests** (on `next start`, including screenshots in `docs/screenshots/feature-8/`) pass.
+
+#### Takeaways
+- The logic-checker's sharpest point was a conflict with the request itself (once a day vs. people who can't hold). It's kept as asked and put to the user rather than silently overridden.
+- The High bug was the same `<Activity>` lesson as before, in a new place: any "busy" state in a page that can be hidden needs a reset on hide.
 
 <!--
 Template — copy for each feature:

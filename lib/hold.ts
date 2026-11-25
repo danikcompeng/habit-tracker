@@ -24,7 +24,7 @@ export type Point = { x: number; y: number };
 export type HoldState =
   | { kind: "idle" }
   /** A finger or mouse is holding a not-done key; the fill is growing. */
-  | { kind: "pointer-hold"; pointerId: number; origin: Point }
+  | { kind: "pointer-hold"; pointerId: number; origin: Point; startedAt: number }
   /**
    * A short tap is expected: the key was done when the press began (a tap
    * undoes), or "Tap to complete" is on (a tap completes).
@@ -33,7 +33,7 @@ export type HoldState =
   /** A pointer press that has been decided (completed, cancelled): wait for it to lift. */
   | { kind: "pointer-spent"; pointerId: number }
   /** Space or Enter is holding a not-done key. */
-  | { kind: "key-hold"; key: string }
+  | { kind: "key-hold"; key: string; startedAt: number }
   /** The key press has been decided: wait for keyup. */
   | { kind: "key-spent"; key: string };
 
@@ -43,8 +43,8 @@ export type HoldEvent =
   | { type: "pointermove"; pointerId: number; point: Point }
   | { type: "pointerup"; pointerId: number; point: Point; time: number }
   | { type: "pointercancel"; pointerId: number }
-  | { type: "keydown"; key: string; repeat: boolean; done: boolean }
-  | { type: "keyup"; key: string }
+  | { type: "keydown"; key: string; repeat: boolean; done: boolean; time: number }
+  | { type: "keyup"; key: string; time: number }
   /** A click. `msSinceSequence`: time since the last pointer or key sequence on this key ended (Infinity if none). */
   | { type: "click"; msSinceSequence: number; done: boolean }
   /** The fill animation reached the end. */
@@ -57,7 +57,13 @@ export type HoldEffect =
   | { type: "cancel-fill" }
   | { type: "complete" }
   | { type: "undo" }
-  | { type: "hint" };
+  /**
+   * Let go before the hold finished: show "Keep holding…". `by`: a short
+   * tap with a finger or mouse ("pointer"), or Space / Enter let go
+   * ("key"), after `heldMs`. Only quick ones count toward the Tap to
+   * complete hint (lib/tap-hint.ts).
+   */
+  | { type: "hint"; by: "pointer" | "key"; heldMs: number };
 
 export type HoldMode = "hold" | "tap";
 
@@ -96,7 +102,7 @@ export function next(state: HoldState, event: HoldEvent, mode: HoldMode = "hold"
         };
       }
       return {
-        state: { kind: "pointer-hold", pointerId: event.pointerId, origin: event.point },
+        state: { kind: "pointer-hold", pointerId: event.pointerId, origin: event.point, startedAt: event.time },
         effects: [{ type: "start-fill", origin: event.point }],
       };
     }
@@ -113,8 +119,12 @@ export function next(state: HoldState, event: HoldEvent, mode: HoldMode = "hold"
     case "pointerup": {
       if (!("pointerId" in state) || state.pointerId !== event.pointerId) return stay;
       if (state.kind === "pointer-hold") {
+        // Let go far from where it started (moves can arrive merged into
+        // the release): a scroll, not a press.
+        if (distance(state.origin, event.point) > MOVE_TOLERANCE_PX) return { state: IDLE, effects: [{ type: "cancel-fill" }] };
         // Let go before the fill finished: not done. Teach the gesture.
-        return { state: IDLE, effects: [{ type: "cancel-fill" }, { type: "hint" }] };
+        const heldMs = Math.max(0, event.time - state.startedAt);
+        return { state: IDLE, effects: [{ type: "cancel-fill" }, { type: "hint", by: "pointer", heldMs }] };
       }
       if (state.kind === "pointer-tap") {
         if (distance(state.origin, event.point) > MOVE_TOLERANCE_PX) return { state: IDLE, effects: [] };
@@ -142,12 +152,13 @@ export function next(state: HoldState, event: HoldEvent, mode: HoldMode = "hold"
       if (state.kind !== "idle") return stay;
       if (event.done) return { state: { kind: "key-spent", key: event.key }, effects: [{ type: "undo" }] };
       if (mode === "tap") return { state: { kind: "key-spent", key: event.key }, effects: [{ type: "complete" }] };
-      return { state: { kind: "key-hold", key: event.key }, effects: [{ type: "start-fill", origin: null }] };
+      return { state: { kind: "key-hold", key: event.key, startedAt: event.time }, effects: [{ type: "start-fill", origin: null }] };
     }
 
     case "keyup": {
       if (state.kind === "key-hold" && state.key === event.key) {
-        return { state: IDLE, effects: [{ type: "cancel-fill" }, { type: "hint" }] };
+        const heldMs = Math.max(0, event.time - state.startedAt);
+        return { state: IDLE, effects: [{ type: "cancel-fill" }, { type: "hint", by: "key", heldMs }] };
       }
       if (state.kind === "key-spent" && state.key === event.key) return { state: IDLE, effects: [] };
       return stay;

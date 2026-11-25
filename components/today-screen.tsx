@@ -8,7 +8,7 @@
 // Not remounted on a new day (no key on it), so a message that arrives
 // together with the new day's data ("Saved for Monday…") stays on screen.
 
-import { startTransition, useOptimistic, useRef, useState } from "react";
+import { startTransition, useLayoutEffect, useOptimistic, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { DayWatcher } from "@/components/day-watcher";
@@ -19,6 +19,7 @@ import { buttonClass } from "@/components/ui/button";
 import { ErrorText } from "@/components/ui/error-text";
 import { setCheckin, type CheckinResult } from "@/lib/checkin-actions";
 import type { HoldMode } from "@/lib/hold";
+import { NO_TAP_HINT, TAP_HINT_DAY_KEY, TAP_HINT_TEXT, nextTapHint, tapHintAnnouncement } from "@/lib/tap-hint";
 import { applyDone, streakText, summaryLine, weekdayName, type HabitView } from "@/lib/today";
 
 type Props = { today: string; habits: HabitView[]; mode: HoldMode };
@@ -56,6 +57,39 @@ export function TodayScreen({ today, habits, mode }: Props) {
   const [announcement, setAnnouncement] = useState("");
   const [notice, setNotice] = useState<Notice | null>(null);
   const holds = useRef(0);
+  // The hint toward Tap to complete (lib/tap-hint.ts), and the day it
+  // belongs to: a new day starts from nothing (this screen isn't remounted
+  // on a new day, on purpose).
+  const [tapHint, setTapHint] = useState(NO_TAP_HINT);
+  const [tapHintDay, setTapHintDay] = useState(today);
+  if (tapHintDay !== today) {
+    setTapHintDay(today);
+    setTapHint(NO_TAP_HINT);
+  }
+  // Hidden routes stay alive (<Activity>): coming back starts from nothing.
+  useLayoutEffect(() => () => setTapHint(NO_TAP_HINT), []);
+
+  /** "Keep holding…": maybe the second quick release, which brings the hint. */
+  function released(habit: KeyHabit, heldMs: number) {
+    let shownOn: string | null = null;
+    try {
+      shownOn = localStorage.getItem(TAP_HINT_DAY_KEY);
+    } catch {
+      // Blocked storage (private mode, settings): it may show again. Fine.
+    }
+    const step = nextTapHint(tapHint, { type: "release", habitId: habit.id, heldMs, mode, shownOn, today });
+    setTapHint(step.state);
+    if (step.shown) {
+      try {
+        localStorage.setItem(TAP_HINT_DAY_KEY, today);
+      } catch {
+        // As above.
+      }
+      say(tapHintAnnouncement(habit.name));
+    } else {
+      say(`Keep holding to complete ${habit.name}.`);
+    }
+  }
 
   function say(text: string) {
     // A different string each time, so the same words are announced again.
@@ -66,6 +100,7 @@ export function TodayScreen({ today, habits, mode }: Props) {
     const server = habits.find((h) => h.id === habit.id);
     if (!server) return;
     say(`${habit.name} ${nowDone ? "done" : "not done"}. ${streakText(applyDone(server, nowDone).streak)}.`);
+    if (nowDone) setTapHint((state) => nextTapHint(state, { type: "complete" }).state);
     setNotice(null);
     // The server works out "today" from this cookie: make sure it's there.
     saveTimezoneCookie();
@@ -129,11 +164,12 @@ export function TodayScreen({ today, habits, mode }: Props) {
                 mode={mode}
                 onComplete={(h) => save(h, true)}
                 onUndo={(h) => save(h, false)}
-                onHint={(h) => say(`Keep holding to complete ${h.name}.`)}
+                onHint={(h, release) => released(h, release.heldMs)}
                 onHoldingChange={(holding) => {
                   holds.current = Math.max(0, holds.current + (holding ? 1 : -1));
                 }}
               />
+              {mode === "hold" && tapHint.habitId === habit.id && <TapHint />}
             </li>
           ))}
         </ul>
@@ -143,6 +179,22 @@ export function TodayScreen({ today, habits, mode }: Props) {
         {announcement}
       </p>
     </>
+  );
+}
+
+/** Under a key after two quick taps: where "Tap to complete" lives now. */
+function TapHint() {
+  return (
+    // px-5: lines up with the key's name and dots above. The link is one
+    // piece (inline-block, so it isn't split across lines at normal size)
+    // with a 44 px tall hit area that stays in the gap between the keys.
+    <p className="mt-3 px-5 text-sm font-medium text-pretty text-ink-muted">
+      {TAP_HINT_TEXT.before}
+      <Link href="/settings" className="-my-3 inline-block py-3 font-semibold text-accent underline decoration-1 underline-offset-2">
+        {TAP_HINT_TEXT.link}
+      </Link>
+      {TAP_HINT_TEXT.after}
+    </p>
   );
 }
 

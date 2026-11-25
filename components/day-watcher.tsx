@@ -11,6 +11,13 @@
 // - It writes the timezone cookie first, so the reload uses the right day.
 // - Never in the middle of a hold: a reload that has to wait is kept and
 //   done as soon as the hold ends.
+// - Every time the page is shown again inside the app (back from Settings,
+//   History or Habits, by a link or the back gesture): hidden routes stay
+//   alive in <Activity> and back/forward reuses their data, so without this
+//   Today could keep an old "Tap to complete" setting, or yesterday
+//   (Feature 8). A return by a link already fetches the page, so that's a
+//   second render: accepted, as it's cheap and covers the back gesture. In
+//   development, StrictMode's double effect also refreshes on first mount.
 
 import { useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
@@ -27,13 +34,18 @@ function deviceToday(): string {
 export function DayWatcher({ isHolding }: { isHolding: () => boolean }) {
   const router = useRouter();
   const holding = useRef(isHolding);
+  // Survives the page being hidden: false only before the first showing.
+  const shownBefore = useRef(false);
   useEffect(() => {
     holding.current = isHolding;
   });
 
   useEffect(() => {
     let lastDay = deviceToday();
-    let lastRefresh = Date.now();
+    // Shown again: the first reload isn't held back by the 2 s limit.
+    const again = shownBefore.current;
+    shownBefore.current = true;
+    let lastRefresh = again ? 0 : Date.now();
     // A reload that was wanted during a hold, done once the hold ends.
     let pending = false;
 
@@ -66,6 +78,7 @@ export function DayWatcher({ isHolding }: { isHolding: () => boolean }) {
     window.addEventListener("focus", reload);
     window.addEventListener("pageshow", reload);
     const timer = setInterval(checkDate, CHECK_EVERY_MS);
+    if (again) reload();
     return () => {
       document.removeEventListener("visibilitychange", onVisible);
       window.removeEventListener("focus", reload);

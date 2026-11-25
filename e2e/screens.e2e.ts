@@ -186,3 +186,31 @@ test("text at 200% screens", async ({ page }) => {
   await expect(page.getByRole("button", { name: "30 days" })).toHaveAttribute("aria-pressed", "true");
   await big("history-30");
 });
+
+test("settings screens", async ({ page }) => {
+  // Feature 8: Settings, the hint toward Tap to complete, Today's footer.
+  const folder = "feature-8";
+  await freshDemo(page);
+  // Two quick taps: the hint under "Read 10 pages".
+  for (let i = 0; i < 2; i++) {
+    const box = (await habitKey(page, "Read 10 pages").boundingBox())!;
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.mouse.down();
+    await page.waitForTimeout(60);
+    await page.mouse.up();
+  }
+  await expect(page.getByText("Hold to complete, or turn on")).toBeVisible();
+  // After "Keep holding…" has gone (1.5 s), so the shot shows the hint alone.
+  await page.waitForTimeout(1600);
+  await shoot(page, folder, "today-hint");
+  await page.mouse.wheel(0, 2000);
+  await shoot(page, folder, "today-footer");
+
+  await page.getByRole("link", { name: "Settings", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Settings" })).toBeVisible();
+  await shoot(page, folder, "settings");
+  await page.getByRole("switch", { name: /Tap to complete/ }).click();
+  await expect(page.getByRole("switch", { name: /Tap to complete/ })).toHaveAttribute("aria-checked", "true");
+  await page.waitForLoadState("networkidle");
+  await shoot(page, folder, "settings-on");
+});

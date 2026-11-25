@@ -21,7 +21,7 @@ type Props = {
   onComplete: (habit: KeyHabit) => void;
   onUndo: (habit: KeyHabit) => void;
   /** "Keep holding…": the parent announces it. */
-  onHint: (habit: KeyHabit) => void;
+  onHint: (habit: KeyHabit, release: { by: "pointer" | "key"; heldMs: number }) => void;
   /** A hold started or ended, so the page doesn't refresh under a finger. */
   onHoldingChange: (holding: boolean) => void;
 };
@@ -65,7 +65,7 @@ export function HabitKey({ habit, mode, onComplete, onUndo, onHint, onHoldingCha
       else if (effect.type === "cancel-fill") shrinking = cancelFill();
       else if (effect.type === "complete") complete();
       else if (effect.type === "undo") latest.current.onUndo(latest.current.habit);
-      else if (effect.type === "hint") showHint();
+      else if (effect.type === "hint") showHint(effect);
     }
     // The hold is over: the caption goes back to grey now, or, if the fill
     // is shrinking back, once it's gone (cancelFill).
@@ -118,10 +118,18 @@ export function HabitKey({ habit, mode, onComplete, onUndo, onHint, onHoldingCha
     animation.onfinish = () => {
       animation.cancel();
       // The fill is gone: grey is readable again, unless a new hold began.
-      if (!fill.current) setFilled(false);
+      if (!fill.current) {
+        setFilled(false);
+        collapseFill();
+      }
     };
     animation.updatePlaybackRate(-HOLD_MS / MOTION.fast);
     return true;
+  }
+
+  /** An unused fill takes no room: at full size, even clipped and see-through, it widened the key's scroll box. */
+  function collapseFill() {
+    if (fillRef.current) Object.assign(fillRef.current.style, { width: "0px", height: "0px" });
   }
 
   function complete() {
@@ -133,7 +141,10 @@ export function HabitKey({ habit, mode, onComplete, onUndo, onHint, onHoldingCha
     // isolated button), so it goes a frame later, once the done colour has
     // been committed. Measured: the persimmon key and the fill share one
     // frame, never a frame with neither, even at 6x CPU slowdown.
-    requestAnimationFrame(() => animation?.cancel());
+    requestAnimationFrame(() => {
+      animation?.cancel();
+      if (!fill.current) collapseFill();
+    });
     if (!prefersReducedMotion()) {
       keyRef.current?.animate([{ transform: "scale(1)" }, { transform: "scale(1.03)" }, { transform: "scale(1)" }], {
         duration: MOTION.pop,
@@ -144,9 +155,9 @@ export function HabitKey({ habit, mode, onComplete, onUndo, onHint, onHoldingCha
     navigator.vibrate?.(12);
   }
 
-  function showHint() {
+  function showHint(release: { by: "pointer" | "key"; heldMs: number }) {
     setHint(true);
-    latest.current.onHint(latest.current.habit);
+    latest.current.onHint(latest.current.habit, { by: release.by, heldMs: release.heldMs });
     clearTimeout(hintTimer.current);
     hintTimer.current = setTimeout(() => setHint(false), HINT_MS);
   }
@@ -164,7 +175,10 @@ export function HabitKey({ habit, mode, onComplete, onUndo, onHint, onHoldingCha
       document.removeEventListener("visibilitychange", onVisibility);
       window.removeEventListener("pagehide", interrupt);
       clearTimeout(hintTimer.current);
+      // Hidden or removed mid-hold: no onfinish will come, so tidy up here.
       fill.current?.cancel();
+      fill.current = null;
+      collapseFill();
     };
     // dispatch only reads refs, so it's safe to bind once.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -218,13 +232,15 @@ export function HabitKey({ habit, mode, onComplete, onUndo, onHint, onHoldingCha
           isPrimary: e.isPrimary,
           point: pointFrom(e),
           done: habit.done,
-          time: performance.now(),
+          // The event's own time, not the handler's: a busy main thread
+          // (a refresh rendering) mustn't make a press look shorter.
+          time: e.timeStamp,
         });
       }}
       onPointerMove={(e) => dispatch({ type: "pointermove", pointerId: e.pointerId, point: pointFrom(e) })}
       onPointerUp={(e) => {
         lastSequenceAt.current = performance.now();
-        dispatch({ type: "pointerup", pointerId: e.pointerId, point: pointFrom(e), time: performance.now() });
+        dispatch({ type: "pointerup", pointerId: e.pointerId, point: pointFrom(e), time: e.timeStamp });
       }}
       onPointerCancel={(e) => {
         lastSequenceAt.current = performance.now();
@@ -237,13 +253,13 @@ export function HabitKey({ habit, mode, onComplete, onUndo, onHint, onHoldingCha
         // double up with ours.
         e.preventDefault();
         lastSequenceAt.current = performance.now();
-        dispatch({ type: "keydown", key: e.key, repeat: e.repeat, done: habit.done });
+        dispatch({ type: "keydown", key: e.key, repeat: e.repeat, done: habit.done, time: e.timeStamp });
       }}
       onKeyUp={(e) => {
         if (!isActivationKey(e.key)) return;
         e.preventDefault();
         lastSequenceAt.current = performance.now();
-        dispatch({ type: "keyup", key: e.key });
+        dispatch({ type: "keyup", key: e.key, time: e.timeStamp });
       }}
       onClick={() => dispatch({ type: "click", msSinceSequence: performance.now() - lastSequenceAt.current, done: habit.done })}
       onBlur={() => dispatch({ type: "interrupt" })}

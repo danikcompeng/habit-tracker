@@ -5,7 +5,7 @@
 // same as the browser's text size setting. Only looks: nothing is saved.
 
 import { expect, test, type Page } from "@playwright/test";
-import { freshDemo } from "./helpers/app";
+import { freshDemo, habitKey, holdKey } from "./helpers/app";
 import { reseedDemo } from "./helpers/seed";
 
 async function expectFitsAtDoubleText(page: Page) {
@@ -29,8 +29,15 @@ async function expectFitsAtDoubleText(page: Page) {
   expect(problems).toEqual([]);
 }
 
-test("Today, Habits (with the editor and its question) and History fit at 200% text", async ({ page }) => {
+test("Today (with the Tap to complete hint), Settings, Habits (with the editor and its question) and History fit at 200% text", async ({ page }) => {
   await freshDemo(page);
+  // With the Tap to complete hint showing (two quick taps).
+  for (let i = 0; i < 2; i++) await holdKey(page, habitKey(page, "Read 10 pages"), 60);
+  await expect(page.getByText("Hold to complete, or turn on")).toBeVisible();
+  await expectFitsAtDoubleText(page);
+
+  await page.goto("/settings");
+  await expect(page.getByRole("switch", { name: /Tap to complete/ })).toBeVisible();
   await expectFitsAtDoubleText(page);
 
   await page.goto("/habits");

@@ -5,7 +5,7 @@ import { cookies } from "next/headers";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { LogOutButton, ResetDemoButton } from "@/components/account-actions";
-import { TapModeSwitch } from "@/components/tap-mode-switch";
+import { FOOTER_LINK } from "@/components/ui/footer-link";
 import { TodayScreen } from "@/components/today-screen";
 import { buttonClass } from "@/components/ui/button";
 import { APP_NAME } from "@/lib/app-identity";
@@ -88,15 +88,21 @@ async function Today() {
           together with the new day's data and must survive it. */}
       <TodayScreen today={today} habits={view} mode={mode} />
 
+      {/* "Tap to complete" moved to Settings (Feature 8); a hint on Today
+          points there after two short taps. */}
       <footer className="mt-auto flex flex-col gap-4 pt-12">
-        <TapModeSwitch mode={mode} />
-        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-line pt-4">
+        {/* Who's logged in above, the links below: with Settings there are up
+            to three links, which don't fit beside an email (Feature 8). */}
+        <div className="flex flex-col items-start gap-1 border-t border-line pt-4">
           {/* Who's logged in, so a login link from someone else's email
               (which would log you into THEIR account) is easy to notice. */}
           <p className="min-w-0 text-sm font-medium [overflow-wrap:anywhere] text-ink-muted">{demo ? "Demo account" : email}</p>
-          {/* -mx-3: the links' own padding, so their text lines up with the keys'
-              right edge, and with the left gutter when they wrap below (large text). */}
-          <div className="-mx-3 flex flex-wrap items-center gap-2">
+          {/* -mx-3: the links' own padding, so their text lines up with the
+              gutter. gap-x-4: Reset demo (no confirmation) isn't crowded. */}
+          <div className="-mx-3 flex flex-wrap items-center gap-x-4 gap-y-1">
+            <Link href="/settings" className={FOOTER_LINK}>
+              Settings
+            </Link>
             {demo && <ResetDemoButton />}
             <LogOutButton />
           </div>

@@ -149,19 +149,7 @@ test("holding Space completes once and stays done", async ({ page }) => {
   await expect(read).toHaveAttribute("aria-pressed", "true");
 });
 
-test("Tap to complete: a tap completes, and it can be switched off again", async ({ page }) => {
-  const tapSwitch = page.getByRole("switch", { name: /Tap to complete/ });
-  await tapSwitch.click();
-  await expect(tapSwitch).toHaveAttribute("aria-checked", "true");
-  const stretch = habitKey(page, "Stretch for 5 minutes");
-  // The keys switch once the server has saved the setting and redrawn them.
-  await expect(stretch).toHaveAccessibleDescription(/Tap to complete/);
-  await stretch.click();
-  await expect(stretch).toHaveAttribute("aria-pressed", "true");
-  await expect(stretch).toContainText("1-day streak");
-  await tapSwitch.click();
-  await expect(tapSwitch).toHaveAttribute("aria-checked", "false");
-});
+// Tap to complete lives in Settings since Feature 8: e2e/settings.e2e.ts.
 
 test("the signed-in account is shown, so a forged login link would be noticed", async ({ page }) => {
   await expect(page.getByText("Demo account")).toBeVisible();

@@ -27,8 +27,8 @@ const down = (done = false, extra: Partial<Extract<HoldEvent, { type: "pointerdo
 const up = (point = P, time = 100): HoldEvent => ({ type: "pointerup", pointerId: 1, point, time });
 const move = (dx: number): HoldEvent => ({ type: "pointermove", pointerId: 1, point: { x: P.x + dx, y: P.y } });
 const finish: HoldEvent = { type: "finish" };
-const keydown = (key: string, done: boolean, repeat = false): HoldEvent => ({ type: "keydown", key, done, repeat });
-const keyup = (key: string): HoldEvent => ({ type: "keyup", key });
+const keydown = (key: string, done: boolean, repeat = false, time = 0): HoldEvent => ({ type: "keydown", key, done, repeat, time });
+const keyup = (key: string, time = 100): HoldEvent => ({ type: "keyup", key, time });
 
 describe("holding with a finger or mouse", () => {
   it("completes once the fill finishes, and lifting afterwards does nothing more", () => {
@@ -39,6 +39,19 @@ describe("holding with a finger or mouse", () => {
     const { effects, state } = run([down(), up()]);
     expect(effects).toEqual(["start-fill", "cancel-fill", "hint"]);
     expect(state).toEqual(IDLE);
+  });
+
+  it("reports how an early release happened and how long it was held (for the Tap to complete hint)", () => {
+    const pointer = next(next(IDLE, down(false, { time: 1000 })).state, up(P, 1180));
+    expect(pointer.effects).toContainEqual({ type: "hint", by: "pointer", heldMs: 180 });
+    const key = next(next(IDLE, keydown(" ", false, false, 500)).state, keyup(" ", 900));
+    expect(key.effects).toContainEqual({ type: "hint", by: "key", heldMs: 400 });
+  });
+
+  it("a release more than 10 px from where it started is a scroll: no hint (moves can arrive merged into the release)", () => {
+    expect(run([down(), up({ x: P.x, y: P.y + 30 })]).effects).toEqual(["start-fill", "cancel-fill"]);
+    // Exactly 10 px is still a press.
+    expect(run([down(), up({ x: P.x, y: P.y + 10 })]).effects).toEqual(["start-fill", "cancel-fill", "hint"]);
   });
 
   it("moving more than 10 px is a scroll: cancelled, no hint, no completion later", () => {

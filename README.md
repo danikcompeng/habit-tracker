@@ -16,7 +16,8 @@ login screen: a shared account with sample habits, no email needed.
 
 - **Today**: press and hold a habit for 0.65 s to complete it; tap a done one
   to undo. The streak and the week of dots update at once, and the server
-  confirms. "Tap to complete" is a switch for anyone who can't hold.
+  confirms. "Tap to complete" (in **Settings**) is for anyone who can't hold;
+  two quick taps on a key point to it.
 - **Habits**: add, rename, delete (with an inline confirmation), and reorder
   with an Arrange mode (up and down on every row, Move to top and bottom).
 - **History**: 7, 30 or 90 days. Completion rate, best current streak and
