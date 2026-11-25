@@ -1,35 +1,142 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-11-24T23:00:00-05:00",
+  "generatedAt": "2026-11-25T04:27:24+00:00",
   "title": "Design System: Ascend",
   "extensions": {
     "colorMeta": {
-      "persimmon": { "role": "primary", "displayName": "Persimmon", "canonical": "#B8420E", "tonalRamp": ["#3D1604", "#5E2207", "#8A300A", "#B8420E", "#D9733F", "#EBA27E", "#F6D9C8", "#FBEDE4"] },
-      "bone-paper": { "role": "neutral", "displayName": "Bone Paper", "canonical": "#F4EFE6", "tonalRamp": ["#191613", "#26221E", "#3A342E", "#6B5E52", "#B4A797", "#E0D8CA", "#EAE3D6", "#F4EFE6"] },
-      "soot-ink": { "role": "neutral", "displayName": "Soot Ink", "canonical": "#2A211A" },
-      "walnut-muted": { "role": "neutral", "displayName": "Walnut Muted", "canonical": "#6B5E52" },
-      "crimson": { "role": "danger", "displayName": "Crimson", "canonical": "#A1173A", "tonalRamp": ["#3A0815", "#6E0F28", "#A1173A", "#C94B6A", "#FF8FA8", "#FFC4D1", "#FFE3EA", "#FFF2F5"] }
+      "persimmon": {
+        "role": "primary",
+        "displayName": "Persimmon",
+        "canonical": "#B8420E",
+        "tonalRamp": [
+          "#3D1604",
+          "#5E2207",
+          "#8A300A",
+          "#B8420E",
+          "#D9733F",
+          "#E9B79A",
+          "#F6D9C8",
+          "#FBEDE4"
+        ]
+      },
+      "bone-paper": {
+        "role": "neutral",
+        "displayName": "Bone Paper",
+        "canonical": "#F4EFE6",
+        "tonalRamp": [
+          "#191613",
+          "#26221E",
+          "#3A342E",
+          "#6B5E52",
+          "#B4A797",
+          "#E0D8CA",
+          "#EAE3D6",
+          "#F4EFE6"
+        ]
+      },
+      "soot-ink": {
+        "role": "neutral",
+        "displayName": "Soot Ink",
+        "canonical": "#2A211A"
+      },
+      "walnut-muted": {
+        "role": "neutral",
+        "displayName": "Walnut Muted",
+        "canonical": "#6B5E52"
+      },
+      "crimson": {
+        "role": "danger",
+        "displayName": "Crimson",
+        "canonical": "#A1173A",
+        "tonalRamp": [
+          "#3A0815",
+          "#6E0F28",
+          "#A1173A",
+          "#C94B6A",
+          "#FF8FA8",
+          "#FFC4D1",
+          "#FFE3EA",
+          "#FFF2F5"
+        ]
+      },
+      "hold-tint": {
+        "role": "primary",
+        "displayName": "Hold Tint",
+        "canonical": "#E9B79A"
+      }
     },
     "typographyMeta": {
-      "display": { "displayName": "Display", "purpose": "The Ascend wordmark on the login screen only." },
-      "headline": { "displayName": "Page title", "purpose": "Today, Habits, History." },
-      "stat": { "displayName": "Stat", "purpose": "History's three numbers only." },
-      "title": { "displayName": "Habit name", "purpose": "A habit's name on its key." },
-      "title-list": { "displayName": "List name", "purpose": "A habit's name in the Habits list and History rows." },
-      "lead": { "displayName": "Lead", "purpose": "The promise under the wordmark." },
-      "body": { "displayName": "Body", "purpose": "Buttons, fields and sentences; 16 px floor on inputs." },
-      "label": { "displayName": "Label", "purpose": "Dates, captions, streaks; tabular numbers." }
+      "display": {
+        "displayName": "Display",
+        "purpose": "The Ascend wordmark on the login screen only."
+      },
+      "headline": {
+        "displayName": "Page title",
+        "purpose": "Today, Habits, History."
+      },
+      "stat": {
+        "displayName": "Stat",
+        "purpose": "History's three numbers only."
+      },
+      "title": {
+        "displayName": "Habit name",
+        "purpose": "A habit's name on its key."
+      },
+      "title-list": {
+        "displayName": "List name",
+        "purpose": "A habit's name in the Habits list and History rows."
+      },
+      "lead": {
+        "displayName": "Lead",
+        "purpose": "The promise under the wordmark."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "Buttons, fields and sentences; 16 px floor on inputs."
+      },
+      "label": {
+        "displayName": "Label",
+        "purpose": "Dates, captions, streaks; tabular numbers."
+      }
     },
     "shadows": [
-      { "name": "key-lip", "value": "0 4px 0 var(--surface-sunk)", "purpose": "The lip under a habit key at rest (accent-lip once done); 2 px when pressed." },
-      { "name": "button-lip", "value": "0 3px 0 var(--accent-lip)", "purpose": "The lip under primary, secondary (surface-sunk) and danger (danger-lip) buttons; 1 px when pressed." }
+      {
+        "name": "key-lip",
+        "value": "0 4px 0 var(--surface-sunk)",
+        "purpose": "The lip under a habit key at rest (accent-lip once done); 2 px when pressed."
+      },
+      {
+        "name": "button-lip",
+        "value": "0 3px 0 var(--accent-lip)",
+        "purpose": "The lip under primary, secondary (surface-sunk) and danger (danger-lip) buttons; 1 px when pressed."
+      }
     ],
     "motion": [
-      { "name": "motion-fast", "value": "150ms", "purpose": "Answer to a tap; a cancelled hold shrinking back." },
-      { "name": "motion-base", "value": "200ms", "purpose": "Undo fading back." },
-      { "name": "motion-pop", "value": "250ms", "purpose": "The done pop (scale 1 to 1.03 to 1)." },
-      { "name": "motion-hold", "value": "650ms", "purpose": "How long a hold takes; linear so progress reads as honest." },
-      { "name": "ease-out", "value": "cubic-bezier(0.2, 0.8, 0.2, 1)", "purpose": "Quick to start, gentle to land." }
+      {
+        "name": "motion-fast",
+        "value": "150ms",
+        "purpose": "Answer to a tap; a cancelled hold shrinking back."
+      },
+      {
+        "name": "motion-base",
+        "value": "200ms",
+        "purpose": "Undo fading back."
+      },
+      {
+        "name": "motion-pop",
+        "value": "250ms",
+        "purpose": "The done pop (scale 1 to 1.03 to 1)."
+      },
+      {
+        "name": "motion-hold",
+        "value": "650ms",
+        "purpose": "How long a hold takes; linear so progress reads as honest."
+      },
+      {
+        "name": "ease-out",
+        "value": "cubic-bezier(0.2, 0.8, 0.2, 1)",
+        "purpose": "Quick to start, gentle to land."
+      }
     ],
     "breakpoints": []
   },
@@ -94,11 +201,36 @@
       "Dark mode is warm graphite with a lighter persimmon, and shows depth by lightness."
     ],
     "rules": [
-      { "name": "The One Voice Rule", "body": "Persimmon means \"done\" or \"the one thing to do now\". A screen has at most one persimmon button; a secondary action that would compete steps back to the key-face style.", "section": "colors" },
-      { "name": "The Tested Pair Rule", "body": "Every text pair is 4.5:1 and every mark, edge and ring is 3:1, and lib/palette.test.ts proves it.", "section": "colors" },
-      { "name": "The Token-Only Rule", "body": "Components use the token classes; Tailwind's own palette is switched off, so a raw colour can't sneak in.", "section": "colors" },
-      { "name": "The 16 px Floor Rule", "body": "Anything you type into is 16 px. Nothing that must be read is under 14 px.", "section": "typography" },
-      { "name": "The Lip, Not Glow Rule", "body": "Depth is a hard edge under the object in a darker shade of itself. No blur, no glow, no glass.", "section": "elevation" }
+      {
+        "name": "The One Voice Rule",
+        "body": "Persimmon means \"done\" or \"the one thing to do now\". A screen has at most one persimmon button; a secondary action that would compete steps back to the key-face style.",
+        "section": "colors"
+      },
+      {
+        "name": "The Tested Pair Rule",
+        "body": "Every text pair is 4.5:1 and every mark, edge and ring is 3:1, and lib/palette.test.ts proves it.",
+        "section": "colors"
+      },
+      {
+        "name": "The Token-Only Rule",
+        "body": "Components use the token classes; Tailwind's own palette is switched off, so a raw colour can't sneak in.",
+        "section": "colors"
+      },
+      {
+        "name": "The 16 px Floor Rule",
+        "body": "Anything you type into is 16 px. Nothing that must be read is under 14 px.",
+        "section": "typography"
+      },
+      {
+        "name": "The 200% Rule",
+        "body": "Every screen still fits a 390 px phone with text at 200% (e2e/text-size.e2e.ts): rows that hold text and pills wrap (flex-wrap) rather than squeeze, and side-by-side groups use rem-sized columns so they stack when text grows.",
+        "section": "typography"
+      },
+      {
+        "name": "The Lip, Not Glow Rule",
+        "body": "Depth is a hard edge under the object in a darker shade of itself. No blur, no glow, no glass.",
+        "section": "elevation"
+      }
     ],
     "dos": [
       "Do keep 44 × 44 px as the smallest tap target, 48 px for main buttons.",

@@ -40,7 +40,11 @@ export function HabitKey({ habit, mode, onComplete, onUndo, onHint, onHoldingCha
   const lastSequenceAt = useRef(-Infinity);
   const [hint, setHint] = useState(false);
   const [justDone, setJustDone] = useState(false);
+  // While the hold fill is on the key (and while a cancelled fill shrinks
+  // back), the grey streak caption turns ink: grey on the fill is 3.5:1.
+  const [filled, setFilled] = useState(false);
   const hintTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const unfillTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   // Always the latest props, for event handlers and animation callbacks.
   const latest = useRef({ habit, mode, onComplete, onUndo, onHint, onHoldingChange });
@@ -54,7 +58,13 @@ export function HabitKey({ habit, mode, onComplete, onUndo, onHint, onHoldingCha
     const step = next(state.current, event, currentMode);
     state.current = step.state;
     const isHolding = step.state.kind === "pointer-hold" || step.state.kind === "key-hold";
-    if (wasHolding !== isHolding) latest.current.onHoldingChange(isHolding);
+    if (wasHolding !== isHolding) {
+      latest.current.onHoldingChange(isHolding);
+      clearTimeout(unfillTimer.current);
+      if (isHolding) setFilled(true);
+      // Let go early: the fill takes MOTION.fast to shrink away.
+      else unfillTimer.current = setTimeout(() => setFilled(false), MOTION.fast);
+    }
     for (const effect of step.effects) {
       if (effect.type === "start-fill") startFill(effect.origin);
       else if (effect.type === "cancel-fill") cancelFill();
@@ -145,6 +155,7 @@ export function HabitKey({ habit, mode, onComplete, onUndo, onHint, onHoldingCha
       document.removeEventListener("visibilitychange", onVisibility);
       window.removeEventListener("pagehide", interrupt);
       clearTimeout(hintTimer.current);
+      clearTimeout(unfillTimer.current);
       fill.current?.cancel();
       // Removed mid-hold (deleted elsewhere, or the demo was reset): say the
       // hold is over, or Today would wait for it forever and stop refreshing.
@@ -247,7 +258,7 @@ export function HabitKey({ habit, mode, onComplete, onUndo, onHint, onHoldingCha
         ) : (
           <Dots dots={habit.dots} onAccent={habit.done} />
         )}
-        <span id={ids.streak} className={`text-sm font-medium tabular-nums ${habit.done ? "" : "text-ink-muted"}`}>
+        <span id={ids.streak} className={`text-sm font-medium tabular-nums ${habit.done ? "" : filled ? "text-ink" : "text-ink-muted"}`}>
           {streakText(habit.streak)}
         </span>
       </span>

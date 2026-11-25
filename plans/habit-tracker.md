@@ -60,7 +60,7 @@ Decisions made while building, and why. Newest at the bottom of each group.
 | `line` | `#E0D8CA` | `#3A342E` | hairlines, row borders |
 | `accent` | `#B8420E` persimmon | `#FF8F57` | done rows, done dots, primary buttons, focus ring |
 | `on-accent` | `#FFFFFF` | `#1E120A` | text and icons on accent |
-| `accent-tint` | `#F6D9C8` | `#5A3220` | the hold fill while pressing (text stays `ink`) |
+| `accent-tint` | `#E9B79A` | `#7A4228` | the hold fill while pressing: 1.8 / 2.0:1 against the key (was `#F6D9C8` / `#5A3220`, 1.3 / 1.4:1, until 2026-11-24). Text on it is `ink`: a held key's grey streak caption turns ink |
 | `accent-lip` | `#8A300A` | `#A84F24` | the bottom edge of a persimmon key: darker than the key in **both** themes (a lip, never a highlight) |
 | `accent-key` | `#B8420E` | `#D9733F` | a **done habit key**: the accent in light; calmer in dark, so five full-width done keys don't glare at night (dots, rings and buttons keep `accent`) |
 | `accent-soft` | `#CD7A55` | `#AD5A2E` | History: a day with **some** habits done (a day with all done is `accent-key`). Softer than the key but still 3:1 on the card (3.2 light, 3.2 dark) |
@@ -645,6 +645,11 @@ The request: run the impeccable skill over the whole app as a **refinement, not 
 4. **Delete confirmation**: **Keep it** comes first (left, where the thumb already is) and **Delete** second. While the question is open, the buttons above step back: Save turns secondary, and Save, Cancel and the moves are dimmed and `aria-disabled` (`save()` and moves return early too, so Enter in the name does nothing). The name field is read-only but **not** dimmed (its text must stay 4.5:1), and a dimmed button regains full strength while focused, so its ring stays 3:1. **Escape while asking means Keep it** (the question closes, a half-typed rename stays); otherwise it closes the editor as before. A failed delete shows its message under Delete / Keep it. _(Revised after logic-checker and code-reviewer.)_
 5. Today's tab title is "Today · Ascend" like every other page (a page in the root segment doesn't get the layout's title template).
 6. ESLint ignores `.claude/**` (the skill's own scripts were 93 warnings).
+7. _(After the pass, the user's call)_ **A stronger hold fill**: `accent-tint` #E9B79A / #7A4228 (1.8 / 2.0:1 against the key, from 1.3 / 1.4), and a held key's grey streak caption turns ink while the fill is on it (grey on the new tint is 3.5:1). Not 3:1: a fill that strong is nearly a done key.
+8. _(After the pass)_ `/impeccable doctor`: the design hook is on (`.impeccable/config.json`; local consent in the ignored `config.local.json`), `DESIGN.md` is compacted to a map with the full text in `.impeccable/design-full.md`, the sidecar is refreshed, and `.claude/skills/` and `.codex/` are gitignored.
+
+**Later** (noted, not in this pass):
+- **Icons at large text**: icon sizes are px props (`size={20}`), so at 200% text a check is a speck in a 64 px disc and the pencils look tiny beside 36 px names. Size them in `em` (e.g. `size="1.25em"` on `Icon`) so they scale with the text and look the same at 100%; retake the 200% shots.
 
 **Tests**: e2e for the delete confirmation's order and the inactive form, Enter and Escape while asking, a failed delete, and axe with the question open (light and dark); a 200%-text check on every screen and the empty states (no sideways scroll, nothing past the right edge, no text wider than its own box); History's numbers at 320 / 360 / 375 / 390 px and 100–150% text; the all-done line's emphasis; the invalid field's ring colour in light and dark; Today's title. Screenshots retaken (`docs/screenshots/feature-2,3,4,7/`), plus 200%-text shots in `docs/screenshots/impeccable-after/`.
 
@@ -1094,10 +1099,10 @@ Method: dual-agent. Heuristics **28/40, Good** (status 3, real world 3, control 
 | # | Severity | Finding | Outcome | What changed |
 |---|----------|---------|---------|--------------|
 | A1 | P1 | The day's payoff ("All done for today") looked exactly like the muted instruction it replaces. | Fixed (style only) | Ink, semibold, persimmon check. The suggested full stop is a copy change: not made. |
-| A2 | P2 | The hold fill is 1.32:1 (light) / 1.44:1 (dark) against the key: the progress bar of the main gesture is faint. | **Skipped: your call** | Deepening `accent-tint` changes a palette colour, which this pass was told to keep (plan: `accent-tint` #F6D9C8 / #5A3220, "text stays ink"). Suggested values if you want it: about #E9B79A light, #7A4228 dark (ink stays ≥ 6.7:1), plus a tint-vs-face pair in `palette.test.ts`. |
+| A2 | P2 | The hold fill is 1.32:1 (light) / 1.44:1 (dark) against the key: the progress bar of the main gesture is faint. | **Fixed after the pass (the user's call, 2026-11-24)** | Skipped at first (a palette colour). The user chose the suggested #E9B79A / #7A4228: 1.77 / 1.98:1 against the key, **not 3:1**. A 3:1 fill (#D17E58 / #A05A37) was offered and declined: it's nearly as strong as a done key, and grey text, dots and dark ink fail on it. The suggestion had missed that grey text on the new tint is 3.5 / 3.4:1, so a held key's streak caption turns ink (8.8 / 6.8:1); dots and rings on the fill stay ≥ 3:1. `palette.test.ts`: a 1.75:1 floor for the fill, the dot and ring pairs on it; e2e checks the caption's colour mid-hold. |
 | A3 | P2 | A focused invalid field wore a persimmon ring around its crimson edge, so the error read as "selected". | Fixed | Crimson ring on `[aria-invalid="true"]:focus-visible`. |
 | A4 | P2 | The delete question sat under a live persimmon Save; Delete took the left spot Save had; six actions at once. | Fixed | Keep it first; the rest steps back while asking. |
-| A5 | P2 | Undo isn't shown to sighted users, and a stray tap undoes. | Skipped | A visible "Tap to undo" is new copy; a hold-to-undo conflicts with the recorded decision "A single tap undoes, as the brief asked" (Feature 3 open questions). Worth deciding later. |
+| A5 | P2 | Undo isn't shown to sighted users, and a stray tap undoes. | Skipped: **decided** | A visible "Tap to undo" is new copy; a hold-to-undo conflicts with the recorded decision "A single tap undoes, as the brief asked" (Feature 3 open questions). _2026-11-24, the user's call: no visible "Tap to undo"; single-tap undo stays._ |
 | A6 | P3 | The three empty states differ, and Today's says "no habits" twice. | Skipped | Copy changes, and Today's "Add your first habit" is recorded in Feature 3. |
 | A7 | Minor | "Start today" next to five filled dots reads as "never started". | Skipped | Recorded copy ("Start today" at 0). |
 | A8 | Minor | The Demo chip looks like a button. | Skipped | Recorded fix, Feature 3 design-critic #11 (surface with a line border). |
@@ -1152,7 +1157,7 @@ Verdict: **Ship after fixes**. "All five changes are improvements in both themes
 | 4 | Low | To top / To bottom misaligned once wrapped. | Fixed | `-ml-3` on the row. |
 | 5 | Low | Footer links indented from the gutter once wrapped. | Fixed | `-mx-3`. |
 | 6 | Low | "Same order as Today." went one word per line at 200%. | Fixed | The row wraps; the hint has a 10 rem basis. |
-| 7 | Low | Icons are px-sized, so they stay small at 200%. | Not fixed | Touches every icon; worth a pass of its own. |
+| 7 | Low | Icons are px-sized, so they stay small at 200%. | Deferred (the user's call, 2026-11-24) | Touches every icon; see "Later" below. |
 | 8 | Low | Save \| Cancel and Keep it \| Delete use opposite orders, unwritten. | Fixed | The rule is in `DESIGN.md` (Buttons, Order). |
 
 Checks: 355 unit and database tests, tsc, eslint, `next build`, and all **59 browser tests** (on `next start`, the full suite including screenshots) pass.

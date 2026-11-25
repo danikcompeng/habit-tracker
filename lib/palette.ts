@@ -37,7 +37,7 @@ export const PALETTE: Record<Mode, Record<ColorRole, string>> = {
     line: "#E0D8CA",
     accent: "#B8420E", // persimmon
     "on-accent": "#FFFFFF",
-    "accent-tint": "#F6D9C8", // the hold fill while pressing
+    "accent-tint": "#E9B79A", // the hold fill while pressing (1.8:1 against the key)
     "accent-lip": "#8A300A", // the darker bottom edge of a persimmon key
     "accent-key": "#B8420E", // a done habit key: the accent itself in light
     "accent-soft": "#CD7A55", // History: a day with some (not all) habits done
@@ -53,7 +53,7 @@ export const PALETTE: Record<Mode, Record<ColorRole, string>> = {
     line: "#3A342E",
     accent: "#FF8F57", // lighter persimmon so it doesn't glare at night
     "on-accent": "#1E120A",
-    "accent-tint": "#5A3220",
+    "accent-tint": "#7A4228", // the hold fill (2.0:1 against the key)
     "accent-lip": "#A84F24", // darker than the done key in dark mode too: a lip, never a highlight
     // A done key in dark: calmer than the accent. Five full-width keys of
     // #FF8F57 glare in a dark room; dots, rings and buttons keep the accent.
@@ -77,7 +77,8 @@ export const TEXT_PAIRS: readonly [text: ColorRole, on: ColorRole][] = [
   ["ink-muted", "background"],
   ["ink-muted", "surface"],
   ["ink-muted", "surface-sunk"],
-  ["ink-muted", "accent-tint"],
+  // Not ink-muted on accent-tint (3.5:1 light): while a key is held, its
+  // grey streak caption turns ink (components/habit-key.tsx).
   ["accent", "background"],
   ["accent", "surface"],
   ["on-accent", "accent"],
@@ -95,12 +96,22 @@ export const NON_TEXT_PAIRS: readonly [mark: ColorRole, on: ColorRole][] = [
   ["on-accent", "accent"], // dots and check on a done row
   ["on-accent", "accent-key"], // dots and check on a done key
   ["accent-key", "background"], // a done key against the page
+  ["accent", "accent-tint"], // done and today dots under the hold fill
+  ["ink-muted", "accent-tint"], // missed dots and the empty check ring under the hold fill
   ["accent-key", "surface"], // History: a day with every habit done, on the chart card
   ["accent-soft", "surface"], // History: a day with some habits done, on the chart card
   ["ink-muted", "surface-sunk"], // unavailable arrows are ink-muted at lower opacity: never below this
   ["ink-muted", "background"], // edge of a text box, so you can find it
   ["danger", "surface"], // edge of a text box with an error
 ];
+
+/**
+ * The hold fill against the key it grows over. It's the progress of the
+ * main gesture, so it must be clearly visible, but it can't reach 3:1
+ * without becoming nearly as strong as a done key (and losing the text on
+ * it). Raised from 1.3 to 1.8 (light) and 1.4 to 2.0 (dark) on 2026-11-24.
+ */
+export const HOLD_FILL_MIN_CONTRAST = 1.75;
 
 /** WCAG relative luminance of "#RRGGBB". */
 export function luminance(hex: string): number {

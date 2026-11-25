@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { NON_TEXT_PAIRS, PALETTE, TEXT_PAIRS, contrast, type Mode } from "./palette";
+import { HOLD_FILL_MIN_CONTRAST, NON_TEXT_PAIRS, PALETTE, TEXT_PAIRS, contrast, type Mode } from "./palette";
 
 const css = readFileSync(fileURLToPath(new URL("../app/globals.css", import.meta.url)), "utf8");
 
@@ -22,6 +22,10 @@ describe.each(["light", "dark"] as Mode[])("%s palette", (mode) => {
 
   it.each(NON_TEXT_PAIRS)("%s on %s is at least 3:1", (mark, on) => {
     expect(contrast(colors[mark], colors[on])).toBeGreaterThanOrEqual(3);
+  });
+
+  it(`the hold fill is at least ${HOLD_FILL_MIN_CONTRAST}:1 against the key it grows over`, () => {
+    expect(contrast(colors["accent-tint"], colors.surface)).toBeGreaterThanOrEqual(HOLD_FILL_MIN_CONTRAST);
   });
 
   it("globals.css has exactly these colours", () => {

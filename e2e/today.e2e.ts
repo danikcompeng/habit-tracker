@@ -52,6 +52,22 @@ test("the last habit done turns the summary into the day's payoff, and the tab s
   await expect(allDone.locator("svg")).toHaveCount(1);
 });
 
+test("while a key is held, its streak caption is ink (grey would be too faint on the fill)", async ({ page }) => {
+  await page.emulateMedia({ colorScheme: "light" });
+  const read = habitKey(page, "Read 10 pages");
+  const caption = read.getByText("4-day streak");
+  await expect(caption).toHaveCSS("color", "rgb(107, 94, 82)"); // ink-muted
+  const box = (await read.boundingBox())!;
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await expect(caption).toHaveCSS("color", "rgb(42, 33, 26)"); // ink
+  // Slide away (a scroll), so the hold is cancelled, then let go.
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2 + 40, { steps: 3 });
+  await page.mouse.up();
+  await expect(read).toHaveAttribute("aria-pressed", "false");
+  await expect(caption).toHaveCSS("color", "rgb(107, 94, 82)");
+});
+
 test("letting go early doesn't complete it, and teaches the gesture", async ({ page }) => {
   const read = habitKey(page, "Read 10 pages");
   await holdKey(page, read, 300);
