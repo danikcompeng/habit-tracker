@@ -224,7 +224,9 @@ export function TodayScreen({ today, habits, mode, heading, beforeTodayCm, userI
   return (
     <>
       <DayWatcher isHolding={() => holds.current > 0} />
-      {altitudeCm !== null && <ClimbStrip altitudeCm={altitudeCm} moment={moment} onDismissMoment={() => setMoment(null)} />}
+      {altitudeCm !== null && knownBefore !== null && (
+        <ClimbStrip altitudeCm={altitudeCm} shapeCm={knownBefore} moment={moment} onDismissMoment={() => setMoment(null)} />
+      )}
       {heading}
       {/* At 5 of 5 the line is the day's payoff, so it stops looking like the
           muted instruction it replaces: ink, semibold, a persimmon check. */}

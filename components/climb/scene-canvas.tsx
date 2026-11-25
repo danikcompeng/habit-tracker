@@ -29,7 +29,7 @@ export const SCENE_SCALE = 3;
 export const WORLD_METRES_PER_ROW = 25;
 
 type Props =
-  | { view: "close"; altitude: number; className?: string }
+  | { view: "close"; altitude: number; shapeAt: number; className?: string }
   | { view: "world"; altitude: number; top: number; className?: string };
 
 function reducedMotion(): boolean {
@@ -145,6 +145,7 @@ export function SceneCanvas(props: Props) {
 
   const altitude = props.altitude;
   const top = props.view === "world" ? props.top : 0;
+  const shapeAt = props.view === "close" ? props.shapeAt : altitude;
   // The still layer (sky, mountain, banks…) is drawn once per size, theme
   // and view, then copied; each tick only draws the drifting clouds and you.
   const base = useRef<{ key: string; px: Uint8Array } | null>(null);
@@ -158,22 +159,24 @@ export function SceneCanvas(props: Props) {
       metresPerRow: WORLD_METRES_PER_ROW,
       bottom: 0,
       top,
+      you: altitude,
       theme,
       moon: worldMoon(size.width, size.height, WORLD_METRES_PER_ROW, altitude, top),
     };
-    const baseOptions = props.view === "close" ? closeFarOptions({ width: size.width, height: size.height, theme, altitude }) : world;
+    const baseOptions =
+      props.view === "close" ? closeFarOptions({ width: size.width, height: size.height, theme, altitude, you: shapeAt }) : world;
     const key = JSON.stringify(baseOptions);
     if (base.current?.key !== key) base.current = { key, px: drawWorldBase(baseOptions).px };
     const scene = new Canvas(size.width, size.height);
     scene.px.set(base.current.px);
     if (props.view === "close") {
-      drawCloseMoving(scene, { width: size.width, height: size.height, theme, time, altitude, driftMs: MOTION.drift });
+      drawCloseMoving(scene, { width: size.width, height: size.height, theme, time, altitude, you: shapeAt, driftMs: MOTION.drift });
     } else {
       drawWorldMoving(scene, { ...world, time, altitude, driftMs: MOTION.drift });
     }
     if (colours.current?.theme !== theme) colours.current = { theme, rgb: readColours() };
     paint(canvas.current, scene, colours.current.rgb, image.current);
-  }, [size, theme, time, altitude, top, props.view]);
+  }, [size, theme, time, altitude, top, shapeAt, props.view]);
 
   return (
     // overflow-hidden: the canvas is exactly SCENE_SCALE css px per logical

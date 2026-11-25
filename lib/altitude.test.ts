@@ -10,6 +10,8 @@ import {
   nextZone,
   silentlyRaised,
   zoneMomentAfterSave,
+  zoneByIndex,
+  zonesBelow,
   zoneAt,
   zoneIndex,
   zoneMemoryKey,
@@ -77,29 +79,42 @@ describe("the day rules (History's)", () => {
 });
 
 describe("zones", () => {
-  it("start where the brief says, Stratosphere from 10,000 m", () => {
-    expect(ZONES.map((z) => [z.name, z.from])).toEqual([
+  it("start where the brief says (High ridge, not Summit, at 8,848 m), then every 2,500 m from 10,000 m, forever", () => {
+    expect(ZONES.slice(0, 7).map((z) => [z.name, z.from])).toEqual([
       ["Base camp", 0],
       ["Forest", 500],
       ["Treeline", 1_500],
       ["Snowline", 3_000],
       ["Above the clouds", 5_000],
-      ["Summit", 8_848],
+      ["High ridge", 8_848],
       ["Stratosphere", 10_000],
     ]);
+    expect(ZONES.some((z) => /summit/i.test(z.name))).toBe(false);
+    for (let i = 6; i < ZONES.length; i++) expect(ZONES[i].from).toBe(10_000 + (i - 6) * 2_500);
+    expect(zoneByIndex(ZONES.length)).toEqual({ name: "Higher still", from: ZONES[ZONES.length - 1].from + 2_500 });
+    expect(zoneAt(cm(100_000)).name).toBe("Higher still");
+  });
+
+  it("index and height round-trip, far up the climb", () => {
+    for (let i = 0; i < 60; i++) expect(zoneIndex(cm(zoneByIndex(i).from))).toBe(i);
+    expect(zonesBelow(12_000).map((z) => z.name)).toEqual(["Base camp", "Forest", "Treeline", "Snowline", "Above the clouds", "High ridge", "Stratosphere"]);
   });
 
   it("change exactly at the threshold, to the centimetre", () => {
     expect(zoneAt(cm(1_500) - 1).name).toBe("Forest");
     expect(zoneAt(cm(1_500)).name).toBe("Treeline");
     expect(zoneAt(0).name).toBe("Base camp");
-    expect(zoneAt(cm(50_000)).name).toBe("Stratosphere");
+    expect(zoneAt(cm(10_000)).name).toBe("Stratosphere");
+    expect(zoneAt(cm(12_500) - 1).name).toBe("Stratosphere");
+    expect(zoneAt(cm(12_500)).name).toBe("Jet stream");
   });
 
   it("say how far the next one is, rounded up, so it never reads 0 m before you're there", () => {
     expect(nextZone(cm(7_113))).toEqual({ zone: ZONES[5], metres: 1_735 });
     expect(nextZone(cm(8_848) - 40)).toEqual({ zone: ZONES[5], metres: 1 });
-    expect(nextZone(cm(12_000))).toBeNull();
+    // There's always a next zone.
+    expect(nextZone(cm(12_000))).toEqual({ zone: ZONES[7], metres: 500 });
+    expect(nextZone(cm(1_000_000)).metres).toBeGreaterThan(0);
   });
 
   it("show heights rounded down: never one not yet reached", () => {
@@ -119,6 +134,7 @@ describe("the zone moment", () => {
 
   it("crossing two zones at once gives the higher one", () => {
     expect(newZone(cm(8_800), cm(10_050), 4)?.name).toBe("Stratosphere");
+    expect(newZone(cm(12_450), cm(12_520), 6)?.name).toBe("Jet stream");
   });
 
   it("remembers zones by their height, per account", () => {
@@ -126,7 +142,12 @@ describe("the zone moment", () => {
     expect(celebratedIndex(null)).toBe(-1);
     expect(celebratedIndex("garbage")).toBe(-1);
     expect(celebratedIndex(zoneMemoryValue(3))).toBe(3);
-    expect(zoneMemoryValue(99)).toBe("10000");
+    expect(zoneMemoryValue(99)).toBe(String(zoneByIndex(99).from));
+    expect(celebratedIndex(zoneMemoryValue(99))).toBe(99);
+    expect(celebratedIndex("12345")).toBe(-1); // not a zone's start
+    // Values stored before Feature 10b: the old Summit (8,848) is High ridge now.
+    expect(celebratedIndex("8848")).toBe(5);
+    expect(celebratedIndex("10000")).toBe(6);
   });
 
   it("the server's altitude raises the memory silently, never lowers it", () => {

@@ -7,8 +7,7 @@
 import type { Page } from "@playwright/test";
 import { expect, test } from "./helpers/saves";
 import { freshDemo, habitKey } from "./helpers/app";
-import { localToday, reseedDemo } from "./helpers/seed";
-import { addDays } from "../lib/dates";
+import { reseedDemo } from "./helpers/seed";
 
 const SCHEMES = ["light", "dark"] as const;
 
@@ -245,27 +244,21 @@ test("climb screens", async ({ page }) => {
   await page.getByRole("link", { name: /^Altitude/ }).click();
   await expect(page.getByTestId("ruler-you")).toBeVisible();
   await shoot(page, folder, "climb");
-  // And the top of the climb: the stratosphere and the summit.
+  // And the top of the window: the cloud cap and the sky above it (Feature 10b: no summit in sight).
   await page.getByRole("region", { name: /^The climb/ }).evaluate((el) => el.scrollTo(0, 0));
   await shoot(page, folder, "climb-top");
 
-  // The zone moment: a demo one completion short of Treeline.
-  const { today } = localToday();
-  await reseedDemo([
-    {
-      name: "Climb a little",
-      created_at: new Date(`${addDays(today, -9)}T12:00:00Z`).toISOString(),
-      days: Array.from({ length: 9 }, (_, i) => addDays(today, -9 + i)),
-    },
-  ]);
+  // The zone moment, as a demo visitor sees it (Feature 10b): finishing
+  // today's three open habits crosses into High ridge.
+  await freshDemo(page);
   try {
-    // Forget the zones this device celebrated at the demo's ~7,100 m.
     await page.evaluate(() => {
       for (const key of Object.keys(localStorage)) if (key.startsWith("climb-zone:")) localStorage.removeItem(key);
     });
     await page.goto("/");
-    await hold(page, "Climb a little");
-    await expect(page.getByRole("button", { name: /New zone Treeline/ })).toBeVisible();
+    for (const name of ["Read 10 pages", "Stretch for 5 minutes", "No phone in bed"]) await hold(page, name);
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await expect(page.getByRole("button", { name: /New zone High ridge/ })).toBeVisible();
     // Shot quickly: the card closes itself after 6 s.
     for (const scheme of SCHEMES) {
       await page.emulateMedia({ colorScheme: scheme, reducedMotion: "reduce" });
@@ -274,6 +267,7 @@ test("climb screens", async ({ page }) => {
       await page.screenshot({ path: `docs/screenshots/${folder}/zone-moment-${scheme}.png` });
     }
   } finally {
+    // Never leave the shared demo finished for the next visitor.
     await reseedDemo();
   }
 });

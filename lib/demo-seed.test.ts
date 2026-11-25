@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { CM, altitudeOf, dailyClimbCm, zoneByIndex, zoneIndex } from "./altitude";
 import { todayIn } from "./dates";
 import { buildHistory, toHistoryHabits } from "./history";
 import {
@@ -114,5 +115,26 @@ describe("needsReseed", () => {
     const stapleOnly = { demo_seeded_at: seededNow.toISOString(), demo_seeded_day: TODAY };
     expect(needsReseed(stapleOnly, seededNow, TODAY)).toBe(true);
     expect(Object.keys(markers).every((k) => k.startsWith("hold_"))).toBe(true);
+  });
+});
+
+describe.each(["UTC", "Pacific/Kiritimati", "Pacific/Pago_Pago", "Asia/Kolkata", "America/New_York", "Europe/London"])("the demo on the Climb (Feature 10b), %s", (tz) => {
+  const today = "2026-11-25";
+  const habits = demoSeedPayload(today, tz).map((h) => ({ createdDay: todayIn(tz, new Date(h.created_at)), days: h.days }));
+  const { altitudeCm, beforeTodayCm } = altitudeOf(habits, today);
+
+  it("lands 60–100 m below a zone boundary", () => {
+    const next = zoneByIndex(zoneIndex(altitudeCm) + 1).from * CM;
+    expect(next - altitudeCm).toBeGreaterThanOrEqual(60 * CM);
+    expect(next - altitudeCm).toBeLessThanOrEqual(100 * CM);
+  });
+
+  it("finishing today's open habits crosses it (on the last one, the perfect day), whatever the order", () => {
+    const total = habits.length;
+    const doneToday = habits.filter((h) => h.days.includes(today)).length;
+    const steps = [doneToday + 1, doneToday + 2, total].map((d) => beforeTodayCm + dailyClimbCm(d, total));
+    expect(zoneIndex(steps[0])).toBe(zoneIndex(altitudeCm));
+    expect(zoneIndex(steps[1])).toBe(zoneIndex(altitudeCm));
+    expect(zoneIndex(steps[2])).toBe(zoneIndex(altitudeCm) + 1);
   });
 });

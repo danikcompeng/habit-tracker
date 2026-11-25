@@ -15,7 +15,7 @@
 // The still layer (drawWorldBase) is drawn once and cached by the caller;
 // each tick only draws the drifting clouds and you (drawWorldMoving).
 
-import { SUMMIT_M } from "../altitude";
+import { CM, nextZone } from "../altitude";
 import { SCENE_PALETTE, contrast } from "../palette";
 
 /** Sky bands, highest (1) to lowest (12). */
@@ -43,6 +43,7 @@ export const ROLES = [
   "rock-shade",
   "snow",
   "snow-shade",
+  "snow-gully",
   "pine",
   "pine-dark",
   "valley",
@@ -67,9 +68,10 @@ const R = Object.fromEntries(ROLES.map((role, i) => [role, i])) as Record<Role, 
 
 export type Theme = "light" | "dark";
 
-/** The world's top: 12,000 m, or higher once you are (your altitude + 1,500 m, in 2,500 m steps). */
+/** The world's top: 12,000 m, or higher once you are (your altitude + 1,500 m, and always past the next zone, in 2,500 m steps). */
 export function worldTop(altitude: number): number {
-  return Math.max(12_000, Math.ceil((altitude + 1_500) / 2_500) * 2_500);
+  const next = nextZone(Math.max(0, Math.round(altitude * CM))).zone.from;
+  return Math.max(12_000, Math.ceil(Math.max(altitude + 1_500, next + 1_000) / 2_500) * 2_500) + 600;
 }
 
 /** A small, fast, seeded random number generator (mulberry32). */
@@ -310,6 +312,8 @@ export type WorldOptions = {
   bottom: number;
   /** The world's top. */
   top: number;
+  /** Your altitude, which shapes the mountain (its cone and its cloud cap). */
+  you: number;
   theme: Theme;
   /** Dark mode's moon, in logical pixels of this view (so it's always in sight), or null. */
   moon: { x: number; y: number } | null;
@@ -325,52 +329,57 @@ export type BaseOptions = Omit<WorldOptions, "time" | "altitude" | "driftMs">;
 
 const SEED = 20261125;
 
-/** Where the main peak is, as a fraction of the width. */
-const PEAK_X = 0.6;
-/** The flanks' slope: logical pixels of half-width per metre below the summit (left, right). */
-const FLANK_L = 0.0125;
-const FLANK_R = 0.0105;
+/**
+ * The mountain (Feature 10b): a broad, Fuji-like cone whose top is never
+ * seen. It's shaped around YOUR altitude (`you`): about 40% of the width
+ * either side of the centre where you stand, wider below (sweeping past the
+ * edges), narrower above, never a point; and it disappears into a cloud cap
+ * MIST_ABOVE_M above you. As you climb, the view moves up the slope and the
+ * cap moves up with you: there's always more mountain above, in cloud.
+ */
+const CONE_CENTRE = 0.5;
+/** Half-width at your altitude, as a share of the width. */
+const CONE_AT_YOU = 0.27;
+/** The slopes' curve: the half-width shrinks by e every this many metres up (concave, like Fuji). */
+const CONE_FOLD_M = 1_500;
+/** The cloud cap: this far above you the mountain disappears into cloud. */
+export const MIST_ABOVE_M = 700;
 
-/** A few deliberate crags on each flank: [altitude, pixels out, metres wide]. */
-const CRAGS_L = [
-  [6_300, 3, 500],
-  [3_800, 4, 700],
-  [1_600, 3, 600],
-] as const;
-const CRAGS_R = [
-  [7_400, 2, 400],
-  [4_900, 3, 600],
-  [2_200, 4, 800],
-] as const;
+/** Below this the cone keeps its shape (anchored here), so even at Base camp the slopes are broad. */
+const CONE_ANCHOR_MIN_M = 2_500;
 
-function crag(altitude: number, crags: readonly (readonly [number, number, number])[]): number {
-  let out = 0;
-  for (const [a, px, w] of crags) out += px * Math.max(0, 1 - Math.abs(altitude - a) / w);
-  return out;
+/** The mountain's half-width (logical px) at an altitude, for you at `you`. */
+export function coneHalfWidth(altitude: number, width: number, you: number): number {
+  return width * CONE_AT_YOU * Math.exp(-(altitude - Math.max(you, CONE_ANCHOR_MIN_M)) / CONE_FOLD_M);
 }
 
-/** The main mountain's left and right edges (logical x) at an altitude, for a width: straight flanks, stepped. */
-export function mountainSpan(altitude: number, width: number): { left: number; right: number } | null {
-  if (altitude >= SUMMIT_M) return null;
-  const peak = width * PEAK_X;
-  const below = SUMMIT_M - altitude;
-  return {
-    left: Math.floor(peak - below * FLANK_L - crag(altitude, CRAGS_L)),
-    right: Math.ceil(peak + below * FLANK_R + crag(altitude, CRAGS_R)),
-  };
+/** Where the mountain disappears into the cloud cap. */
+export function mistLine(you: number): number {
+  return you + MIST_ABOVE_M;
 }
 
-/** The ridge splitting the lit face (left) from the shaded one (right): from the summit down and to the right. */
-function ridgeAt(altitude: number, width: number): number {
-  return width * PEAK_X + (SUMMIT_M - altitude) * FLANK_R * 0.4;
+/** The mountain's left and right edges (logical x) at an altitude, or null above the cloud cap (it's in cloud). */
+export function mountainSpan(altitude: number, width: number, you: number): { left: number; right: number } | null {
+  if (altitude >= mistLine(you)) return null;
+  const half = coneHalfWidth(altitude, width, you);
+  const centre = width * CONE_CENTRE;
+  // A little roughness on the edges, so the slopes step like rock, not a ruler.
+  const roughL = (noise1(altitude / 160, 11) - 0.5) * 3;
+  const roughR = (noise1(altitude / 190, 23) - 0.5) * 3;
+  return { left: Math.floor(centre - half + roughL), right: Math.ceil(centre + half + roughR) };
+}
+
+/** The line between the lit face (left) and the shaded one (right): a little right of the centre, ragged like a real ridge. */
+function ridgeAt(altitude: number, width: number, you: number): number {
+  return width * CONE_CENTRE + coneHalfWidth(altitude, width, you) * 0.12 + (noise1(altitude / 110, 29) - 0.5) * 4;
 }
 
 /** The x of the climbing line on the lit face at an altitude: where your marker stands. */
-export function trailX(altitude: number, width: number): number {
-  const peak = width * PEAK_X;
-  if (altitude >= SUMMIT_M) return Math.round(peak);
-  const span = mountainSpan(altitude, width)!;
-  return Math.round(span.left + (ridgeAt(altitude, width) - span.left) * 0.55);
+export function trailX(altitude: number, width: number, you: number): number {
+  // Low down the anchored cone is wider than the view: keep the flag on screen,
+  // between the left edge and the centre.
+  const x = Math.round(width * CONE_CENTRE - coneHalfWidth(altitude, width, you) * 0.42);
+  return Math.max(6, Math.min(Math.round(width * CONE_CENTRE) - 6, x));
 }
 
 /** Row ↔ altitude for a view of the world. */
@@ -478,26 +487,27 @@ export function drawWorldBase(o: BaseOptions): Canvas {
   // 5. Far ridges, hazy, across the width.
   const ridge = (peakAlt: number, seed: number, role: number) => {
     for (let x = 0; x < o.width; x++) {
-      const h = peakAlt * (0.5 + 0.5 * noise1(x / 11, seed)) * (0.8 + 0.2 * noise1(x / 4, seed + 1));
+      // Never above the cloud cap: no tops in sight, even far ones.
+      const h = Math.min(mistLine(o.you) - 150, peakAlt * (0.5 + 0.5 * noise1(x / 11, seed)) * (0.8 + 0.2 * noise1(x / 4, seed + 1)));
       for (let y = Math.max(0, rowOf(h)); y < o.height; y++) if (alt(y) <= h) c.set(x, y, role);
     }
   };
   ridge(3_400, SEED + 5, R["ridge-far"]);
   ridge(1_900, SEED + 6, R["ridge-near"]);
 
-  // 6. The mountain: straight flanks, stepped; lit on the left, a widening
-  //    shaded triangle on the right; pines up to the treeline, rock, then
-  //    snow from the snowline, rock showing through in short strata.
+  // 6. The mountain: a broad cone, lit on the left, shaded on the right;
+  //    pines up to the treeline, rock, then snow from the snowline, rock
+  //    showing through in short strata. It ends in the cloud cap (below).
   for (let y = 0; y < o.height; y++) {
     const a = alt(y);
-    const span = mountainSpan(a, o.width);
+    const span = mountainSpan(a, o.width, o.you);
     if (!span) continue;
-    const ridgeX = ridgeAt(a, o.width);
+    const ridgeX = ridgeAt(a, o.width, o.you);
     for (let x = Math.max(0, span.left); x <= Math.min(o.width - 1, span.right); x++) {
       const lit = x + 0.5 < ridgeX;
       const snowline = 3_000 + (noise1(x / 7, 41) - 0.5) * 500;
       const treeline = 1_500 + (noise1(x / 5, 43) - 0.5) * 300;
-      const ground = a > SUMMIT_M - 250 ? "snow" : groundAt(a, snowline, treeline);
+      const ground = groundAt(a, snowline, treeline);
       let role: number;
       if (ground === "snow") role = lit ? R.snow : R["snow-shade"];
       else if (ground === "rock") role = lit ? R.rock : R["rock-shade"];
@@ -506,31 +516,30 @@ export function drawWorldBase(o: BaseOptions): Canvas {
       c.set(x, y, role);
     }
   }
-  // Strata: rock showing through the snow in runs along the flank, clustered
-  // by the crags and mostly on the shaded face (on the lit face, only a shadow).
+  // Gullies: thin lines fanning down the snow from the cloud cap, each at a
+  // fixed share of the cone's half-width, so they lean out with the slope
+  // ("/" on the lit face, "\\" on the shaded one). Shade on the lit face,
+  // rock on the shaded one. Only in the snow.
   {
     const rnd = seeded(SEED + 60);
-    const crags = [...CRAGS_L, ...CRAGS_R].map(([a]) => a).filter((a) => a > 3_300);
-    for (let i = 0; i < 24; i++) {
-      const near = crags[Math.floor(rnd() * crags.length)];
-      const a = Math.min(SUMMIT_M - 400, Math.max(3_300, near + (rnd() - 0.5) * 1_400));
-      const span = mountainSpan(a, o.width);
-      const shaded = rnd() < 0.75;
-      const where = rnd();
-      const length = 3 + Math.floor(rnd() * 4);
-      if (!span) continue;
-      const ridgeX = ridgeAt(a, o.width);
-      const x0 = shaded ? ridgeX + where * (span.right - ridgeX) : span.left + where * (ridgeX - span.left);
-      const y0 = rowOf(a);
-      // Along the flank: down the face, drifting outward by its slope.
-      const slope = (shaded ? FLANK_R : -FLANK_L) * o.metresPerRow;
-      for (let k = 0; k < length; k++) {
-        const px = Math.round(x0 + slope * k * 1.6);
-        const py = y0 + k;
-        const here = c.get(px, py);
-        if (here === R.snow) c.set(px, py, R["snow-shade"]);
-        else if (here === R["snow-shade"]) c.set(px, py, R["rock-shade"]);
-      }
+    const shares = [-0.78, -0.55, -0.3, 0.28, 0.5, 0.74].map((f) => f + (rnd() - 0.5) * 0.08);
+    for (let y = 0; y < o.height; y++) {
+      const a = alt(y);
+      if (a >= mistLine(o.you) || a < 3_300) continue;
+      const half = coneHalfWidth(a, o.width, o.you);
+      shares.forEach((f, i) => {
+        // Staggered: most start a little below the cap (only one or two reach
+        // it), each runs down a while, in dashes of 4–8 pixels.
+        const startBelow = [0, 260, 520, 120, 400, 650][i];
+        const fromTop = mistLine(o.you) - startBelow - a;
+        if (fromTop < 0 || fromTop > 1_100 + Math.abs(f) * 1_800) return;
+        const k = Math.round(a / o.metresPerRow) + i * 5;
+        if (k % 10 >= 4 + (i % 3) * 2) return;
+        const x = Math.round(o.width * CONE_CENTRE + f * half);
+        const here = c.get(x, y);
+        if (here === R.snow) c.set(x, y, R["snow-shade"]);
+        else if (here === R["snow-shade"]) c.set(x, y, R["snow-gully"]);
+      });
     }
   }
 
@@ -568,7 +577,7 @@ export function drawWorldBase(o: BaseOptions): Canvas {
     // Keyed by altitude (not the row), so the forest never moves as the world grows.
     const k = Math.round(a / o.metresPerRow);
     if (a < 250 || a > 1_650 || k % 2 !== 0) continue;
-    const span = mountainSpan(a, o.width);
+    const span = mountainSpan(a, o.width, o.you);
     for (let x = k % 4 === 0 ? 1 : 3; x < o.width; x += 4) {
       const px = x + Math.floor(hash01(SEED + 70 + k, x) * 3) - 1;
       const onMountain = span !== null && px >= span.left + 1 && px <= span.right - 1;
@@ -601,6 +610,44 @@ export function drawWorldBase(o: BaseOptions): Canvas {
     }
   }
 
+  // 7b. The cloud cap: the mountain disappears into a dense band of cloud
+  //     above you (its underside overlaps the mountain's last rows).
+  {
+    const mist = mistLine(o.you);
+    const topRow = rowOf(mist + 900);
+    const baseRow = rowOf(mist - 260);
+    if (baseRow >= -10 && topRow <= o.height + 10) {
+      const rnd = seeded(SEED + 90 + Math.round(o.you / 100));
+      const bumps: Bump[] = [];
+      for (let x = -8; x < o.width + 8; ) {
+        const r = 5 + rnd() * 9;
+        bumps.push({ x, y: topRow + r * 0.6 + rnd() * 6, r });
+        x += r * (0.75 + rnd() * 0.5);
+      }
+      bumps.sort((a, b) => a.y - b.y);
+      drawCloud(c, 0, 0, bumps, baseRow, cloudShades(false, dark), SEED + 91);
+      // Over the mountain the cloud hangs lower: three lobes 3–6 rows below the underside.
+      const half = coneHalfWidth(mist, o.width, o.you);
+      for (let k = 0; k < 3; k++) {
+        const r = 4 + rnd() * 2.5;
+        const cx = o.width * CONE_CENTRE + (k - 1) * 0.6 * half + (rnd() - 0.5) * 6;
+        const cy = baseRow + 1 + rnd() * 2;
+        drawCloud(c, 0, 0, [{ x: cx, y: cy, r }], Math.round(cy + 2 + rnd() * 2), cloudShades(false, dark));
+      }
+      // A row of mist where the snow meets the cloud: the slope fades into it.
+      for (let x = 0; x < o.width; x++) {
+        for (let y = baseRow + 8; y > baseRow - 12; y--) {
+          const here = c.get(x, y);
+          if (here === R.snow || here === R["snow-shade"] || here === R.rock || here === R["rock-shade"]) {
+            const above = c.get(x, y - 1);
+            if (above === R.cloud || above === R["cloud-shade"] || above === R["cloud-deep"] || above === R["cloud-light"]) c.set(x, y, R["cloud-shade"]);
+            break;
+          }
+        }
+      }
+    }
+  }
+
   // 8. The stratosphere's own touch: thin cirrus streaks.
   for (let k = Math.max(20, Math.floor(lowest / 500)); k * 500 <= highest; k++) {
     const rnd = seeded(SEED + 4_000 + k);
@@ -629,14 +676,21 @@ export function drawWorldMoving(c: Canvas, o: WorldOptions) {
   const dark = o.theme === "dark";
   // Clouds seeded per 500 m band (fixed in metres), two tiers: small far
   // ones tinted toward the sky, nearer white ones (some medium) in front.
+  const around = {
+    flag: o.altitude !== null ? { x: trailX(o.altitude, o.width, o.you), y: rowOf(o.altitude) } : null,
+    onMountain: (x: number, y: number) => {
+      const span = mountainSpan(alt(y), o.width, o.you);
+      return span !== null && x >= span.left && x <= span.right;
+    },
+  };
   for (let k = Math.max(1, Math.floor(alt(o.height - 1) / 500) - 1); k * 500 <= alt(0) + 500; k++) {
     const high = k * 500 >= 10_000;
-    drawDriftingClouds(c, o, rowOf, SEED + 3_000 + k, k * 500, (k + 1) * 500, high ? 0 : 2, "far", dark);
+    drawDriftingClouds(c, o, rowOf, SEED + 3_000 + k, k * 500, (k + 1) * 500, high ? 0 : 2, "far", dark, 0.25, around);
     const near = high ? (hash01(SEED, k) < 0.4 ? 1 : 0) : 1 + (hash01(SEED + 1, k) < 0.5 ? 1 : 0);
-    drawDriftingClouds(c, o, rowOf, SEED + 5_000 + k, k * 500, (k + 1) * 500, near, "near", dark);
+    drawDriftingClouds(c, o, rowOf, SEED + 5_000 + k, k * 500, (k + 1) * 500, near, "near", dark, 0.25, around);
   }
   drawMoon(c, o);
-  if (o.altitude !== null) drawMarker(c, trailX(o.altitude, o.width), rowOf(o.altitude), o.theme);
+  if (o.altitude !== null) drawMarker(c, trailX(o.altitude, o.width, o.you), rowOf(o.altitude), o.theme);
 }
 
 /** Dark mode's moon: gold, shaded at the lower right, in two stepped rings of moonlit navy. Drawn over the clouds, so it's always seen. */
@@ -671,6 +725,8 @@ function drawDriftingClouds(
   tier: "far" | "near",
   dark: boolean,
   mediumShare = 0.25,
+  /** Keep clear of this box (the flag), and draw clouds over the mountain as pale mist. */
+  around?: { flag: { x: number; y: number } | null; onMountain: (x: number, y: number) => boolean },
 ) {
   const rnd = seeded(seed);
   for (let i = 0; i < count; i++) {
@@ -689,8 +745,19 @@ function drawDriftingClouds(
     // Far clouds are drawn at half size.
     const bumps = tier === "far" ? shape.bumps.map((b) => ({ x: b.x / 2, y: b.y / 2, r: b.r / 2 + 0.4 })) : shape.bumps;
     const base = tier === "far" ? Math.ceil(shape.base / 2) : shape.base;
-    // Dark mode's coral rim: on every medium cloud, the moon-facing edge.
-    drawCloud(c, x, y + (shape.base - base), bumps, base, cloudShades(tier === "far", dark, medium));
+    const w = tier === "far" ? Math.ceil(shape.width / 2) : shape.width;
+    const top = y + (shape.base - base);
+    // Never over the flag (a 12 × 14 box around its foot and pennant).
+    const flag = around?.flag;
+    if (flag && x < flag.x + 8 && x + w > flag.x - 4 && top < flag.y + 3 && top + base > flag.y - 11) continue;
+    // Over the snow, a pale mist (a dark cloud on a pale slope reads as a hole).
+    const overMountain = around?.onMountain(Math.round(x + w / 2), top + base) ?? false;
+    // The coral rim: on medium clouds wholly in frame, dark only.
+    const inFrame = x >= 0 && x + w <= c.width;
+    const shades = overMountain
+      ? { base: R["cloud-light"], light: R["cloud-light"], shade: R.cloud, deep: R.cloud, plain: true }
+      : cloudShades(tier === "far", dark, medium && inFrame);
+    drawCloud(c, x, top, bumps, base, shades);
   }
 }
 
@@ -740,13 +807,21 @@ export type CloseOptions = {
   height: number;
   theme: Theme;
   time: number;
-  /** Your altitude: the middle of the view. */
+  /** Your altitude: 60% of the way down the strip. */
   altitude: number;
+  /**
+   * The altitude the mountain is shaped around: on Today, the day's start
+   * (before today), so the slope and its cloud cap stay still while your
+   * flag climbs it during the day (at most 150 m: the cap stays above you).
+   */
+  you: number;
   driftMs: number;
 };
 
 const NEAR_M = 5;
 const FAR_M = 40;
+/** Where you stand in the strip, from the top: a little below the middle, clear of the Altitude chip, with more mountain above. */
+const YOU_FROM_TOP = 0.6;
 
 /**
  * Today's strip: a close-up around your altitude: near clouds (5 m a row)
@@ -759,40 +834,64 @@ export function drawClose(o: CloseOptions): Canvas {
   return c;
 }
 
-/** The strip's far layer (its still base can be cached). The moon sits high on the left, always in view. */
+/** The strip's far layer (its still base can be cached). The moon sits high on the right (over the cloud cap, or beside the cone), never on the mountain. */
 export function closeFarOptions(o: Omit<CloseOptions, "time" | "driftMs">): BaseOptions {
   return {
     width: o.width,
     height: o.height,
     metresPerRow: FAR_M,
     // Whole rows, so the cached base is reused between small lifts.
-    bottom: Math.round((o.altitude - (o.height / 2) * FAR_M) / FAR_M) * FAR_M,
+    bottom: Math.round((o.altitude - o.height * (1 - YOU_FROM_TOP) * FAR_M) / FAR_M) * FAR_M,
     top: worldTop(o.altitude),
+    you: o.you,
     theme: o.theme,
-    moon: { x: Math.round(o.width * 0.7), y: 11 },
+    moon: closeMoon(o),
   };
+}
+
+/** The strip's moon: high up, in clear sky beside the cone (right, else left), never on the mountain; none if there's no room. */
+function closeMoon(o: Omit<CloseOptions, "time" | "driftMs">): { x: number; y: number } | null {
+  const y = 10;
+  const a = o.altitude + (o.height * YOU_FROM_TOP - y) * FAR_M;
+  if (a >= mistLine(o.you)) return { x: Math.round(o.width * 0.82), y };
+  const half = coneHalfWidth(a, o.width, o.you);
+  const right = Math.round(o.width * CONE_CENTRE + half + 11);
+  if (right <= o.width - 5) return { x: right, y };
+  const left = Math.round(o.width * CONE_CENTRE - half - 11);
+  return left >= 5 ? { x: left, y } : null;
 }
 
 /** The strip's moving layer over its far base: the far world's clouds, the near clouds, and you. */
 export function drawCloseMoving(c: Canvas, o: CloseOptions) {
   drawWorldMoving(c, { ...closeFarOptions(o), time: o.time, altitude: null, driftMs: o.driftMs * 2 });
   const dark = o.theme === "dark";
-  const bottom = o.altitude - (o.height / 2) * NEAR_M;
+  const bottom = o.altitude - o.height * (1 - YOU_FROM_TOP) * NEAR_M;
   const rowOf = (a: number) => Math.round(o.height - 1 - (a - bottom) / NEAR_M);
   // Near clouds: about one every 200 m (2–3 in view), seeded by altitude so
   // they're always in the same places on the climb; mostly small.
   const band = 200;
+  const far = closeFarOptions(o);
+  const farRows = rows(far);
+  const around = {
+    flag: { x: trailX(o.altitude, o.width, o.you), y: rowOf(o.altitude) },
+    onMountain: (x: number, y: number) => {
+      // What's behind this near-cloud pixel in the far world.
+      const span = mountainSpan(farRows.alt(y), o.width, o.you);
+      return span !== null && x >= span.left && x <= span.right;
+    },
+  };
   for (let k = Math.floor(bottom / band) - 3; k <= Math.ceil((bottom + o.height * NEAR_M) / band) + 1; k++) {
     if (k < 0) continue;
-    drawDriftingClouds(c, o, rowOf, 777_000 + k, k * band, (k + 1) * band, 1, "near", dark, 0.15);
+    drawDriftingClouds(c, o, rowOf, 777_000 + k, k * band, (k + 1) * band, 1, "near", dark, 0.15, around);
   }
   // The moon over the near clouds too, then you, on the climbing line of the far world.
   drawMoon(c, closeFarOptions(o));
-  drawMarker(c, trailX(o.altitude, o.width), rowOf(o.altitude), o.theme);
+  drawMarker(c, trailX(o.altitude, o.width, o.you), rowOf(o.altitude), o.theme);
 }
 
-/** Dark mode's moon on the Climb screen: high on the left, about 1,100 m above you, so it's in view when the screen opens. */
+/** Dark mode's moon on the Climb screen: high on the left, around the top of the cloud cap, so it's in view when the screen opens. */
 export function worldMoon(width: number, height: number, metresPerRow: number, altitude: number, top: number): { x: number; y: number } {
-  const a = Math.min(top - 400, Math.max(2_600, altitude + 1_100));
+  // Above the cloud cap (which ends about 450 m above the mist line).
+  const a = Math.min(top - 400, Math.max(2_600, mistLine(altitude) + 900));
   return { x: Math.round(width * 0.14), y: Math.round(height - 1 - a / metresPerRow) };
 }

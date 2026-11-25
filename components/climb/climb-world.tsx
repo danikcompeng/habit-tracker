@@ -8,7 +8,7 @@
 
 import { useLayoutEffect, useRef } from "react";
 import { SCENE_SCALE, SceneCanvas, WORLD_METRES_PER_ROW } from "@/components/climb/scene-canvas";
-import { CM, ZONES, metres, metresText, wholeMetres } from "@/lib/altitude";
+import { CM, metres, metresText, wholeMetres, zonesBelow } from "@/lib/altitude";
 import { worldTop } from "@/lib/climb-scene/scene";
 
 /** CSS px from the world's top to an altitude. */
@@ -57,7 +57,7 @@ export function ClimbWorld({ altitudeCm }: { altitudeCm: number }) {
             {/* Near you, your own chip says where you are: the tick keeps only its mark. */}
             {Math.abs(m - altitudeM) >= 700 && (
               <span
-                className="absolute right-6 -translate-y-1/2 rounded-full bg-surface px-2 py-0.5 text-sm font-semibold text-ink-muted"
+                className="absolute right-6 -translate-y-1/2 rounded-full border border-line bg-surface px-2 py-0.5 text-sm font-semibold text-ink-muted"
                 style={{ top: yOf(m, top) }}
               >
                 {metresText(m)}
@@ -81,14 +81,14 @@ export function ClimbWorld({ altitudeCm }: { altitudeCm: number }) {
 
         {/* The zones down the left, as a list. */}
         <ul aria-label="Zones">
-          {ZONES.filter((z) => z.from < top).map((z) => (
+          {zonesBelow(top).map((z) => (
             // The name only (the ruler shows heights; screen readers hear it),
             // sitting just above the height where the zone starts, and never
             // wider than the room left of the ruler (5.5rem: its widest chip,
             // which grows with the text too): it wraps instead.
             <li
-              key={z.name}
-              className={`absolute left-2 -translate-y-full rounded-(--radius-field) bg-surface px-2.5 py-0.5 text-sm leading-tight font-semibold text-pretty text-ink ${rulerNear(z.from) ? "max-w-[calc(100%-7rem)]" : "max-w-[calc(100%-1rem)]"}`}
+              key={z.from}
+              className={`absolute left-2 -translate-y-full rounded-(--radius-field) border border-line bg-surface px-2.5 py-0.5 text-sm leading-tight font-semibold text-pretty text-ink ${Math.abs(z.from - altitudeM) < 500 ? "max-w-[min(6.5rem,calc(100%-7.5rem))]" : rulerNear(z.from) ? "max-w-[calc(100%-7rem)]" : "max-w-[calc(100%-1rem)]"}`}
               style={{ top: yOf(z.from, top) - 2 }}
             >
               {z.name}

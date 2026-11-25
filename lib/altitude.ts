@@ -20,20 +20,57 @@ export const CM = 100;
 export const DAY_CM = 100 * CM;
 /** …plus this for a perfect day (50 m). */
 export const PERFECT_BONUS_CM = 50 * CM;
-export const SUMMIT_M = 8_848;
+/** Where High ridge starts: Everest's height, a height on the way, never the end (Feature 10b). */
+export const HIGH_RIDGE_M = 8_848;
 
-export const ZONES = [
+/** A zone of the climb: its name and the height it starts at, in metres. */
+export type Zone = { readonly name: string; readonly from: number };
+
+/**
+ * The named zones, from the valley up. The climb has no last zone: above
+ * these, a new one every 2,500 m, forever (zoneByIndex), so there's always
+ * a next zone moment (Feature 10b: a constant journey).
+ */
+export const ZONES: readonly Zone[] = [
   { name: "Base camp", from: 0 },
   { name: "Forest", from: 500 },
   { name: "Treeline", from: 1_500 },
   { name: "Snowline", from: 3_000 },
   { name: "Above the clouds", from: 5_000 },
-  { name: "Summit", from: SUMMIT_M },
-  // Where the real stratosphere starts at mid-latitudes; Summit spans 8,848–9,999 m.
+  { name: "High ridge", from: HIGH_RIDGE_M },
+  // Where the real stratosphere starts at mid-latitudes.
   { name: "Stratosphere", from: 10_000 },
-] as const;
+  { name: "Jet stream", from: 12_500 },
+  { name: "Thin air", from: 15_000 },
+  { name: "Aurora", from: 17_500 },
+  { name: "Starlight", from: 20_000 },
+  { name: "Silver ridge", from: 22_500 },
+  { name: "Moonrise", from: 25_000 },
+  { name: "Long ridge", from: 27_500 },
+  { name: "Quiet heights", from: 30_000 },
+  { name: "Far horizon", from: 32_500 },
+  { name: "Deep sky", from: 35_000 },
+];
 
-export type Zone = (typeof ZONES)[number];
+/** Above the named zones: a new zone every this many metres, all called this. */
+export const ZONE_STEP_M = 2_500;
+export const HIGHER_STILL = "Higher still";
+
+const LAST = ZONES.length - 1;
+
+/** The zone at an index (0 = Base camp), for any index: named, then "Higher still" every 2,500 m. */
+export function zoneByIndex(index: number): Zone {
+  const i = Math.max(0, Math.floor(index));
+  if (i <= LAST) return ZONES[i];
+  return { name: HIGHER_STILL, from: ZONES[LAST].from + (i - LAST) * ZONE_STEP_M };
+}
+
+/** The zones that start below a height (metres), in order: for labels on the Climb screen. */
+export function zonesBelow(metres: number): Zone[] {
+  const out: Zone[] = [];
+  for (let i = 0; zoneByIndex(i).from < metres; i++) out.push(zoneByIndex(i));
+  return out;
+}
 
 /**
  * A day's climb in centimetres: the share of counted habits done (rounded
@@ -84,21 +121,25 @@ export function altitudeOf(habits: readonly ClimbHabit[], today: string): { alti
   return { altitudeCm: beforeTodayCm + todayCm, beforeTodayCm };
 }
 
+/** The index of the zone you're in at an altitude (in centimetres). */
+export function zoneIndex(altitudeCm: number): number {
+  if (altitudeCm >= ZONES[LAST].from * CM) return LAST + Math.floor((altitudeCm - ZONES[LAST].from * CM) / (ZONE_STEP_M * CM));
+  let index = 0;
+  ZONES.forEach((z, i) => {
+    if (altitudeCm >= z.from * CM) index = i;
+  });
+  return index;
+}
+
 /** The zone you're in at an altitude (in centimetres). */
 export function zoneAt(altitudeCm: number): Zone {
-  let zone: Zone = ZONES[0];
-  for (const z of ZONES) if (altitudeCm >= z.from * CM) zone = z;
-  return zone;
+  return zoneByIndex(zoneIndex(altitudeCm));
 }
 
-export function zoneIndex(altitudeCm: number): number {
-  return ZONES.indexOf(zoneAt(altitudeCm));
-}
-
-/** The next zone up and how far it is in whole metres (rounded UP: never "0 m to go" before you're there), or null in the last one. */
-export function nextZone(altitudeCm: number): { zone: Zone; metres: number } | null {
-  const next = ZONES[zoneIndex(altitudeCm) + 1];
-  return next ? { zone: next, metres: Math.ceil((next.from * CM - altitudeCm) / CM) } : null;
+/** The next zone up and how far it is in whole metres (rounded UP: never "0 m to go" before you're there). There's always one. */
+export function nextZone(altitudeCm: number): { zone: Zone; metres: number } {
+  const next = zoneByIndex(zoneIndex(altitudeCm) + 1);
+  return { zone: next, metres: Math.ceil((next.from * CM - altitudeCm) / CM) };
 }
 
 /**
@@ -110,7 +151,7 @@ export function newZone(before: number, after: number, celebrated: number): Zone
   if (after <= before) return null;
   const reached = zoneIndex(after);
   if (reached <= zoneIndex(before) || reached <= celebrated) return null;
-  return ZONES[reached];
+  return zoneByIndex(reached);
 }
 
 const METRES = new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 });
@@ -143,12 +184,14 @@ export function zoneMemoryKey(userId: string): string {
 export function celebratedIndex(stored: string | null): number {
   if (stored === null) return -1;
   const from = Number(stored);
-  return ZONES.findIndex((z) => z.from === from);
+  if (!Number.isFinite(from) || from < 0) return -1;
+  const index = zoneIndex(from * CM);
+  return zoneByIndex(index).from === from ? index : -1;
 }
 
 /** What to store for a zone index. */
 export function zoneMemoryValue(index: number): string {
-  return String(ZONES[Math.max(0, Math.min(ZONES.length - 1, index))].from);
+  return String(zoneByIndex(index).from);
 }
 
 /**
@@ -177,5 +220,5 @@ export function zoneMomentAfterSave(
 ): { zone: Zone; store: number } | null {
   if (!result.ok || result.newDay) return null;
   const zone = newZone(climb.beforeCm, climb.afterCm, celebrated);
-  return zone ? { zone, store: ZONES.indexOf(zone) } : null;
+  return zone ? { zone, store: zoneIndex(zone.from * CM) } : null;
 }

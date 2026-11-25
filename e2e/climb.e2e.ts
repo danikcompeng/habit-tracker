@@ -4,7 +4,8 @@
 // data, the same rule the database's habit_altitude() follows.
 
 import type { Page } from "@playwright/test";
-import { altitudeOf, dailyClimbCm, metres, nextZone, zoneAt } from "../lib/altitude";
+import { altitudeOf, dailyClimbCm, metres, nextZone, zoneAt, zonesBelow } from "../lib/altitude";
+import { worldTop } from "../lib/climb-scene/scene";
 import { addDays, todayIn } from "../lib/dates";
 import { demoSeedPayload } from "../lib/demo-seed";
 import { expectNoA11yViolations, freshDemo, habitKey, holdKey } from "./helpers/app";
@@ -22,8 +23,8 @@ const strip = (page: Page) => page.getByRole("link", { name: /^Altitude/ });
 
 /**
  * Forget the zones celebrated on this device: any earlier visit to the demo
- * (~7,100 m) remembered "Above the clouds" and would hide a lower zone's
- * moment. Needs the app's origin, so it visits a page without the climb.
+ * (~8,760 m) remembered "Above the clouds" and would hide a lower zone's
+ * moment (or one finishing the demo, High ridge). Needs the app's origin, so it visits a page without the climb.
  */
 async function forgetZones(page: Page) {
   await page.goto("/settings");
@@ -65,10 +66,11 @@ test("Today's strip shows the demo's altitude and zone, is named by its own word
   await expect(page.getByRole("heading", { name: "Climb", level: 1 })).toBeVisible();
   await expect(page).toHaveTitle("Climb · Ascend");
   await expect(page.getByText(metres(altitudeCm), { exact: true }).first()).toBeVisible();
-  const next = nextZone(altitudeCm)!;
+  const next = nextZone(altitudeCm);
   await expect(page.getByText(`${zone} · ${next.metres.toLocaleString("en-US")} m to ${next.zone.name}`)).toBeVisible();
   // The zones, for everyone; the ruler's own chip shows where you are.
-  await expect(page.getByRole("list", { name: "Zones" }).getByRole("listitem")).toHaveCount(8);
+  // Every zone below the world's top, plus "you are here".
+  await expect(page.getByRole("list", { name: "Zones" }).getByRole("listitem")).toHaveCount(zonesBelow(worldTop(altitudeCm / 100)).length + 1);
   await expect(page.getByTestId("ruler-you")).toHaveText(metres(altitudeCm));
   for (const colorScheme of ["light", "dark"] as const) {
     await page.emulateMedia({ colorScheme });
@@ -157,6 +159,29 @@ test("the zone moment: once, after the save, with the right words, and never aga
     await page.waitForTimeout(500);
     await expect(page.getByRole("button", { name: /New zone/ })).toHaveCount(0);
   } finally {
+    await reseedDemo();
+  }
+});
+
+test("a demo visitor who finishes today's three open habits crosses into High ridge and sees the card (Feature 10b)", async ({ page }) => {
+  await freshDemo(page);
+  try {
+    await forgetZones(page);
+    await page.goto("/");
+    await expect(strip(page)).toHaveAccessibleName(/^Altitude 8,7\d\d m Above the clouds/);
+    for (const [i, name] of ["Read 10 pages", "Stretch for 5 minutes", "No phone in bed"].entries()) {
+      const saved = nextSave(page);
+      await holdKey(page, habitKey(page, name), 800);
+      await saved;
+      // Not before the last one (the perfect day's +70 m is what crosses).
+      if (i < 2) await expect(page.getByRole("button", { name: /New zone/ })).toHaveCount(0);
+    }
+    const card = page.getByRole("button", { name: /New zone High ridge/ });
+    await expect(card).toBeVisible();
+    await expect(card).toContainText(/\+70 m · up to 8,8\d\d m/);
+    await expect(strip(page)).toHaveAccessibleName(/High ridge/);
+  } finally {
+    // Never leave the shared demo finished (past High ridge) for the next visitor.
     await reseedDemo();
   }
 });

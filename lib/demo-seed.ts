@@ -19,19 +19,24 @@ type SampleHabit = {
 // habit whose older dots are "before" (e2e/today.e2e.ts relies on these).
 // Behind that, about 90 days of runs and lapses for the History page
 // (Feature 7): patchier early on, steadier lately, one habit added
-// mid-range (Stretch), and an old 22-day run on Walk that beats today's
+// mid-range (Stretch), and an old 23-day run on Walk that beats today's
 // best streak. Oldest day is 89 days ago: inside the database's 100-day
 // window for new check-ins.
+//
+// The Climb (Feature 10b): this history lands the demo about 85 m below
+// High ridge (8,848 m), so a visitor who completes today's three open
+// habits crosses into it and sees the zone card (the last one makes a
+// perfect day: +70 m). lib/demo-seed.test.ts checks the landing.
 export const DEMO_HABITS: readonly SampleHabit[] = [
   {
     name: "Drink a glass of water",
-    history: "xx.....x.xx.xxxxx...xxxx.x.xxxx....xxxxxxxx.xxxxxx..xxxxxxxxxxxxxxxxxxx.xxxx..xxxxxxxxxxxx",
+    history: "xxxx...xxxx.xxxxx..xxxxx.xxxxxxxx..xxxxxxxx.xxxxxx..xxxxxxxxxxxxxxxxxxx.xxxx..xxxxxxxxxxxx",
   },
-  { name: "Read 10 pages", history: "xx...x.xxx.xxxx.xxx...xxxx......xx..x...xxxxxx.xxxxxx..xxx.xxxx.xxxxx..xxxx." },
-  { name: "Stretch for 5 minutes", history: "..x.....x.xxxx...xx..xxxxxxxx.x.xxx...xxxxxx.." },
+  { name: "Read 10 pages", history: "xx...xxxxx.xxxxxxxx..xxxxx......xx..x.x.xxxxxx.xxxxxx..xxx.xxxx.xxxxx..xxxx." },
+  { name: "Stretch for 5 minutes", history: "..xx....x.xxxxxx.xx..xxxxxxxx.x.xxx...xxxxxx.." },
   {
     name: "Walk outside",
-    history: "xxxx...xx...x..x.xxxxxxxxxxxxxxxxxxxxxx....xxxxx.x..xxxxxxxx...x...xxxxxxxxxx........xx.xx",
+    history: "xxxx...xxxx.xxxx.xxxxxxxxxxxxxxxxxxxxxxx...xxxxx.x..xxxxxxxx...x...xxxxxxxxxx........xx.xx",
   },
   { name: "No phone in bed", history: ".x." },
 ];

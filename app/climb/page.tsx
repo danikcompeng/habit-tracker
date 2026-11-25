@@ -1,5 +1,5 @@
-// The Climb (plans/habit-tracker.md, Feature 10): the whole climb, valley to
-// stratosphere, with your altitude on it. Reached from Today's scene strip.
+// The Climb (plans/habit-tracker.md, Features 10 and 10b): the climb from the
+// valley up, with your altitude on it; it has no top (zones go on forever). Reached from Today's scene strip.
 import { Suspense } from "react";
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -57,7 +57,7 @@ async function Climb() {
         <p className="text-base font-medium text-pretty text-ink-muted">
           <span className="font-semibold text-ink">{zone.name}</span>
           {" · "}
-          {next ? `${metresText(next.metres)} to ${next.zone.name}` : "The top of the climb, and it keeps going."}
+          {`${metresText(next.metres)} to ${next.zone.name}`}
         </p>
       </div>
       <ClimbWorld altitudeCm={altitude.altitudeCm} />

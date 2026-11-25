@@ -87,6 +87,7 @@
   --scene-rock-shade: #6F7F99;
   --scene-snow: #F7F9FC;
   --scene-snow-shade: #CFDAE8;
+  --scene-snow-gully: #AFBDD3;
   --scene-pine: #4F8B5E;
   --scene-pine-dark: #3C6F4B;
   --scene-valley: #93C26F;
@@ -138,8 +139,9 @@
     --scene-ridge-near: #22305E;
     --scene-rock: #39466F;
     --scene-rock-shade: #2A355A;
-    --scene-snow: #BBC8E6;
-    --scene-snow-shade: #8293BC;
+    --scene-snow: #9AA7CF;
+    --scene-snow-shade: #6A79A6;
+    --scene-snow-gully: #56648F;
     --scene-pine: #1F3B4C;
     --scene-pine-dark: #172E3C;
     --scene-valley: #1F3647;

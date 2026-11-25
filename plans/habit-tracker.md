@@ -787,6 +787,8 @@ Anything that no longer fits is fixed in the layout (wrapping, a threshold), not
 
 ### Feature 10: The Climb (2026-11-25)
 
+_Superseded in part by Feature 10b (the same day, after the user saw it live): the mountain no longer has a visible summit (a broad cone into a cloud cap), "Summit" is now High ridge, zones never run out (no "top of the climb"), there's no countdown to a summit, and the demo lands just below High ridge so a visitor sees a zone moment._
+
 The user's brief (`~/Documents/claude-inbox/habit-tracker/01-the-climb.md`): make Ascend actually ascend. The more habits completed, and especially perfect days, the higher you climb, through mountains and clouds: a real visual moment, at the craft level of Orbit's map view. Inspiration: Noillirk (playdaily.org/noillirk), a daily game where good answers lift a balloon through layers of sky. References, committed with the feature in `design/references/`:
 - `noillirk-sky.png`, the **concept and layout**: a pixel valley with a snowy peak and layered clouds; an "ALTITUDE 2,863m" readout; a ruler with 2,500 / 5,000 / 7,500 m ticks and the current altitude highlighted; a zone card ("CLOUD NINE", "+32 PTS · up to 2,863m").
 - `pixel-clouds.png`, the **art style**: clean pixel art, crisp stepped edges, soft rounded highlight arcs inside each cloud, no dithering, no outlines, no smooth vector blobs; small low puffs (white, lavender-grey shading), a few medium cumulus, huge soft banks behind.
@@ -860,6 +862,28 @@ The user's brief (`~/Documents/claude-inbox/habit-tracker/01-the-climb.md`): mak
 - Motion: the new timings match their CSS variables.
 - Playwright: the strip is on Today, is a link named with the altitude and zone, and opens Climb; the first four keys are above the fold at 390 × 844; the strip's altitude equals what `lib/altitude.ts` computes from the demo's sample data; completing a habit raises it by the expected climb and undo lowers it back; the zone moment (the demo reseeded just below a threshold): appears once with the right words and is announced, and not again after undo and redo or a reload; Climb: heading, readout, zone line, ruler and zone list, scrolled to the marker, axe light and dark; Reduce Motion: the canvas doesn't change over a second; with motion it does; the 200% text check and the type check include Climb and the strip; a failing `habit_altitude` leaves Today working without the strip.
 - Screenshots (`docs/screenshots/feature-10/`): Today (with the strip) and Climb (top and around the marker), light and dark, plus the zone moment.
+
+### Feature 10b: a constant journey (2026-11-25)
+
+The user's feedback after seeing the Climb live (`~/Documents/claude-inbox/habit-tracker/02-climb-mountain-shape.md`): the mountain is too pointy and its top is visible; the point is a constant journey, the top may never be in sight. A visual and wording change: **the altitude maths and `habit_altitude()` don't change; no migration.**
+
+**1. The mountain: a broad cone whose top is never seen**
+- Wide and gentle like Mount Fuji: roughly symmetrical, centred, long concave slopes (half-width falling off exponentially with height, about 1,500 m per e-fold) that sweep past both edges below you. Same pixel style, palette and tokens; snow on the upper slopes (from the snowline), rock and forest below as now.
+- **The peak is never visible**, at any altitude, in either view. The cone is shaped around your altitude (about 40% of the width either side of the centre where you stand), so there's always mountain above you, and **it disappears into a cloud cap** about 700 m above you: a dense band of cloud (the same rasteriser as the banks, with a ragged underside) across the mountain; above it, no mountain, only sky. As you climb, the view moves up the slope and the cap moves up with you. The flag stands on the lit (left) face.
+- Decided: shaped around you rather than fixed in metres, because a fixed cone that's still wide at 30 km would be a wall at the bottom; the drift of its outline from one day to the next is a few pixels.
+
+**2. No finish line: zones never run out**
+- "Summit" is gone as a reachable end: the 8,848 m zone becomes **High ridge** (a height on the way, not a peak). No "to Summit" countdown: the Climb screen always shows the distance to the next zone.
+- After Stratosphere (10,000 m), a new zone **every 2,500 m**, forever: Jet stream (12,500), Thin air (15,000), Aurora (17,500), Starlight (20,000), Silver ridge (22,500), Moonrise (25,000), Long ridge (27,500), Quiet heights (30,000), Far horizon (32,500), Deep sky (35,000), then **Higher still** at every 2,500 m after that (the card's height tells them apart). So there's always a next zone moment. Pure functions (`zoneAt`, `zoneIndex`, `zoneByIndex`, `nextZone` always non-null) with tests far up (100 km).
+
+**3. The demo lands just below a zone**
+- Requested: about 60–100 m below a boundary, so a visitor who completes the demo's three open habits crosses into a new zone and sees the card (for the demo video). Thinning check-ins down to 5,000 m would have dragged History to its 60% floor before getting there, so the boundary picked is **High ridge (8,848 m)**: 19 check-ins added on missed days 30–87 days ago land the demo at **8,763 m** (85 m below). The three open habits climb 20, 20, then 70 m (the last makes a perfect day) to 8,873 m: the card on the last one. History's completion goes from 67% to 73% (its test keeps 60–85%); the last two weeks and today's streaks are untouched (Walk's old run grows from 22 to 23 days). Tested: the sample data lands 60–100 m below a zone boundary, and finishing today crosses it.
+
+**4. Noted (the user's answers):** deleting a habit can skip a zone without a card, and adding one lowers today's live climb: both kept. The fifth key below the fold at 390 × 844 is fine.
+
+**After logic-checker (decided):** the cone is anchored to at least 2,500 m, so even at Base camp the slopes are broad and sweep past the edges; the far ridges end below the cloud cap too; on Today the mountain is shaped around the day's start (before today), so the slope and its cap stay still while the flag climbs it (a day adds at most 150 m; the cap stays above you); the strip's moon sits in clear sky beside the cone (never on it), Climb's above the cap; Climb's world always reaches past the next zone, so its label is always there; the cap's underside overlaps the slope (no sky gap); later zone names suit an endless mountain (Silver ridge, Long ridge, Quiet heights instead of Edge of space, Low orbit, Meteor trail). Kept: below you on Climb the mountain fills the width edge to edge (the brief's "past the edges"); snow appears once you're near the snowline (under 2,300 m the upper slopes are in cloud). The demo's moment needs a fresh seed and a device that hasn't celebrated High ridge (a shared account: another visitor finishing the day, or one a day west within the hour, sees no card); documented, and what the video and the e2e do.
+
+**Tests**: zones far up and their names; the mountain never shows its top (no mountain pixel above the cloud cap, and mountain right below it, at 0 / 3,000 / 7,113 / 8,763 / 9,500 / 12,000 / 30,000 m, in both views); the cone is wider below you than at you; the demo's landing and crossing; e2e: a demo visitor who completes the three open habits sees "New zone · High ridge"; screenshots in `docs/screenshots/feature-10/` refreshed (Today, Climb, Climb's top, the demo's zone moment), light and dark; design-critic on them.
 
 ## Reviews
 
@@ -1688,6 +1712,72 @@ Checks (final): 516 unit and database tests (including `habit_altitude` against 
 - The art needed a second eye and two rounds: tests prove the numbers, not the picture. The design-critic's "Rework" was right and the scene is much better for it.
 - A colour test that checks every pixel against the tokens caught a production-only bug (a minified `#fff`) that every other test missed.
 - Overlap checks earned their keep: they caught four real collisions that "fits at 200%" never could.
+
+
+### Feature 10b: a constant journey (2026-11-25)
+
+The user's feedback after seeing the Climb live: too pointy, the top visible. A broad, Fuji-like cone that disappears into a cloud cap above you; High ridge instead of Summit; zones forever; the demo 85 m below High ridge. The altitude maths and SQL unchanged (no migration). One decision of mine, logged in the plan: thinning the demo to land under 5,000 m would have pushed History to its 60% floor, so the demo goes up instead (19 check-ins added on days 30–87 ago, 67% → 73% done) to land under High ridge.
+
+#### logic-checker (plan review)
+Verdict: **Ready after fixes**.
+
+| # | Severity | Finding | Outcome | What changed |
+|---|----------|---------|---------|--------------|
+| 1 | High | Dark: the strip's moon sat on the mountain at every altitude. | Fixed | Placed over the cap or beside the cone, never on it (tested at six heights). |
+| 2 | High | Low down the cone was a small mound, no snow, and the far ridges' peaks showed above the cap. | Fixed | The cone anchored to at least 2,500 m (broad from Base camp); far ridges cut below the cap; snow appears near the snowline (decided). |
+| 3 | Medium | The cap reshuffled every 100 m, mid-lift, at the demo's crossing frame. | Fixed | On Today the cone and cap are shaped from the day's start: still while the flag climbs (tested: two views 80 m apart are the same picture shifted two rows). |
+| 4 | Medium | Below you on Climb the mountain fills the width. | Kept | The brief's "past the edges". |
+| 5 | Medium | Above 10 km Climb named a next zone it didn't show. | Fixed | The world's top always passes the next zone (swept 0–100 km), with headroom. |
+| 6 | Medium | The demo's moment needs a fresh seed and a fresh device. | Documented | In the plan; the e2e and the video use both. |
+| 7 | Low–Medium | A possible sky gap under the cap. | Fixed | The cap's underside overlaps the slope; tested (no sky under the cap at the centre). |
+| 8 | Low | Duplicate React keys for repeated "Higher still". | Fixed | Keyed by height. |
+| 9 | Low | Zone names fighting an endless mountain. | Fixed | Silver ridge, Long ridge, Quiet heights replace Edge of space, Low orbit, Meteor trail. |
+| 10 | Low | Stale Summit text in Feature 10's plan. | Fixed | A superseded note. |
+| 11 | Low | An old tab can lower the zone memory around the deploy. | Accepted | The silent raise restores it. |
+
+#### code-reviewer (diff review)
+Verdict: **Ship after fixes**.
+
+| # | Severity | Finding | Outcome | What changed |
+|---|----------|---------|---------|--------------|
+| 1 | High | Below ~870 m the flag was drawn off the canvas (every new account would see no marker). | Fixed | The flag clamped on screen; tested at 0–2,000 m in both widths. |
+| 2 | Medium | The new demo e2e and the screens test left the shared demo finished (past High ridge). | Fixed | Both reseed in a `finally`. |
+| 3 | Medium | Scene tests claimed more than they checked (mountain right under the cap; the moon's branch; the strip's wiring). | Fixed in part | A no-gap-under-the-cap test; the moon test renamed to what it checks; the wiring is covered by the e2e's lift and the shape-stability test. |
+| 4 | Low | Walk's run grew to 23 days, against the plan and comment. | Fixed | Plan and comment say 23. |
+| 5 | Low | The demo landing untested across daylight saving. | Fixed | New York and London added (six time zones). |
+| 6 | Low | Stale comments. | Fixed | All six. |
+| — | Tests | Old stored zone values. | Added | "8848" → High ridge, "10000" → Stratosphere. |
+
+#### design-critic, round 1 (Today, Climb, Climb's top, the demo's zone moment; light and dark)
+Verdict: **Ship after fixes**. No peak anywhere; but the shape read as a wide flat snowfield cut by a straight band, not Fuji.
+
+| # | Severity | Finding | Outcome | What changed |
+|---|----------|---------|---------|--------------|
+| 1 | High | The cone so wide its outline barely showed; a straight seam like a building; scratch-like dashes. | Fixed | Narrower where you stand (both flanks in view and flaring); a ragged terminator; gullies fanning down from the cap. |
+| 2 | High | Climb's top tick chip cut in half, the next zone's label missing. | Fixed | 600 m of headroom. |
+| 3 | Medium | The cap a flat band with clear sky above (the peak "just inside"). | Fixed | Thicker, lower lobes over the mountain, a row of mist on the snow below it. |
+| 4 | Medium | Zone labels would cover the flag after a crossing. | Fixed | Labels near you capped narrow; the overlap e2e covers 200%. |
+| 5 | Medium | The flag planted on a cloud; dark clouds on the snow read as holes. | Fixed | Clouds keep clear of the flag; over the slope they're pale mist. |
+| 6 | Medium | Dark: the broad snow face dominated the navy. | Fixed | Dark snow dimmed (#9AA7CF / #6A79A6); the marker ring still 3:1. |
+| 7 | Low | The zone card hid the flag at its own moment. | Fixed | The card sits on the right. |
+| 8 | Low | Coral rims cut by the frame edge. | Fixed | No rim unless the cloud is wholly in frame. |
+
+#### design-critic, round 2 (the retaken shots)
+Verdict: **Ship after fixes**. "The scene now meets the brief": a broad cone flaring to both edges, narrowing into a thick cap, no peak anywhere; dark back to midnight navy.
+
+| # | Severity | Finding | Outcome | What changed |
+|---|----------|---------|---------|--------------|
+| 1 | Medium | The zone card still hid half the flag. | Fixed | The card takes the right half of the strip. |
+| 2 | Medium | The shaded-face gullies read as rails. | Fixed | Stepped dashes with staggered starts (only one or two reach the cap), in a new `snow-gully` token one step darker than the shaded snow (not rock); tested 3:1 for the marker's ring. |
+| 3 | Low | The cap's underside still a straight line. | Fixed | Three lobes hang 3–6 rows below it over the cone. |
+| 4 | Low | A sliver of the moon above the card. | Accepted | 1–2 px, behind a card that closes itself. |
+| 5 | Low | The 7,500 m chip vanishing on a white cloud. | Fixed | A hairline `border-line` on the ruler and zone chips. |
+
+Checks (final, after design-critic round 2's fixes): 537 unit and database tests, tsc, eslint, `next build`; the full browser suite on `next start`: **91 passed, 0 failed**. On the way: 89 of 91 once (the zone count after the world's headroom; a label over your chip at 200%), both fixed; screenshots in `docs/screenshots/feature-10/` refreshed.
+
+#### Takeaways
+- A shape shaped "around you" needs its edge cases tried at the ends (0 m and 30 km): the off-canvas flag only showed at Base camp.
+- A formatter that isn't the project's own rewrote two files; restored and re-applied the edits by hand. Use the repo's tools only.
 
 <!--
 Template — copy for each feature:

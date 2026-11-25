@@ -19,6 +19,8 @@ export type ZoneMoment = { id: number; zone: Zone; gainedCm: number; altitudeCm:
 
 type Props = {
   altitudeCm: number;
+  /** The day's start (before today), which shapes the mountain: it stays still while you climb it. */
+  shapeCm: number;
   moment: ZoneMoment | null;
   onDismissMoment: () => void;
 };
@@ -53,7 +55,7 @@ function useLift(targetM: number): number {
   return shown;
 }
 
-export function ClimbStrip({ altitudeCm, moment, onDismissMoment }: Props) {
+export function ClimbStrip({ altitudeCm, shapeCm, moment, onDismissMoment }: Props) {
   const shownM = useLift(altitudeCm / CM);
   const zone = zoneAt(altitudeCm);
   // If the card closes itself while focused, focus goes to the strip, not the page's start.
@@ -76,7 +78,7 @@ export function ClimbStrip({ altitudeCm, moment, onDismissMoment }: Props) {
         href="/climb"
         className="relative flex min-h-[8.75rem] flex-col items-start justify-between gap-2 overflow-hidden rounded-key border border-line bg-(--scene-sky-6) p-3 motion-safe:transition-transform motion-safe:duration-(--motion-fast) motion-safe:active:translate-y-0.5"
       >
-        <SceneCanvas view="close" altitude={shownM} className="absolute inset-0" />
+        <SceneCanvas view="close" altitude={shownM} shapeAt={shapeCm / CM} className="absolute inset-0" />
         {/* Under the zone card, the chips step aside (the card says it all). */}
         <span className={`relative flex flex-wrap items-baseline gap-x-1.5 rounded-full bg-surface px-3 py-1 text-ink ${moment ? "invisible" : ""}`}>
           <span className="text-sm font-semibold tracking-wide text-ink-muted uppercase">Altitude</span>{" "}
@@ -100,7 +102,8 @@ export function ClimbStrip({ altitudeCm, moment, onDismissMoment }: Props) {
           onClick={onDismissMoment}
           onFocus={() => (cardFocused.current = true)}
           onBlur={() => (cardFocused.current = false)}
-          className="absolute inset-0 flex items-center justify-center rounded-key p-3"
+          // In the right half, clear of the flag, so you see it standing there during its own moment.
+          className="absolute inset-y-0 right-0 flex w-1/2 items-center justify-center rounded-key p-3"
         >
           <span className="flex max-w-full flex-col items-center gap-0.5 rounded-(--radius-field) border border-line bg-surface px-5 py-3 text-center shadow-[0_3px_0_var(--surface-sunk)] motion-safe:animate-[card-in_var(--motion-base)_var(--ease-out)_both]">
             <span className="text-sm font-semibold tracking-wide text-accent uppercase">New zone</span>
