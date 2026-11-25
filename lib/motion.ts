@@ -1,4 +1,4 @@
-// Hold's motion timings (plans/habit-tracker.md, Design direction).
+// Ascend's motion timings (plans/habit-tracker.md, Design direction).
 // The same numbers are CSS variables in app/globals.css (--motion-*), for
 // classes like duration-(--motion-fast); lib/motion.test.ts checks the two
 // match. JavaScript animations (the hold fill, the pop) use these.

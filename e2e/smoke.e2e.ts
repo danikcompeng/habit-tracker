@@ -1,5 +1,5 @@
 // A short check of a deployed copy (plans/habit-tracker.md, Feature 6):
-//   BASE_URL=https://<the live address> npx playwright test
+//   BASE_URL=https://ascend-dk.vercel.app npx playwright test
 // With a non-local BASE_URL, playwright.config.ts runs ONLY this file and
 // install.e2e.ts. Each demo sign-in from the server spends the
 // per-address limit that Staple's live demo shares, and the full suite

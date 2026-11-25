@@ -1,11 +1,20 @@
 @AGENTS.md
 
-# Hold
+# Ascend
 
 A habit tracker you press like a physical key. Today shows each habit as a
 big key: press and hold to complete it (a fill grows under your finger, a
 small pop when done), tap a done key to undo. Each habit has a streak and a
 7-day dot row. Mobile-first, installable to the home screen.
+
+Live at https://ascend-dk.vercel.app (the old habit-tracker-ifaf.vercel.app
+redirects there). The repo and the Vercel project are still called
+`habit-tracker`. The app was first called **Hold**, so the gesture code
+(`lib/hold.ts`), the `hold-auth` login cookie and the `hold_*` demo markers
+keep that name on purpose: a new cookie name would log out every session
+on the new address, and new marker names would make the shared demo
+reseed. Home-screen installs made from the old address keep "Hold" and the
+old icon: remove and add them again from the new address.
 
 The full plan, every decision and why, and the review log live in
 `plans/habit-tracker.md`. Read it before changing behaviour.
@@ -25,7 +34,7 @@ The full plan, every decision and why, and the review log live in
 - Never commit secrets. `.env.local` holds the four env vars below.
 - The Supabase project, the login email template and the demo account are
   **shared with Staple** (`~/Documents/meal-cost-tracker`, read-only from
-  here). Never touch Staple's tables; Hold's demo markers are `hold_*`.
+  here). Never touch Staple's tables; Ascend's demo markers are `hold_*`.
 
 ## Stack
 

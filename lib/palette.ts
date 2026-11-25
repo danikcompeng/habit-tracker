@@ -1,4 +1,4 @@
-// Hold's colours, light and dark (plans/habit-tracker.md, Design direction).
+// Ascend's colours, light and dark (plans/habit-tracker.md, Design direction).
 //
 // app/globals.css holds the same values as CSS variables, which is what
 // the screens use. This file exists so the colours can be tested:

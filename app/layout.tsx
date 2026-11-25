@@ -19,7 +19,7 @@ const tabIcon = iconByFile("icon-192.png")!;
 const iPhoneIcon = iconByFile("apple-touch-icon.png")!;
 
 export const metadata: Metadata = {
-  // A page's own title gets the app name after it ("Log in · Hold").
+  // A page's own title gets the app name after it ("Log in · Ascend").
   title: { default: APP_NAME, template: `%s · ${APP_NAME}` },
   description: APP_DESCRIPTION,
   icons: {
@@ -27,7 +27,7 @@ export const metadata: Metadata = {
     apple: { url: iconUrl(iPhoneIcon), sizes: "180x180" },
   },
   // What iPhone uses for Share → Add to Home Screen. The title stops it
-  // suggesting a page title like "Log in · Hold". A solid ("default")
+  // suggesting a page title like "Log in · Ascend". A solid ("default")
   // status bar: the page starts below the clock and the Dynamic Island.
   appleWebApp: { capable: true, title: APP_NAME, statusBarStyle: "default" },
 };

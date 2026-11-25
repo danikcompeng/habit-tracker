@@ -28,7 +28,7 @@ export async function sendLoginCode(_prev: LoginEmailState, formData: FormData):
 
   // Where the email's button should come back to. Supabase only honours an
   // address on its Redirect URLs list, so that list must name EXACT
-  // addresses we own (never a wildcard like hold-*.vercel.app, which anyone
+  // addresses we own (never a wildcard like ascend-*.vercel.app, which anyone
   // could register and use to receive someone's login link). Anyone can
   // ask Supabase for an email directly, so the list is the real protection,
   // not this code.

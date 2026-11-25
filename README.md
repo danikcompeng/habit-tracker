@@ -1,11 +1,11 @@
-# Hold
+# Ascend
 
 **Habits you press and hold.** Each habit is a big key: press and hold it to
 complete it (a fill grows out from under your finger, a small pop when it's
 done), tap it again to undo. Every habit shows its streak and the last seven
 days as dots. Mobile-first, installable to the home screen.
 
-**Live:** [habit-tracker-ifaf.vercel.app](https://habit-tracker-ifaf.vercel.app) · Tap **Try the demo** on the
+**Live:** [ascend-dk.vercel.app](https://ascend-dk.vercel.app) · Tap **Try the demo** on the
 login screen: a shared account with sample habits, no email needed.
 
 | Today | Mid-hold | Habits | History |
@@ -25,7 +25,7 @@ login screen: a shared account with sample habits, no email needed.
   habit. The chart also exists as a table for screen readers.
 - **Login**: a one-time code by email (works inside the iPhone home-screen
   app, where email links don't), or **Try the demo**.
-- **Installable**: its own icon and name, full screen, status bar matched in
+- **Installable**: its own icon (a summit with a trail up it) and name, full screen, status bar matched in
   light and dark.
 - **Accessible**: real buttons with states for screen readers, 44 px targets,
   4.5:1 contrast (tested), Reduce Motion respected, keyboard holds with
@@ -98,6 +98,7 @@ npm run test:e2e     # Playwright on an iPhone-sized browser, with axe (needs .e
 npm run screens      # screenshots in docs/screenshots/
 ```
 
-Against a deployed copy, `BASE_URL=https://… npx playwright test` runs only
-the smoke and install checks (the demo account is shared, so the full suite
-stays local).
+Against a deployed copy (for the live one,
+`BASE_URL=https://ascend-dk.vercel.app npx playwright test`) only
+the smoke and install checks run (the demo account is shared, so the full
+suite stays local).

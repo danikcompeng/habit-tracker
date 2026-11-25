@@ -1,4 +1,4 @@
-// Hold's icons: simple 2 px line drawings, drawn inline so they take the
+// Ascend's icons: simple 2 px line drawings, drawn inline so they take the
 // text colour (currentColor). Decorative unless given a label.
 
 import type { SVGProps } from "react";

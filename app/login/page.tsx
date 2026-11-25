@@ -13,8 +13,8 @@ export default function LoginPage() {
     // gutter (px-5); larger screens get a centred column.
     <main className="mx-auto flex w-full max-w-[28rem] flex-1 flex-col px-5 pt-[max(4rem,calc(env(safe-area-inset-top)+3rem))] pb-[max(2rem,env(safe-area-inset-bottom))]">
       <header className="mb-10">
-        <h1 className="text-display font-extrabold tracking-tight text-ink">Hold</h1>
-        <p className="mt-3 text-lead text-ink-muted">
+        <h1 className="text-display font-extrabold tracking-tight text-ink">Ascend</h1>
+        <p className="mt-3 text-lead text-balance text-ink-muted">
           Press and hold to keep a habit going. One streak, one week of dots, every day.
         </p>
       </header>

@@ -4,7 +4,7 @@ import { expectNoA11yViolations, signInDemo } from "./helpers/app";
 test("a signed-out visit to Today goes to the login page", async ({ page }) => {
   await page.goto("/");
   await expect(page).toHaveURL(/\/login$/);
-  await expect(page.getByRole("heading", { name: "Hold" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Ascend" })).toBeVisible();
 });
 
 test("the login page is accessible, in light and dark", async ({ page }) => {

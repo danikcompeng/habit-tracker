@@ -1,27 +1,58 @@
-// Hold's name, icons and colours for the home screen, in one place
+// Ascend's name, icons and colours for the home screen, in one place
 // (plans/habit-tracker.md, Feature 5). Same approach as Staple's.
 import type { MetadataRoute } from "next";
 import { PALETTE } from "./palette";
 
-export const APP_NAME = "Hold";
+export const APP_NAME = "Ascend";
 export const APP_DESCRIPTION = "Habits you press and hold. A streak and a week of dots for each.";
 
-/** The icon's colours: the persimmon field, the bone key, its darker lip. */
+/** The icon's colours: the persimmon field and the bone mark on it. */
 export const ICON_COLORS = {
   field: PALETTE.light.accent,
-  key: PALETTE.light.background,
-  lip: PALETTE.light["accent-lip"],
-  check: PALETTE.light.accent,
+  mark: PALETTE.light.background,
 } as const;
+
+export type Point = readonly [x: number, y: number];
+
+/**
+ * The "Summit" mark, in a 0 0 100 100 box: a solid mountain with a trail
+ * cut up its face (the trail shows the field through it). Straight edges
+ * and sharp corners only.
+ */
+export const SUMMIT = {
+  mountain: [[50, 14], [88, 84], [12, 84]],
+  trail: [[27, 84], [39, 84], [61, 46], [55, 36]],
+} as const satisfies Record<string, readonly Point[]>;
+
+/**
+ * Android's safe zone for a maskable icon: a centred circle with a radius
+ * of 40% of the icon. Whatever shape Android cuts, it never cuts inside it.
+ */
+export const MASKABLE_SAFE_RADIUS = 40;
+
+/**
+ * How much smaller the mark is drawn on the maskable icon, about the
+ * centre (50, 50). The base corners are the farthest points from the
+ * centre: about 51 at full size, 38.2 at 0.75, so inside the 40 circle.
+ */
+export const MASKABLE_SCALE = 0.75;
 
 /**
  * - "rounded": a rounded square, for browser tabs and Android's "any" icon.
  * - "full": fills the whole square. iPhone rounds the corners itself, and
  *   it shows see-through corners as black.
- * - "maskable": full-bleed, with the key kept small in the middle, because
- *   Android cuts it to its own shape (circle, squircle...).
+ * - "maskable": full-bleed, with the mark drawn smaller so it stays inside
+ *   the safe circle, because Android cuts it to its own shape (circle,
+ *   squircle...).
  */
 export type IconShape = "rounded" | "full" | "maskable";
+
+/** The mark's points for an icon shape, in the 0 0 100 100 box. */
+export function summitPoints(shape: IconShape): { mountain: Point[]; trail: Point[] } {
+  const scale = shape === "maskable" ? MASKABLE_SCALE : 1;
+  const place = ([x, y]: Point): Point => [50 + (x - 50) * scale, 50 + (y - 50) * scale];
+  return { mountain: SUMMIT.mountain.map(place), trail: SUMMIT.trail.map(place) };
+}
 
 export type AppIconFile = {
   file: string;
@@ -44,9 +75,13 @@ export const APP_ICONS: readonly AppIconFile[] = [
  * Bump when the drawing changes: Next serves these PNGs as cacheable for a
  * year, so a new picture needs a new address to reach browsers and Android
  * installs. (iPhone copies its icon once, when you add the app: existing
- * iPhone installs keep the old one until removed and added again.)
+ * iPhone installs keep the old one until removed and added again. Installs
+ * made from the old address, before the rename to Ascend, keep the old name
+ * and icon on both phones: they need adding again from the new address.)
+ * lib/app-identity.test.ts pins the drawing next to this number, so a
+ * changed drawing fails a test until the version is bumped with it.
  */
-export const ICON_VERSION = 1;
+export const ICON_VERSION = 2; // 2: the Summit (2026-11-24); 1 was the key and check
 
 export const iconUrl = (icon: AppIconFile) => `/icons/${icon.file}?v=${ICON_VERSION}`;
 

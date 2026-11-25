@@ -1,8 +1,8 @@
-# Hold: Plan
+# Ascend: Plan
 
 ## Overview
 
-**Hold** is a habit tracker you press like a physical button. Today shows each habit as a big row: press and hold to complete it (a fill grows out from under your finger, a small pop when it's done), tap a done row to undo. Every habit shows its current streak and a 7-day dot grid. Mobile-first, installable to the home screen.
+**Ascend** (first called **Hold**) is a habit tracker you press like a physical button. Today shows each habit as a big row: press and hold to complete it (a fill grows out from under your finger, a small pop when it's done), tap a done row to undo. Every habit shows its current streak and a 7-day dot grid. Mobile-first, installable to the home screen.
 
 v1 scope:
 - Habits: add, rename, reorder, delete.
@@ -12,7 +12,9 @@ v1 scope:
 
 Out of v1 (on purpose): schedules other than daily, reminders/notifications, editing past days, longest-streak stats, offline mode, sharing.
 
-Why the name: the core gesture is a hold, and the app is about holding on to a habit.
+Why the first name, Hold: the core gesture is a hold, and the app is about holding on to a habit. Ascend keeps that idea (a habit kept day after day is a climb) and the icon shows it: a summit with a trail up it.
+
+_Renamed **Ascend** on 2026-11-24 (the user's call): only the name and the icon changed. The live address is now https://ascend-dk.vercel.app (habit-tracker-ifaf.vercel.app 308-redirects there); the repo and the Vercel project are still `habit-tracker`. The gesture keeps its name ("press and hold", "Hold to complete", `lib/hold.ts`), and so do the `hold-auth` login cookie and the `hold_*` demo markers: a new cookie name would log out every session on the new address, and new marker names would make the shared demo reseed. (The move to a new host already logs out sessions from the old one: `vercel.app` is a public suffix, so cookies never cross between the two addresses; that also resets the `tz` and Tap to complete cookies.) `https://ascend-dk.vercel.app/auth/confirm` is on Supabase's Redirect URLs (exact, added by the user); the old address stays on the list while it redirects. **Existing home-screen installs** from the old address keep the name "Hold" and the old icon, and open the redirect outside their scope: remove them and add the app again from ascend-dk (on the phone check). Review logs below are history and still say "Hold"._
 
 ## Stack
 
@@ -38,11 +40,11 @@ Decisions made while building, and why. Newest at the bottom of each group.
 **Auth and demo**
 - **Same login as Staple**: email code (`signInWithOtp` + `verifyOtp`), with the email's button as a backup (`/auth/confirm`). The code matters most: a home-screen app on iPhone has its own cookie jar, and email links open in Safari.
 - **Demo = server-side password sign-in** with `DEMO_EMAIL` / `DEMO_PASSWORD` (never `NEXT_PUBLIC_`, imported only from `server-only` files). Seeding runs **as the demo user** through the normal client, so RLS limits it to the demo's own rows. No service-role key anywhere.
-- **The demo account is shared with Staple**, so Hold's seed only ever touches `habits` / `habit_checkins`, and its "last seeded" markers in user metadata are namespaced (`hold_demo_seeded_at`, `hold_demo_seeded_day`) so they can't collide with Staple's `demo_seeded_at`.
+- **The demo account is shared with Staple**, so the app's seed only ever touches `habits` / `habit_checkins`, and its "last seeded" markers in user metadata are namespaced (`hold_demo_seeded_at`, `hold_demo_seeded_day`) so they can't collide with Staple's `demo_seeded_at`.
 
 ## Design direction
 
-**Tactile and warm.** Every habit is a chunky key you press. Where Staple is calm white paper with a matcha accent and Figtree, Hold is warm bone paper and soft graphite with one **persimmon** accent, set in **Bricolage Grotesque**. It should feel physical: things have weight, press down, and spring back.
+**Tactile and warm.** Every habit is a chunky key you press. Where Staple is calm white paper with a matcha accent and Figtree, Ascend is warm bone paper and soft graphite with one **persimmon** accent, set in **Bricolage Grotesque**. It should feel physical: things have weight, press down, and spring back.
 
 **References:** the physical feel of a mechanical keyboard key; Things 3's restraint (one accent, lots of air); the bold type of Arc / Teenage Engineering product pages.
 
@@ -68,7 +70,7 @@ Decisions made while building, and why. Newest at the bottom of each group.
 All text pairs must pass 4.5:1 (`ink-muted` on `background` and `surface`, `on-accent` on `accent`, `ink` on `accent-tint`); dots, borders and focus rings 3:1 against what they sit on. Dark mode is warm, not pure black, and shows depth by lightness (background < surface), never by shadows. The accent gets lighter in dark mode, so it doesn't glare at night.
 
 **Type**: Bricolage Grotesque for everything (variable; its optical sizes keep small text calm).
-- Display 52 px / 800: the "Hold" wordmark on the login screen only (`text-display`)
+- Display 52 px / 800: the "Ascend" wordmark on the login screen only (`text-display`)
 - Lead 18 px / 400: the one-line promise under the wordmark (`text-lead`)
 - Page title 34 px / 700, tight leading ("Today")
 - Habit name 22 px / 600 on Today's keys; 18 px / 600 in the `/habits` list (`text-list`)
@@ -89,6 +91,8 @@ All text pairs must pass 4.5:1 (`ink-muted` on `background` and `surface`, `on-a
 - **Undo**: the colour fades back to `surface` in 200 ms and the streak ticks down. No scale.
 - UI feedback 150–250 ms. Nothing loops, nothing moves on its own.
 - **Reduce Motion**: no growing circle, no scale. The hold shows as the row's tint fading in over the same 650 ms (opacity only), and done or undone changes colour instantly.
+
+**Brand mark** (since 2026-11-24): the **Summit** icon, a bone (`background`, light) mountain with a trail cut up its face on a persimmon (`accent`, light) field. Its sharp corners are the one deliberate exception to the rounded, key-like UI: don't round the mark, and don't copy sharp corners into screens. Only the tab icon's field square is rounded. The geometry lives in `lib/app-identity.ts` (`SUMMIT`) and is pinned by a test next to `ICON_VERSION`.
 
 **Copy**: short, warm, never guilt-tripping. "Hold to complete", "3-day streak", "Start today".
 
@@ -221,19 +225,19 @@ Order: 1 data model → 2 login and demo → 3 Today → 4 manage habits → 5 i
     - After a reseed, a screen still open on the old habits refers to ids that no longer exist. **Feature 3 must treat "habit not found" as "reload"**, like a stale day.
     - A visitor whose today is a day ahead of the seed's (Tokyo vs Toronto) sees check-ins dated "tomorrow", which are correctly ignored, so streaks look one lower until the next reseed.
     - "Try the demo" pressed before the page has loaded its JavaScript (no `tz` cookie yet) seeds in UTC.
-    - Supabase saves user metadata as one whole value. If Hold and Staple write their markers in the same few milliseconds, one could undo the other's write. Staple's next demo sign-in would then reseed. Rare, and it heals itself.
+    - Supabase saves user metadata as one whole value. If this app and Staple write their markers in the same few milliseconds, one could undo the other's write. Staple's next demo sign-in would then reseed. Rare, and it heals itself.
     - Every demo sign-in comes from Vercel's IPs, so Supabase's rate limit can say "Lots of people just tried the demo". That limit is shared with Staple's demo.
     - A demo visitor holds a real session for the shared account, so someone determined could call Supabase directly and change its password, breaking the demo in both apps until it's reset in the dashboard. (Inherited from Staple.) A real block needs a trigger on Supabase's `auth.users`, which changes the shared project's auth schema: offered to you, not done.
     - The email's link logs in whoever it belongs to (true of every token-hash link), so an attacker could log someone into the attacker's account. Mitigation: Today shows the signed-in email (Feature 3).
 - `lib/server-helpers.ts`: `requireUser()` (verified claims, for every action), `userTimeZone()` (the `tz` cookie) and `userToday()`. These `await io()` before reading the clock, because with Partial Prefetching a per-session App Shell is prerendered and refuses `new Date()` (Staple hit this). The rule everywhere: cookies and `searchParams` go inside `<Suspense>`, and `await io()` comes before any clock read in render.
-- **Login cookie name**: Hold's Supabase clients use their own cookie name (`hold-auth`). Staple and Hold share a Supabase project, so they'd otherwise share the `sb-<ref>-auth-token` cookie on `localhost` (cookies ignore the port), and logging out of one would log out the other during development.
+- **Login cookie name**: the app's Supabase clients use their own cookie name (`hold-auth`, kept through the rename to Ascend). Staple and this app share a Supabase project, so they'd otherwise share the `sb-<ref>-auth-token` cookie on `localhost` (cookies ignore the port), and logging out of one would log out the other during development.
 - `components/timezone-sync.tsx`: sets the `tz` cookie from the browser and refreshes once if it changed (Staple's approach).
 - **Design system**:
   - `app/globals.css` holds the colour tokens from Design direction as CSS variables, light and dark via `prefers-color-scheme`, mapped to Tailwind colours (`bg-surface`, `text-ink-muted`...).
   - Bricolage Grotesque via `next/font/google`.
   - `lib/palette.ts` holds the same hex values, and `lib/palette.test.ts` checks every text pair is at least 4.5:1 and every non-text pair at least 3:1, plus that `globals.css` matches `palette.ts`, so the design-critic's contrast estimates have a measured backstop.
 - **Login page** (`/login`):
-  - The wordmark "Hold", a one-line promise, and an email field with "Email me a code" (primary pill).
+  - The wordmark ("Hold" then, "Ascend" since 2026-11-24), a one-line promise, and an email field with "Email me a code" (primary pill).
   - Then the code step: a numeric one-time-code field, "Log in", and "Start over".
   - Under a thin "or", "Try the demo" (secondary), with "A shared account with sample habits. No email needed."
   - Every control at least 48 px tall, errors in a live region tied to their field, and focus moves to the code field when it appears.
@@ -259,7 +263,7 @@ Order: 1 data model → 2 login and demo → 3 Today → 4 manage habits → 5 i
 **Icons (decided now for the matcher)**: Feature 5 serves the home-screen icons as PNGs from a route under `/icons/`, never from `app/icon.tsx` (which serves an extensionless `/icon` that would get the login page when a phone fetches it without cookies).
 
 **What you'll need to do** (collected for the one stop):
-- Add Hold's **exact** addresses to Supabase → Authentication → URL Configuration → Redirect URLs: `http://localhost:3000/auth/confirm` and `https://<production domain>/auth/confirm`. **Never a wildcard on a domain you don't own** (like `hold-*.vercel.app`): anyone can register a matching Vercel project and receive a victim's login link, which would take over accounts in the whole shared project, Staple's included. _(Corrected after code review.)_ Previews log in with the code, which works whatever the redirect. Until this is added, the email's button opens **Staple**.
+- Add the app's **exact** addresses to Supabase → Authentication → URL Configuration → Redirect URLs: `http://localhost:3000/auth/confirm` and `https://<production domain>/auth/confirm`. **Never a wildcard on a domain you don't own** (like `ascend-*.vercel.app`): anyone can register a matching Vercel project and receive a victim's login link, which would take over accounts in the whole shared project, Staple's included. _(Corrected after code review.)_ Previews log in with the code, which works whatever the redirect. Until this is added, the email's button opens **Staple**.
 - The shared email template says "Your Staple login code". Changing it to neutral wording would change Staple's email too, so I'm leaving that decision to you.
 
 ### Feature 3: Today, with press-and-hold
@@ -425,25 +429,25 @@ Order: 1 data model → 2 login and demo → 3 Today → 4 manage habits → 5 i
 
 ### Feature 5: Installable (home screen)
 
-**Goal**: "Add to Home Screen" on iPhone and "Install" on Android give Hold its own icon and name, open full screen on Today, and match the status bar to the page.
+**Goal**: "Add to Home Screen" on iPhone and "Install" on Android give Ascend its own icon and name, open full screen on Today, and match the status bar to the page.
 
 - `app/manifest.ts`:
-  - name "Hold", short_name "Hold", a description;
+  - name "Ascend", short_name "Ascend", a description (it was "Hold" until 2026-11-24);
   - `id: "/"` (the app's identity stays the same even if `start_url` changes), `start_url: "/"`, `scope: "/"`, `display: "standalone"`;
   - **no orientation lock**: WCAG 1.3.4 says don't, and people with a phone mounted in landscape need it _(revised after logic-checker)_;
   - `background_color` and `theme_color` = light `background`, imported from `lib/palette.ts` (no new hex values);
   - icons 192, 512 and a maskable 512.
 - Icons are drawn in code (`app/icons/[file]/route.tsx` with `ImageResponse`):
-  - `icon-192.png` and `icon-512.png` (shape **rounded**), `icon-maskable-512.png` (**maskable**: full-bleed, the key inside the middle 60%) and `apple-touch-icon.png` (180, **full**: an opaque square, because iOS shows see-through corners as black). The shape is part of the icon list and tested.
+  - `icon-192.png` and `icon-512.png` (shape **rounded**), `icon-maskable-512.png` (**maskable**: full-bleed, the mark inside the safe circle) and `apple-touch-icon.png` (180, **full**: an opaque square, because iOS shows see-through corners as black). The shape is part of the icon list and tested.
   - Any other name gives 404 from the handler. `dynamicParams` is never exported, since it fails the build under Cache Components.
   - They're prerendered at build (`generateStaticParams`), and served under `/icons/`, which the proxy already skips (Feature 2): phones fetch icons without cookies, so a login redirect would give them the login page instead.
-  - The drawing: the persimmon field with one bone-coloured "key" (a rounded square with its darker lip) and a persimmon check on it, the app's gesture in one picture.
-  - The maskable version keeps everything inside the middle 60%, because Android crops it to its own shape.
-- `app/layout.tsx` metadata: `appleWebApp: { capable, title: "Hold", statusBarStyle: "default" }`, the apple-touch icon, and the 192 icon as the tab icon. **The create-next-app `app/favicon.ico` is deleted**: file-based icons win over metadata, so the Next triangle would show in tabs.
-- Icon URLs carry `?v=1`. Next serves these PNGs as immutable for a year, so a redrawn icon needs a new URL to reach existing installs.
+  - The drawing (**"Summit"**, since 2026-11-24; v1 was a bone "key" with a persimmon check): in a 0 0 100 100 box, a solid bone triangle (50,14 88,84 12,84) on the persimmon field, with a trail cut up its face in the field colour (27,84 39,84 61,46 55,36). Sharp corners, no rounding on the mark; only the tab icon's field square is rounded. Bone on persimmon is 4.8:1 (3:1 needed for a graphic; tested).
+  - The maskable version scales the mark by 0.75 about the centre so every corner is inside Android's safe zone, a centred circle of radius 40% (the base corners are 38.2 from the centre; at full size they'd be 51). A unit test checks every point.
+- `app/layout.tsx` metadata: `appleWebApp: { capable, title: APP_NAME ("Ascend"), statusBarStyle: "default" }`, the apple-touch icon, and the 192 icon as the tab icon. **The create-next-app `app/favicon.ico` is deleted**: file-based icons win over metadata, so the Next triangle would show in tabs.
+- Icon URLs carry `?v=<ICON_VERSION>` (`?v=2` since the Summit). Next serves these PNGs as immutable for a year, so a redrawn icon needs a new URL to reach existing installs.
   - The status bar is solid, so content never sits under the clock or the Dynamic Island.
   - `themeColor` already follows light and dark.
-- **No service worker, no offline mode** (out of v1). Neither phone needs one to install any more, which Staple's PWA work confirmed. Opening Hold offline shows the browser's offline page.
+- **No service worker, no offline mode** (out of v1). Neither phone needs one to install any more, which Staple's PWA work confirmed. Opening Ascend offline shows the browser's offline page.
 - **Login on iPhone** _(corrected after logic-checker)_: since iOS 17.2, Safari's cookies are copied into the app once, when you add it, so adding while logged in opens logged in. The hard case is logging in *inside* the app: you ask for a code, switch to Gmail, and iOS may close the app. It reopens on the email step, so you retype the email and tap "I already have a code". Tapping the email's button instead logs Safari in, not the app, and uses up the code. Remembering the pending email across a relaunch is left for later; it's on the phone checklist.
 - **Tests**:
   - Vitest: the icon list (every manifest icon has a route file name, and sizes match).
@@ -463,20 +467,20 @@ Order matters _(revised after logic-checker)_:
 3. Create the Vercel project with **all 4 env vars on the import screen**. Vercel builds straight away, and a build without `NEXT_PUBLIC_SUPABASE_URL` breaks every page. If they're added later, redeploy.
 4. Add the production `/auth/confirm` to Supabase's Redirect URLs (exact, no wildcard).
 5. Against production, run a **smoke subset**, not the whole suite: the login redirect, Try the demo, one hold, and the manifest and icons without login (`e2e/smoke.e2e.ts`). Every demo sign-in from Vercel's IPs spends the per-IP limit Staple's live demo shares, and `screens.e2e.ts` would overwrite the committed screenshots.
-6. **The phone check** (the user, once): add to home screen on iPhone (and Android if available). Check:
+6. **The phone check** (the user, once): add to home screen on iPhone (and Android if available). After the rename (2026-11-24), first remove any install made from habit-tracker-ifaf.vercel.app and add it again from https://ascend-dk.vercel.app. Check:
    - icon, name and the status bar in light and dark;
    - it opens on Today, even when added from `/habits`;
    - holding a key feels right, the pop and the vibration on Android, and Reduce Motion;
    - VoiceOver, plus Voice Control or Switch Control if possible: can you complete a habit? ("Tap to complete" is the fallback);
    - log out inside the app, then log in with the code, with an app switch to the email in between.
-- `README.md`: what Hold is, the live link, how to run it locally, env vars, how to apply the migration, tests, and the review workflow with a pointer to the Reviews log.
+- `README.md`: what the app is, the live link, how to run it locally, env vars, how to apply the migration, tests, and the review workflow with a pointer to the Reviews log.
 - `CLAUDE.md`: what the app is, the stack and its Next 16 particulars (Cache Components, `io()`, `refresh()`, `proxy.ts`), the data rules (calendar days, the derived streak, RLS, revoke-then-grant), the design tokens, the per-feature workflow with the three reviewers, and the commands.
 
 ### Feature 7: History
 
 _(The request called this "Feature 6"; 6 was already deploy, so it's 7 here.)_
 
-A **History** page with charts of what's been logged. It's reachable from Today and looks like the rest of Hold.
+A **History** page with charts of what's been logged. It's reachable from Today and looks like the rest of the app.
 
 **Where it lives**
 - Route: `/history?range=7|30|90`. Anything else, or no value, means 30; a repeated `?range=` takes the first value. The range is in the URL so a reload and the screenshot script land on the same view. Switching uses `history.replaceState` (no new back-button entry per switch), so Back still goes to Today. _(Revised after logic-checker: switching by `<Link>` would show the skeleton for uncached per-user data and drop focus from the switch.)_
@@ -544,7 +548,7 @@ A **History** page with charts of what's been logged. It's reachable from Today 
 **Layout (top to bottom)**
 1. **Header**: "History" and **Done**.
 2. **Range switch**: a segmented control in a `surface-sunk` track with **7 days · 30 days · 90 days**.
-   - The selected segment is a raised key (`surface` with a lip, like every key in Hold) **with a 1 px `ink-muted` edge** and `ink` semibold text; the others lie flat in `ink-muted`. The edge is what passes 3:1, since surface on sunk is only 1.2:1. _(Added after logic-checker.)_
+   - The selected segment is a raised key (`surface` with a lip, like every key in the app) **with a 1 px `ink-muted` edge** and `ink` semibold text; the others lie flat in `ink-muted`. The edge is what passes 3:1, since surface on sunk is only 1.2:1. _(Added after logic-checker.)_
    - They're buttons with `aria-pressed`, each 44 px tall.
 3. **Three numbers**, side by side on the background (no card-on-card), with big `tabular-nums` values and 14 px `ink-muted` labels: **75%** *completed* · **12** *best streak now* · **23** *longest streak*.
 4. **Chart**, one bar per day with today on the right:
@@ -1005,6 +1009,46 @@ Verdict: **Ship after fixes**. No High. Full and partial days are told apart at 
 | 8 | Low | "Current streak" can read as a streak of perfect days. | Fixed, kept the label | The visible label is as you asked; screen readers hear "Current streak, best habit". |
 
 Checks after the fixes: 349 unit and database tests, the 45 browser tests (axe in light and dark at every range) and `next build` pass. Shots retaken. The bar-grow animation and the dashes on iPhone Safari are on the phone checklist.
+
+### Rename to Ascend and the Summit icon (2026-11-24)
+
+The request: rename the app from Hold to Ascend (the name only: the gesture, `lib/hold.ts` and "hold to complete" stay), the new live address https://ascend-dk.vercel.app, and a new icon, "Summit". No plan review: no behaviour changed.
+
+Kept on purpose, and why:
+- The gesture and its copy: "press and hold", "Hold to complete", "Hold a habit to complete it.", `lib/hold.ts`, `HoldMode`, `HOLD_MODE_COOKIE` (`hold-mode`).
+- The `hold-auth` login cookie and the `hold_*` demo markers (`hold_demo_seeded_at`, `hold_demo_seeded_day`): new names would log out every session on the new address and make the shared demo reseed.
+- The applied migrations' header comments ("-- Hold: ..."): applied migrations are never edited.
+- The repo and the Vercel project, `habit-tracker`; the plan's file name; the review logs above (history).
+
+Checks: 355 unit and database tests, tsc, eslint and `next build` (the four icons prerendered) pass. On `next start`, the manifest has name and short_name "Ascend" and `?v=2` icons, the login page title is "Log in · Ascend", and the install checks (now with exact icon addresses and pixel checks of the mark) and the signed-out login checks with axe pass, 13 of 13. The full browser suite wasn't run: it resets the shared demo, which another app was testing against. Every icon PNG was looked at: the maskable mark's farthest pixel is 38.2% of the icon from the centre, inside the 40% safe circle (`docs/screenshots/rename-ascend/`, with a safe-circle overlay for review).
+
+#### code-reviewer (diff review)
+Verdict: **Ship after fixes**. "The code change is sound."
+
+| # | Severity | Finding (file:line) | Outcome | What changed |
+|---|----------|---------------------|---------|--------------|
+| 1 | High | The email's login button builds its return address from the request, now `ascend-dk.vercel.app`; only the old address was recorded on Supabase's Redirect URLs, so the button would open Staple. (lib/auth-actions.ts:35, plan deploy log) | Already done, now recorded | The user had added `https://ascend-dk.vercel.app/auth/confirm` (exact) before this change; the rename note says so. The old one stays while it redirects. |
+| 2 | Medium | The reason for keeping `hold-auth` was wrong for this move: `vercel.app` is a public suffix, so the domain change itself logs out old-address sessions (and resets `tz` and Tap to complete). Old home-screen installs keep "Hold", the old icon, and open the redirect outside their scope. (lib/supabase/cookie.ts, CLAUDE.md, plan) | Fixed | Reworded in all three: the name stays so sessions on the new address survive. Installs from the old address must be removed and added again; on the phone check (step 6), in CLAUDE.md and in the `ICON_VERSION` comment. |
+| 3 | Low | "Hold" as the app's name left in the plan's current-tense text (Overview "why the name", demo markers note, cookie decision, Redirect URLs step with `hold-*` while the code says `ascend-*`). | Fixed | "the app" / Ascend; the wildcard example is `ascend-*` in both; "Why the first name, Hold" plus one line on Ascend. |
+| 4 | Low | The version test only pinned a constant, and "drawn as specified" compared `SUMMIT` to itself, so a changed drawing without a version bump passed. (lib/app-identity.test.ts) | Fixed | One test pins version 2 with the literal points, the 0.75 scale and both colours, so the drawing and the version change together. |
+| 5 | Low | No check of the rendered mark: a dropped maskable scale or a broken path would pass on size and corners. (e2e/install.e2e.ts) | Fixed | Pixel checks: mountain bone, trail persimmon, base corner bone on the 512 and iPhone icons; on the maskable, the full-size corner spot is field and the scaled corner is bone. One shared pixel helper. |
+| — | Tests | Assert the icon `href`s exactly (with `?v=`); a manual email-button login on ascend-dk. | Fixed, partly | Exact `href`s asserted. The email-button login is left for the phone check (it sends a real email). |
+
+#### design-critic (screens: login email, email error, code step, light and dark; icons 192, 512, maskable 512 with the safe circle, apple-touch 180)
+Verdict: **Ship**. "The rename is clean and the icons draw the specified geometry exactly." Screenshots: `docs/screenshots/feature-2/login-*.png`, `docs/screenshots/rename-ascend/*.png`.
+
+| # | Severity | Finding | Outcome | What changed |
+|---|----------|---------|---------|--------------|
+| 1 | Medium | Scaled about the centre, the maskable triangle sits low in a circle mask: base corners at 38.2 of 40, the apex 27 from the centre, about 13 units empty above it. Suggests shifting it up 4 units (or 0.8 and up 4). | Deferred to the user | Kept as specified (scaled about the centre, all inside the circle). Offered: an optical lift of about 4 units, which the safe-zone test would still check. |
+| 2 | Low | At 16 px the bone strip between the trail's top and the ridge is about 0.9 px, so the trail can look as if it cuts the ridge in a 1x tab. | Deferred | Fine at 32 px and on the home screen. A 32 px PNG or an SVG tab icon is a follow-up if wanted. |
+| 3 | Low | The tab and iPhone icons (scale 1) look fuller than Android's maskable one. | Rejected | The full-size geometry is the user's spec; it isn't clipped by iOS's mask. |
+| 4 | Low | The login lead broke as "…habit going. One / streak, …". | Fixed | `text-balance` (like the demo caption): one sentence per line. Shots retaken. |
+| 5 | Low | The sharp-cornered mark breaks from the rounded, key-like UI, and the Design direction didn't say so; "Why the name" explained the old name. | Fixed | A **Brand mark** paragraph in Design direction (sharp corners are the one exception; don't copy them into screens); the name line rewritten (code-reviewer #3). |
+| 6 | Low | An Android monochrome (themed) icon would theme cleanly. | Deferred | Browser support for `purpose: "monochrome"` on installed web apps is unclear; not in this request. |
+
+#### Takeaways
+- The most useful finding wasn't in the diff: moving to a new `vercel.app` host resets every cookie and strands old installs, which changed the reason given for keeping `hold-auth` and added a step to the phone check.
+- `TaskStop` on a backgrounded `next start` left its node child listening, so one check ran against a stale server with the new build's files (an axe failure that wasn't real). Re-run on a fresh server: all pass.
 
 <!--
 Template — copy for each feature:

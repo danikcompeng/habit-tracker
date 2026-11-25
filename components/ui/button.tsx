@@ -1,4 +1,4 @@
-// Hold's buttons: pills you press like a key. Primary, secondary and
+// Ascend's buttons: pills you press like a key. Primary, secondary and
 // danger sit on a lip along the bottom edge (outside the button). Pressed,
 // the face moves down 2 px and the lip shrinks from 3 px to 1 px, so the
 // bottom stays put and the key sinks. With Reduce Motion the face doesn't
