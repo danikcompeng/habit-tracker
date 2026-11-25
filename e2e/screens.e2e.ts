@@ -4,7 +4,8 @@
 //   npm run build && npx next start -p 3100
 //   BASE_URL=http://localhost:3100 npm run screens -- -g "today"
 
-import { expect, test, type Page } from "@playwright/test";
+import type { Page } from "@playwright/test";
+import { expect, test } from "./helpers/saves";
 import { freshDemo, habitKey } from "./helpers/app";
 import { reseedDemo } from "./helpers/seed";
 
@@ -216,12 +217,12 @@ test("settings screens", async ({ page }) => {
 });
 
 test("today's date screens", async ({ page }) => {
-  // Feature 8b: the short date when the full one doesn't fit beside the
-  // pills. The label is set to the longest date, so the shots don't depend
-  // on the day: short at 390 px, full at 430 px.
-  const folder = "feature-8b";
+  // Feature 8c: the short date on phones, the full one on wider screens.
+  // The label is set to the longest date, so the shots don't depend on the
+  // day: short at 390 px, full at 768 px. (feature-8b/ keeps 8b's shots.)
+  const folder = "feature-8c";
   await freshDemo(page);
-  for (const width of [390, 430]) {
+  for (const width of [390, 768]) {
     await page.setViewportSize({ width, height: 844 });
     await page.goto("/");
     await expect(page.getByRole("heading", { name: "Today" })).toBeVisible();

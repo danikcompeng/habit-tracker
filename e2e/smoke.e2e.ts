@@ -5,13 +5,8 @@
 // per-address limit that Staple's live demo shares, and the full suite
 // (about 20 sign-ins, Reset demo, screenshots) is for local runs.
 
-import { expect, test, type Page } from "@playwright/test";
+import { expect, nextSave, test } from "./helpers/saves";
 import { holdKey, signInDemo } from "./helpers/app";
-
-/** Waits for the server action (a POST with a Next-Action header) to answer. */
-function actionResponse(page: Page) {
-  return page.waitForResponse((r) => r.request().method() === "POST" && Boolean(r.request().headers()["next-action"]));
-}
 
 test("logged out goes to login; the demo opens Today; a hold is SAVED and an undo puts it back", async ({ page }) => {
   await page.goto("/");
@@ -31,14 +26,14 @@ test("logged out goes to login; the demo opens Today; a hold is SAVED and an und
 
   // Complete it, and wait for the SERVER's answer: the key turns done the
   // moment the hold ends (optimistic), whether or not the save works.
-  const saved = actionResponse(page);
+  const saved = nextSave(page);
   await holdKey(page, key(), 800);
   expect((await saved).ok()).toBe(true);
   await page.reload();
   await expect(key()).toHaveAttribute("aria-pressed", "true");
 
   // Leave the demo as we found it, and make sure the undo reached the server too.
-  const undone = actionResponse(page);
+  const undone = nextSave(page);
   await key().click();
   expect((await undone).ok()).toBe(true);
   await page.reload();

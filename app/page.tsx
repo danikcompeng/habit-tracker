@@ -66,8 +66,14 @@ async function Today() {
       {/* flex-wrap: with zoomed text the pills drop below the date instead
           of running off the screen. */}
       <header className="flex min-h-12 flex-wrap items-center justify-between gap-x-3 gap-y-2">
-        {/* The full date, or "Wed, Nov 25" when it doesn't fit beside the
-            pills (Feature 8b). Layout decides, no JavaScript:
+        {/* "Wed, Nov 25" on phones, the full date on wider screens, so the
+            header looks the same every day (Features 8b, 8c). No JavaScript:
+            - Below 40rem (max-sm: phones, small windows) the full-date layer
+              isn't drawn at all. In rem, so a larger default text size in the
+              browser (or page zoom) counts as a narrower screen.
+            - From 40rem the full date always fits at any default text size.
+              Only text-only zoom (Firefox's "Zoom text only") can make it too
+              wide; then 8b's rule below shows the short date instead.
             - The slot grows into the space left (flex-1) and keeps its
               automatic minimum, the short date's width (nowrap). No min-w-0
               or clipping here, or the pills would never drop below.
@@ -84,7 +90,7 @@ async function Today() {
           <span aria-hidden="true" data-day-label="short">
             {shortDayLabel(today)}
           </span>
-          <span aria-hidden="true" className="absolute inset-0 flex flex-wrap overflow-hidden">
+          <span aria-hidden="true" data-day-layer className="absolute inset-0 flex flex-wrap overflow-hidden max-sm:hidden">
             <span className="h-full w-0" />
             <span data-day-label="full" className="bg-background">
               {dayLabel(today)}
@@ -144,8 +150,8 @@ function TodaySkeleton() {
   return (
     <div aria-hidden="true">
       <div className="flex min-h-12 items-center justify-between">
-        {/* Between the short date and the longest full one at 390 px. */}
-        <div className="h-4 w-40 rounded bg-surface-sunk" />
+        {/* The date's width: short on phones, full from 40rem (as above). */}
+        <div className="h-4 w-20 rounded bg-surface-sunk sm:w-44" />
         <div className="flex gap-2">
           <div className="h-11 w-[92px] rounded-full bg-surface-sunk" />
           <div className="h-11 w-[70px] rounded-full bg-surface-sunk" />

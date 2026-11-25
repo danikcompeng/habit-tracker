@@ -715,6 +715,72 @@ The user's two calls after Feature 8: (1) take the logic-checker's alternative f
 - Playwright, the date, by geometry and independent of the run date (the label text is set in the page to the longest, "Wednesday, September 30", and a short one, "Friday, May 1"): at 320 / 360 / 390 / 430 px and 100% and 200% text, the full date is on the visible line exactly when it's no wider than the slot, it's painted over the short one exactly then (`elementsFromPoint`), the screen reader's copy covers the slot, nothing visible is cut off, and at 100% text the pills stay on the date's line. The header's accessibility tree has exactly one date. Also checked once in WebKit (iPhone's engine), by laying out the built page there. The date layer is left out of the generic 200% overflow check on purpose (it clips by design). The accessible text is the full date. _(Revised after logic-checker #2.)_
 - Screenshots: Today's top at 390 px with the long date (short form) and 430 px (full form), light and dark (`docs/screenshots/feature-8b/`), with the label set to "Wednesday, September 30" so the shots don't depend on the day.
 
+_The phone rule above was changed the same day: phones always get the short date (Feature 8c)._
+
+### Feature 8c: the short date on every phone, a flaky test, the design sidecar (2026-11-25)
+
+The user's three calls after Feature 8b.
+
+**1. Phones always show the short date.** With 8b, a 390 px phone showed the full date on most days and the short one on long dates (about once a week), so the header changed with the calendar (design-critic 8b #1, offered then, taken now). Now:
+- **Below 40 rem** (Tailwind's `max-sm`, 640 px at the default text size): always "Wed, Nov 25". Every phone held upright, 7–8" tablets in portrait (~600 px), half-width split view on smaller iPads, an iPhone SE turned sideways; foldables' inner screens fall either side. The full-date layer isn't drawn there (`max-sm:hidden` on the layer, `data-day-layer`). This holds even with large text, when the pills have dropped below and the full date would fit the wider slot: phones are always short (decided, after logic-checker's question). _(Revised after logic-checker.)_
+- **40 rem and wider** (about 640 px and up: most tablets, desktop, most phones sideways): the full date. At any browser default text size it always fits there (the header is 29.5 rem; the longest date and the pills need about 22.8 rem), so the header doesn't change with the date at any width.
+- **8b's rule stays as the fallback above 40 rem**, for the one setting that grows text without moving the query: text-only zoom (Firefox's "Zoom text only"; possibly older Android text scaling on a tablet). Then a date too wide shows short instead of wrapping. The code comment names this, so the fallback and the rem unit aren't removed by mistake. _(After logic-checker #1.)_
+- **A viewport query, not a container query**: "phone width" is a property of the screen, and the content column is capped at 32 rem, so the header's own width can't tell a phone from a tablet past ~512 px.
+- **In rem**, which in a media query means the browser's default text size (not a page style): a larger default size, or page zoom, counts as a narrower screen, which is the side to err on.
+- Screen readers still hear the full date (the spoken copy is separate and unchanged). The skeleton's date bar follows the same line: the short date's width below 40 rem, the full one's above (`w-20 sm:w-44`). DESIGN.md and `.impeccable/design-full.md` say the new rule (before part 3). 8b's "may switch once when the web font arrives" now only applies at 40 rem and up, where ~100 px of slack makes it practically never happen.
+
+**2. The flaky test** ("tapping a done key undoes it", Feature 3). It passed 20 times in a row on its own, so the race needed company: the whole of `today.e2e.ts` 10 times failed once in 130.
+- **What the trace showed**: the key came back after the reload as *done, with the undone streak* (11-day, not 12), and the undo's request was cancelled (status -1).
+- **The race**: Today's saves are optimistic. The test tapped undo, saw the key turn undone at once, and reloaded while the save was still on its way. The reload cancelled the request in the browser, but the server still applied it, at the same moment the reload was reading the habits. Today reads its data in three parallel queries; the check-ins were read before the delete (done) and the streaks after it (11). Nothing refreshed the page again, so the assertion waited 10 s on a stale screen.
+- **Proof**: with the save slowed by 400 ms in a probe, the old pattern (reload as soon as the key looks undone) failed 3 of 3; waiting for the save's answer first passed 3 of 3.
+- **The fix, in the tests**: a reload after a save first waits for that save's answer (`nextSave` in `e2e/helpers/saves.ts`, the pattern the smoke test already used; `habits.e2e.ts` and `smoke.e2e.ts` now share it instead of their own copies). Applied to both Today tests that reload after a save and to the four Settings tests that do. And the same race between tests: every signed-in test now ends only once no save is on its way and none has started for 300 ms (an automatic fixture in the same file; saves queue one after another), so a save from one test can't land after the next test has reset the shared demo. The fixture also fails any test in which a reload or navigation cancelled a save before its answer arrived, naming the fix ("await nextSave"). No retries, no longer timeouts. _(Guards revised after code-reviewer.)_
+- **Not changed in the app**: a person who reloads within a few dozen milliseconds of a tap can see the same half-old screen until Today next refreshes (on focus, or the next save). The save itself is never lost, and the screen corrects itself. Making the read consistent would mean one database call for Today's data; noted, not done.
+
+**3. `/impeccable document`** to refresh `.impeccable/design.json` (stale since 8b added a line to DESIGN.md), without undoing the compaction (DESIGN.md as a map, the full text in `.impeccable/design-full.md`). The user asked for the sidecar, so DESIGN.md stays as it is, per the skill. Done after part 1's wording: the narrative (north star, overview, key characteristics, rules, do's and don'ts) copied verbatim from `design-full.md`; the 40 rem breakpoint recorded; components synced with the code (buttons wrap with 8 px vertical padding, the range switch's fixed 26 / 22 px radii) and the Settings switch added.
+
+**Tests**
+- Playwright, the date, with the labels set in the page to the longest and a short date: at 320 / 360 / 390 / 430 / 480 / 600 / 639 px, 100% and 200% text, the full layer isn't drawn and the short date is the label on top; at 640 / 768 / 1024 px and 100% the full date shows and fits; at 768 px with text-only zoom (200% page style), 8b's rule decides and both forms occur. A larger browser default text size (32 px, set through the browser, not a page style) makes 768 px show the short date. Every case: nothing cut off, the spoken copy covers the slot, the pills beside the date at 100%; exactly one date in the accessibility tree. _(Revised after logic-checker #2, #5.)_
+- Playwright, the flake: the Today file 20 times in a row, and the whole suite. Result: the Today file ×20 (12 tests each, on `next start`): 240 passed, 0 failed. Whole suite (one run, `next start`, with the date change built): 77 passed, 0 failed. After code-reviewer's fixes: a probe that reloads straight after an undo fails with the fixture's message (as it must); the whole suite again: 77 passed, 0 failed.
+- Screenshots (`docs/screenshots/feature-8c/`): Today's top at 390 px (short) and 768 px (full), light and dark. `feature-8b/` keeps 8b's shots as history.
+
+### Feature 9: Manrope (2026-11-25)
+
+The user's call: switch the app's one font from Bricolage Grotesque to **Manrope**, for a cleaner, more minimal feel. Colours, sizes, spacing, copy and behaviour stay; only the typeface, its weights and its letter-spacing change. A recorded decision changes here ("Type: Bricolage Grotesque for everything", Design direction; CLAUDE.md "Bricolage Grotesque only"): both are updated, with this note as the why.
+
+**Loading**
+- `next/font/google`, `Manrope({ variable: "--font-manrope", subsets: ["latin"], weight: ["400", "500", "600", "700"] })`. Manrope is a variable font (200–800), but this Next.js only accepts single weights, `"variable"` (the whole 200–800 axis) or an array; a range string like `"400 700"` fails the types and the build, though the docs describe one. The array asks Google for four faces, each fixed to one weight (Google serves the same file for each, and Next de-duplicates it; checked after the build). The cap comes from those faces: a request for 800 or 900 matches the 700 face and draws at 700, with no fake bold since a real 700 exists. _(Revised after logic-checker #1: the plan first said a range.)_
+- `--font-sans` points at `--font-manrope`. `font-optical-sizing: auto` goes (Manrope has no optical-size axis; `auto` is the default anyway). Next's automatic fallback (a resized Arial) keeps the layout steady while it loads.
+
+**Weights** (400 / 500 / 600 / 700 only)
+- 700: page titles, History's three numbers, and the "Ascend" wordmark (was 800, the only weight above 700).
+- 600: habit names, buttons, selected states. 500: labels, captions and most text that has a class. 400: text with no weight class (the lead line, inputs, the error page's lead), as today.
+- The weight of the three large styles lives in their tokens too (`--text-title--font-weight`, `--text-display--font-weight`, `--text-stat--font-weight`: 700), so the headings drop their `font-bold` / `font-extrabold` classes and a stray heavier class can't come back with them. _(After logic-checker.)_
+
+**Letter-spacing**: slightly tighter on large headings and the wordmark, carried by the type tokens (`--text-*--letter-spacing`) instead of a `tracking-tight` class on each heading:
+- `text-title` (34 px page titles): −0.03 em (was −0.025 em).
+- `text-display` (the wordmark): −0.04 em (was −0.025 em), the impeccable craft floor's limit.
+- `text-stat` (History's numbers, 28 px): stays −0.025 em, now in the token.
+- Habit names (22 px) and everything smaller: unchanged (0).
+Every current use of those three sizes had `tracking-tight`, so moving it into the tokens changes nothing else.
+
+**Tabular numbers**: streaks (the key's caption) and percentages (History's numbers and each habit's percent), as now, plus the other counts already marked (summary line, day readout, name length).
+
+**Manrope is a bit wider**, so everything that depends on text width is re-checked rather than assumed, and every width test first waits for the web font and checks it's really Manrope (not the fallback) before measuring:
+- The 200% text check on every screen and the empty states.
+- History's numbers: three columns or one (the 18.75 rem container switch), at 320 / 360 / 375 / 390 px and 100–150%, **and with the widest values set in the page** ("100%", "999 days", three-digit streaks are possible because streaks reach back before the 90-day window): no number wider than its column at 340 / 360 / 375 / 390 px at 100%, and just below the switch. If one doesn't fit, the threshold rises (never smaller type). _(After logic-checker: decided that three digits must fit; four digits, after 2.7 years, may switch to one column.)_
+- Today's date (Feature 8c): short below 40 rem; at 640 px and up the full date must still fit.
+- Buttons and pills: History / Edit in Today's header (the 320 px "pills beside the date" check), Habits' rows of pills, the login buttons.
+- Every skeleton width (Today's date bar, title and pills; Habits' and Settings' title and Done) is re-measured against Manrope, so nothing jumps sideways when the page arrives. _(After logic-checker: not just the date bar.)_
+Anything that no longer fits is fixed in the layout (wrapping, a threshold), not by shrinking the type.
+
+**Docs** (every mention, not just the typography sections): CLAUDE.md ("Manrope only"); the plan's Design direction (the direction paragraph and the Type list, with a dated note); DESIGN.md (frontmatter font family, the wordmark's weight, the letter-spacing values, the map's Fonts line); `.impeccable/design-full.md` (tokens, the Overview sentence about the typeface, the Typography section and its Character line); `.impeccable/design.json` (regenerated from design-full, so the Overview changes too); code comments in `app/layout.tsx` and `app/globals.css`. The manifest, icons and README don't name the font (checked).
+
+**Tests**
+- e2e (new, `e2e/type.e2e.ts`, every main screen): after `document.fonts.ready`, a loaded face whose family matches Manrope (not the fallback) exists and is the first family in the body's computed font; no element renders heavier than 700; page titles and the wordmark have letter-spacing / font-size of −0.03 / −0.04 (a ratio, since the computed value is in px); streak captions and percentages are `tabular-nums`, and "111" and "000" draw at the same width in their font (so the font really has tabular figures). _(Revised after logic-checker: `document.fonts.check` passes for any family, so it proves nothing.)_
+- The existing 200% / History-columns / date tests, now waiting for Manrope first; History's widest-values check (above).
+- Screenshots: a "before" set of the main screens in Bricolage (kept out of the repo, for the design-critic), then the full `npm run screens` set retaken in Manrope, light and dark (the per-feature folders show the current app).
+- design-critic on Today, History, Habits, Settings and login, light and dark, before and after.
+
 ## Reviews
 
 _One entry per feature. Every agent finding is logged with its severity and what was done about it, so the log shows what each reviewer caught and what changed as a result._
@@ -1364,6 +1430,51 @@ Checks: 379 unit and database tests, tsc, eslint, `next build`, and all **77 bro
 #### Takeaways
 - Three checks found the same layout bug: a prototype, the logic-checker, and a mutation test that fails without the fix. A trick that hides things by wrapping needs a test that measures where things are, not whether they're "visible".
 - `sr-only` is the wrong tool whenever the visible thing is something people explore by touch; this is the second time.
+
+
+### Feature 8c: the short date on every phone, a flaky test, the design sidecar (2026-11-25)
+
+#### logic-checker (plan review)
+Verdict: **Ready after fixes**.
+
+| # | Severity | Finding | Outcome | What changed |
+|---|----------|---------|---------|--------------|
+| 1 | Medium | A media query's rem is the browser's default size, not the page's: the "200% text" test can't move the 40rem line, and the 8b fallback above it is reached only by text-only zoom. | Fixed | Plan and code comment say which settings reach the fallback; the 768 px / 200% case is labelled text-only zoom; a test sets the browser's default size (32 px) and sees 768 px go short. |
+| 2 | Medium | The 8b date tests would fail misleadingly (a hidden layer measures as zeros), and the 390 px test's claim became false. | Fixed | Tests split: below 40rem the layer isn't drawn and the short date is on top; from 40rem the full date shows; text-only zoom uses the fit rule (both forms must occur). The 390 px test removed. |
+| 3 | Medium | DESIGN.md and design-full.md still stated the 8b rule, and the sidecar is built from them. | Fixed | Both updated before the sidecar was regenerated. |
+| 4 | Low | The skeleton's date bar was only right below 40rem. | Fixed | `w-20 sm:w-44`. |
+| 5 | Low | The edge of the threshold wasn't pinned. | Fixed | 639 (short) and 640 (full), plus 600. |
+| 6 | Low | The device list was loose. | Fixed | Reworded (small tablets in portrait and half-width split view are short). |
+| 7 | Low | Comments, the screenshot test's folder, and design-critic 8b #1 being taken. | Fixed | All updated; shots in `feature-8c/`. |
+| 8 | Low | A loop of the test alone might never reproduce the flake. | Taken | Right: 20 alone passed; the file ×10 reproduced it once in 130. |
+| — | Questions | Short even when large text has dropped the pills below? Do ~600 px tablets count as phones? | Answered | Yes to both (phones are always short; 40rem is the line). |
+
+#### code-reviewer (diff review)
+Verdict: **Ship after fixes**.
+
+| # | Severity | Finding | Outcome | What changed |
+|---|----------|---------|---------|--------------|
+| 1 | Medium | The fixture counted a save cancelled by a reload as settled, though the server still applies it: the flake's own mechanism could come back silently. | Fixed | The fixture fails a test in which a navigation cancelled a save before its answer arrived. First version flagged every reload after `nextSave` too (6 tests): the answer streams after the server has finished, and cutting it short is harmless, so only saves with no answer yet count. A probe that reloads straight after an undo fails with the message; the suite passes. |
+| 2 | Medium | The "one date for screen readers" check ran only at 390 px, where the full layer isn't drawn any more. | Fixed | Also at 768 px. |
+| 3 | Low | design-full.md still said "There are no breakpoints". | Fixed | "One breakpoint (40rem), for Today's date only". |
+| 4 | Low | The text-size spec's header comment claimed a page style equals the browser's text size, which isn't true for media queries. | Fixed | Comment explains, and points to the default-size test. |
+| 5 | Low | Saves queue, so the fixture could see "nothing in flight" between two. | Fixed | Settled means nothing in flight and nothing new for 300 ms. |
+| 6 | Low | No 8c Reviews entry. | Fixed | This entry. |
+| — | Tests | 640 px with text-only zoom; the fixture's own failure; the skeleton widths. | Added (first two) | The skeleton widths are re-measured in Feature 9 (Manrope changes them anyway). |
+
+#### design-critic (Today at 390 and 768 px, longest and real date; light and dark)
+Verdict: **Ship**. No required fixes; the header is now identical every day on phones, and the pills stay on the date's line even at 320 px.
+
+| # | Severity | Finding | Outcome | What changed |
+|---|----------|---------|---------|--------------|
+| 1 | Low | 600–639 px gets the short date in a header as wide as 768 px's. | Kept | The decided trade-off; lowering the line to ~34rem would move small tablets to the full date (offered to the user). |
+| 2 | Low | The date sits nearer the nav than the title: fine, and shouldn't be "fixed". | Kept | No change. |
+
+Checks: 379 unit and database tests, tsc, eslint, `next build`; the Today file ×20: 240 passed, 0 failed; the whole suite twice (before and after the review fixes): 77 passed, 0 failed each time.
+
+#### Takeaways
+- An optimistic UI makes "the screen looks right" a bad signal for "it's saved"; tests that reload must wait for the server's answer, and now the fixture enforces it.
+- A guard that's too eager is its own bug: the first version of the cancelled-save check failed six correct tests. A probe that must fail, plus the suite that must pass, pinned down exactly what counts.
 
 <!--
 Template — copy for each feature:

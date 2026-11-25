@@ -6,8 +6,8 @@
 //   Walk outside            done today, 2-day streak
 //   No phone in bed         not done, 1-day streak
 
-import { expect, test } from "@playwright/test";
 import { expectNoA11yViolations, freshDemo, habitKey, holdKey } from "./helpers/app";
+import { expect, nextSave, test } from "./helpers/saves";
 
 test.beforeEach(async ({ page }) => {
   await freshDemo(page);
@@ -27,10 +27,13 @@ test("shows the sample habits with their streaks, and is accessible in light and
 
 test("holding a key completes it: streak +1, and it's saved", async ({ page }) => {
   const read = habitKey(page, "Read 10 pages");
+  const saved = nextSave(page);
   await holdKey(page, read, 800);
   await expect(read).toHaveAttribute("aria-pressed", "true");
   await expect(read).toContainText("5-day streak");
   await expect(page.getByText("3 of 5 done")).toBeVisible();
+  // The key turned done before the save arrived (optimistic): wait for it.
+  expect((await saved).ok()).toBe(true);
   await page.reload();
   await expect(habitKey(page, "Read 10 pages")).toHaveAttribute("aria-pressed", "true");
   await expect(habitKey(page, "Read 10 pages")).toContainText("5-day streak");
@@ -124,9 +127,13 @@ test("moving while holding is a scroll, not a press", async ({ page }) => {
 
 test("tapping a done key undoes it: streak -1, saved", async ({ page }) => {
   const water = habitKey(page, "Drink a glass of water");
+  const saved = nextSave(page);
   await water.click();
   await expect(water).toHaveAttribute("aria-pressed", "false");
   await expect(water).toContainText("11-day streak");
+  // Reloading before the save answered once came back half old, half new
+  // (done, with the undone streak): the flaky test of Feature 8c.
+  expect((await saved).ok()).toBe(true);
   await page.reload();
   await expect(habitKey(page, "Drink a glass of water")).toHaveAttribute("aria-pressed", "false");
 });

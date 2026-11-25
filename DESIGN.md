@@ -170,7 +170,7 @@ Rules:
 - The Tested Pair Rule. Every text pair is 4.5:1 and every mark, edge and ring is 3:1, and `lib/palette.test.ts` proves it.
 - The Token-Only Rule. Components use the token classes (`bg-surface`, `text-ink-muted`, `shadow-[…var(--accent-lip)]`); Tailwind's own palette is switched off, so a raw colour can't sneak in.
 - The 16 px Floor Rule. Anything you type into is 16 px.
-- The 200% Rule. Every screen still fits a 390 px phone with text at 200% (`e2e/text-size.e2e.ts`): rows that hold text and pills wrap (`flex-wrap`) rather than squeeze, and side-by-side groups use rem-sized columns so they stack when text grows. Before anything wraps, Today's date shortens ("Wed, Nov 25", the same format as History's day readout, `shortDayLabel`) when the full one doesn't fit beside the pills.
+- The 200% Rule. Every screen still fits a 390 px phone with text at 200% (`e2e/text-size.e2e.ts`): rows that hold text and pills wrap (`flex-wrap`) rather than squeeze, and side-by-side groups use rem-sized columns so they stack when text grows. Today's date is short on phones ("Wed, Nov 25", below 40rem, the same format as History's day readout, `shortDayLabel`) and full on wider screens, so the header looks the same every day; if text-only zoom makes the full one too wide there, it shortens rather than wrap.
 - The Lip, Not Glow Rule. Depth is a hard edge under the object in a darker shade of itself.
 Elevation:
 - Key lip: 0 4px 0 var(--surface-sunk)

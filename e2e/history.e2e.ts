@@ -3,7 +3,8 @@
 // with (lib/demo-seed.ts), counted by lib/history.ts: so this checks that
 // what the database returns and the page shows add up to the same thing.
 
-import { expect, test, type Page } from "@playwright/test";
+import type { Page } from "@playwright/test";
+import { expect, test } from "./helpers/saves";
 import { expectNoA11yViolations, freshDemo } from "./helpers/app";
 import { localToday, reseedDemo } from "./helpers/seed";
 import { demoSeedPayload } from "../lib/demo-seed";

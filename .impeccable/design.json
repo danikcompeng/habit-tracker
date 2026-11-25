@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-11-25T04:27:24+00:00",
+  "generatedAt": "2026-11-25T17:35:49+00:00",
   "title": "Design System: Ascend",
   "extensions": {
     "colorMeta": {
@@ -138,7 +138,13 @@
         "purpose": "Quick to start, gentle to land."
       }
     ],
-    "breakpoints": []
+    "breakpoints": [
+      {
+        "name": "sm",
+        "value": "40rem",
+        "purpose": "Below it (phones, small windows) Today's date is always the short form; from it, the full date. In rem, so a larger browser text size counts as narrower. Everything else is fluid: rows wrap, columns stack by container queries."
+      }
+    ]
   },
   "components": [
     {
@@ -155,7 +161,7 @@
       "refersTo": "button-primary",
       "description": "The one main action on a screen: a persimmon pill on its own lip.",
       "html": "<button class=\"ds-btn-primary\">Email me a code</button>",
-      "css": ".ds-btn-primary{min-height:48px;padding:0 24px;margin-bottom:3px;border:0;border-radius:9999px;background:var(--accent);color:var(--on-accent);font:inherit;font-size:16px;font-weight:600;box-shadow:0 3px 0 var(--accent-lip);transition:transform 150ms cubic-bezier(.2,.8,.2,1),box-shadow 150ms}.ds-btn-primary:active{transform:translateY(2px);box-shadow:0 1px 0 var(--accent-lip)}.ds-btn-primary:focus-visible{outline:2px solid var(--accent);outline-offset:3px}"
+      "css": ".ds-btn-primary{min-height:48px;padding:8px 24px;text-align:center;text-wrap:balance;margin-bottom:3px;border:0;border-radius:9999px;background:var(--accent);color:var(--on-accent);font:inherit;font-size:16px;font-weight:600;box-shadow:0 3px 0 var(--accent-lip);transition:transform 150ms cubic-bezier(.2,.8,.2,1),box-shadow 150ms}.ds-btn-primary:active{transform:translateY(2px);box-shadow:0 1px 0 var(--accent-lip)}.ds-btn-primary:focus-visible{outline:2px solid var(--accent);outline-offset:3px}"
     },
     {
       "name": "Secondary button",
@@ -163,7 +169,7 @@
       "refersTo": "button-secondary-sm",
       "description": "Header pills (History, Edit, Done) and quieter actions.",
       "html": "<button class=\"ds-btn-secondary\">History</button>",
-      "css": ".ds-btn-secondary{min-height:44px;padding:0 20px;margin-bottom:3px;border:1px solid var(--line);border-radius:9999px;background:var(--surface);color:var(--ink);font:inherit;font-size:14px;font-weight:600;box-shadow:0 3px 0 var(--surface-sunk);transition:transform 150ms,box-shadow 150ms}.ds-btn-secondary:active{transform:translateY(2px);box-shadow:0 1px 0 var(--surface-sunk)}.ds-btn-secondary:focus-visible{outline:2px solid var(--accent);outline-offset:3px}"
+      "css": ".ds-btn-secondary{min-height:44px;padding:8px 20px;text-align:center;text-wrap:balance;margin-bottom:3px;border:1px solid var(--line);border-radius:9999px;background:var(--surface);color:var(--ink);font:inherit;font-size:14px;font-weight:600;box-shadow:0 3px 0 var(--surface-sunk);transition:transform 150ms,box-shadow 150ms}.ds-btn-secondary:active{transform:translateY(2px);box-shadow:0 1px 0 var(--surface-sunk)}.ds-btn-secondary:focus-visible{outline:2px solid var(--accent);outline-offset:3px}"
     },
     {
       "name": "Danger button",
@@ -171,7 +177,7 @@
       "refersTo": "button-danger",
       "description": "Delete, only inside the inline confirmation; always with the trash icon.",
       "html": "<button class=\"ds-btn-danger\"><svg width=\"18\" height=\"18\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3\"/></svg>Delete</button>",
-      "css": ".ds-btn-danger{display:inline-flex;align-items:center;gap:8px;min-height:48px;padding:0 24px;margin-bottom:3px;border:0;border-radius:9999px;background:var(--danger);color:var(--surface);font:inherit;font-size:16px;font-weight:600;box-shadow:0 3px 0 var(--danger-lip)}.ds-btn-danger:active{transform:translateY(2px);box-shadow:0 1px 0 var(--danger-lip)}.ds-btn-danger:focus-visible{outline:2px solid var(--accent);outline-offset:3px}"
+      "css": ".ds-btn-danger{display:inline-flex;align-items:center;gap:8px;min-height:48px;padding:8px 24px;text-align:center;text-wrap:balance;margin-bottom:3px;border:0;border-radius:9999px;background:var(--danger);color:var(--surface);font:inherit;font-size:16px;font-weight:600;box-shadow:0 3px 0 var(--danger-lip)}.ds-btn-danger:active{transform:translateY(2px);box-shadow:0 1px 0 var(--danger-lip)}.ds-btn-danger:focus-visible{outline:2px solid var(--accent);outline-offset:3px}"
     },
     {
       "name": "Text field",
@@ -185,14 +191,22 @@
       "name": "Range switch",
       "kind": "nav",
       "refersTo": "range-switch",
-      "description": "History's 7 / 30 / 90 days segmented control.",
+      "description": "History's 7 / 30 / 90 days segmented control. Fixed radii (26 / 22 px), not full pills, so a two-line label at large text isn't cut by a circle.",
       "html": "<div class=\"ds-range\"><button>7 days</button><button aria-pressed=\"true\">30 days</button><button>90 days</button></div>",
-      "css": ".ds-range{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;padding:4px;border-radius:9999px;background:var(--surface-sunk)}.ds-range button{min-height:44px;border:1px solid transparent;border-radius:9999px;background:none;color:var(--ink-muted);font:inherit;font-size:16px;font-weight:500}.ds-range button[aria-pressed=true]{border-color:var(--ink-muted);background:var(--surface);color:var(--ink);font-weight:600}.ds-range button:focus-visible{outline:2px solid var(--accent);outline-offset:3px}"
+      "css": ".ds-range{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;padding:4px;border-radius:26px;background:var(--surface-sunk)}.ds-range button{min-height:44px;padding:0 8px;line-height:1.25;border:1px solid transparent;border-radius:22px;background:none;color:var(--ink-muted);font:inherit;font-size:16px;font-weight:500}.ds-range button[aria-pressed=true]{border-color:var(--ink-muted);background:var(--surface);color:var(--ink);font-weight:600}.ds-range button:focus-visible{outline:2px solid var(--accent);outline-offset:3px}"
+    },
+    {
+      "name": "Switch",
+      "kind": "custom",
+      "refersTo": "switch",
+      "description": "A settings row (Settings, Feature 8): the label and a caption on the left, a 48 x 28 track on the right; persimmon when on. The whole row is the button (role switch); a failed save says so under it.",
+      "html": "<button class=\"ds-switch\" role=\"switch\" aria-checked=\"false\"><span class=\"ds-switch-text\"><span>Tap to complete</span><span class=\"ds-switch-caption\">Instead of press and hold</span></span><span class=\"ds-switch-track\" aria-hidden=\"true\"><span class=\"ds-switch-knob\"></span></span></button>",
+      "css": ".ds-switch{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px 16px;width:100%;min-height:44px;padding:0 4px;border:0;border-radius:16px;background:none;color:var(--ink);font:inherit;font-size:16px;font-weight:500;text-align:left}.ds-switch:active{background:var(--surface-sunk)}.ds-switch:focus-visible{outline:2px solid var(--accent);outline-offset:3px}.ds-switch-text{display:flex;flex-direction:column}.ds-switch-caption{font-size:14px;color:var(--ink-muted)}.ds-switch-track{position:relative;display:inline-flex;align-items:center;flex-shrink:0;width:48px;height:28px;border:2px solid var(--ink-muted);border-radius:9999px;background:var(--surface);transition:background-color 150ms,border-color 150ms}.ds-switch-knob{position:absolute;width:20px;height:20px;border-radius:9999px;background:var(--ink-muted);transform:translateX(2px);transition:transform 150ms cubic-bezier(.2,.8,.2,1)}.ds-switch[aria-checked=true] .ds-switch-track{border-color:var(--accent);background:var(--accent)}.ds-switch[aria-checked=true] .ds-switch-knob{background:var(--on-accent);transform:translateX(22px)}@media (prefers-reduced-motion:reduce){.ds-switch-track,.ds-switch-knob{transition:none}}"
     }
   ],
   "narrative": {
     "northStar": "The Warm Keyboard",
-    "overview": "Ascend is a small, physical object on a sheet of bone paper. Every habit is a chunky key: it has a face, a lip along its bottom edge, and it sinks when you press it. Holding it down grows a persimmon tint out from under your finger; when the hold completes the key snaps to solid persimmon with a short pop. The whole system exists to make that one gesture feel honest and satisfying, and everything around the keys stays quiet so they can carry the screen.",
+    "overview": "Ascend is a small, physical object on a sheet of bone paper. Every habit is a chunky key: it has a face, a lip along its bottom edge, and it sinks when you press it. Holding it down grows a persimmon tint out from under your finger; when the hold completes the key snaps to solid persimmon with a short pop. The whole system exists to make that one gesture feel honest and satisfying, and everything around the keys stays quiet so they can carry the screen.\n\nThe mood is tactile and warm, never clinical: warm paper and soft graphite instead of white and black, one persimmon accent instead of a rainbow of categories, one typeface (Bricolage Grotesque) whose optical sizes keep small labels calm and let titles show character. References are the feel of a mechanical keyboard key, Things 3's restraint (one accent, lots of air) and the bold type of Arc and Teenage Engineering product pages. It is a phone app first: a single 20 px-guttered column, big targets, thumb-height actions.\n\nCopy is short, warm and never guilt-tripping (\"Hold to complete\", \"3-day streak\", \"Start today\").",
     "keyCharacteristics": [
       "One accent, persimmon, reserved for \"done\" and the one main action on a screen.",
       "Depth by a solid lip under the element, never by blur shadows.",
@@ -208,12 +222,12 @@
       },
       {
         "name": "The Tested Pair Rule",
-        "body": "Every text pair is 4.5:1 and every mark, edge and ring is 3:1, and lib/palette.test.ts proves it.",
+        "body": "Every text pair is 4.5:1 and every mark, edge and ring is 3:1, and `lib/palette.test.ts` proves it. A new pairing goes into `TEXT_PAIRS` or `NON_TEXT_PAIRS` before it goes on screen. Persimmon text never sits on the key lip (4.3:1 in light).",
         "section": "colors"
       },
       {
         "name": "The Token-Only Rule",
-        "body": "Components use the token classes; Tailwind's own palette is switched off, so a raw colour can't sneak in.",
+        "body": "Components use the token classes (`bg-surface`, `text-ink-muted`, `shadow-[…var(--accent-lip)]`); Tailwind's own palette is switched off, so a raw colour can't sneak in.",
         "section": "colors"
       },
       {
@@ -223,7 +237,7 @@
       },
       {
         "name": "The 200% Rule",
-        "body": "Every screen still fits a 390 px phone with text at 200% (e2e/text-size.e2e.ts): rows that hold text and pills wrap (flex-wrap) rather than squeeze, and side-by-side groups use rem-sized columns so they stack when text grows.",
+        "body": "Every screen still fits a 390 px phone with text at 200% (`e2e/text-size.e2e.ts`): rows that hold text and pills wrap (`flex-wrap`) rather than squeeze, and side-by-side groups use rem-sized columns so they stack when text grows.",
         "section": "typography"
       },
       {
@@ -234,8 +248,8 @@
     ],
     "dos": [
       "Do keep 44 × 44 px as the smallest tap target, 48 px for main buttons.",
-      "Do put new colours in app/globals.css and lib/palette.ts together, with their pair in lib/palette.test.ts.",
-      "Do take every timing from lib/motion.ts / --motion-* (150, 200, 250, 650 ms) and wrap movement in motion-safe:.",
+      "Do put new colours in `app/globals.css` and `lib/palette.ts` together, with their pair in `lib/palette.test.ts`.",
+      "Do take every timing from `lib/motion.ts` / `--motion-*` (150, 200, 250, 650 ms) and wrap movement in `motion-safe:`.",
       "Do give every filled button and key a lip in its own darker shade.",
       "Do pair colour with a second signal: an icon for errors and delete, an edge for selected states, words for dots."
     ],

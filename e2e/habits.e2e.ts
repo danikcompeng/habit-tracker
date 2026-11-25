@@ -1,6 +1,7 @@
 // Managing habits (plans/habit-tracker.md, Feature 4) on the demo account.
 
-import { expect, test, type Page } from "@playwright/test";
+import type { Page } from "@playwright/test";
+import { expect, nextSave, test } from "./helpers/saves";
 import { expectNoA11yViolations, freshDemo } from "./helpers/app";
 
 const SAMPLE = ["Drink a glass of water", "Read 10 pages", "Stretch for 5 minutes", "Walk outside", "No phone in bed"];
@@ -27,10 +28,6 @@ function countActions(page: Page) {
   });
   return seen;
 }
-function nextAction(page: Page) {
-  return page.waitForResponse((r) => r.request().method() === "POST" && Boolean(r.request().headers()["next-action"]));
-}
-
 test.beforeEach(async ({ page }) => {
   await freshDemo(page);
   await page.getByRole("link", { name: "Edit" }).click();
@@ -93,13 +90,13 @@ test("renames a habit; focus returns to its Edit button; Escape and Cancel do to
 
 test("Move to bottom and Move to top keep focus on that habit, and are saved", async ({ page }) => {
   await page.getByRole("button", { name: "Edit Read 10 pages" }).click();
-  const saved = nextAction(page);
+  const saved = nextSave(page);
   await page.getByRole("button", { name: "Move to bottom" }).click();
   await expect(page.getByRole("button", { name: "Already last" })).toBeFocused();
   expect((await names(page)).at(-1)).toBe("Read 10 pages");
   await saved;
 
-  const savedAgain = nextAction(page);
+  const savedAgain = nextSave(page);
   await page.getByRole("button", { name: "Move to top" }).click();
   await expect(page.getByRole("button", { name: "Already first" })).toBeFocused();
   await savedAgain;
@@ -111,7 +108,7 @@ test("Arrange: two moves keep focus, save ONCE, and Done arranging never snaps b
   const actions = countActions(page);
   // Listen from the start: the save goes 600 ms after the last move, which
   // may be before or after Done arranging.
-  const saved = nextAction(page);
+  const saved = nextSave(page);
   await page.getByRole("button", { name: "Arrange" }).click();
   const down = page.getByRole("button", { name: "Move Drink a glass of water down" });
   await down.click();

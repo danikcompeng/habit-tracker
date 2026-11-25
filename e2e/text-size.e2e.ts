@@ -2,9 +2,13 @@
 // Safari's text zoom do this. Every screen must still fit the phone's
 // width, with nothing pushed past its right edge (plans/habit-tracker.md,
 // Refinement pass). The layout is in rem, so a 200% root font size is the
-// same as the browser's text size setting. Only looks: nothing is saved.
+// same as the browser's text size setting, except for media queries: their
+// rem is the browser's default size, which a page style can't move (Today's
+// 40rem date line; the "larger default text size" test sets it through the
+// browser instead). Only looks: nothing is saved.
 
-import { expect, test, type Page } from "@playwright/test";
+import type { Page } from "@playwright/test";
+import { expect, test } from "./helpers/saves";
 import { freshDemo, habitKey, holdKey } from "./helpers/app";
 import { reseedDemo } from "./helpers/seed";
 
@@ -88,85 +92,116 @@ test("History's numbers are three columns or one, never 2 + 1", async ({ page })
   }
 });
 
-test("Today's date: the full one when it fits beside the pills, the short one otherwise, never cut off", async ({ page }) => {
-  // By geometry, and independent of the day the tests run: the labels are
-  // set in the page to the longest date there is and a short one. (The date
-  // layer clips by design, so the generic check above doesn't look at it.)
+/**
+ * Sets Today's date labels to `date` (so nothing depends on the day the tests
+ * run) and measures the header. Call once Today is on screen.
+ */
+async function measureDate(page: Page, date: { full: string; short: string }) {
+  return page.evaluate(async ({ full, short }) => {
+    await document.fonts.ready;
+    const fullEl = document.querySelector<HTMLElement>('[data-day-label="full"]')!;
+    const shortEl = document.querySelector<HTMLElement>('[data-day-label="short"]')!;
+    fullEl.textContent = full;
+    shortEl.textContent = short;
+    const layer = document.querySelector<HTMLElement>("[data-day-layer]")!;
+    const slot = shortEl.parentElement!.getBoundingClientRect();
+    const f = fullEl.getBoundingClientRect();
+    const sh = shortEl.getBoundingClientRect();
+    const spoken = document.querySelector<HTMLElement>('[data-day-label="spoken"]')!.getBoundingClientRect();
+    const nav = document.querySelector("header nav")!.getBoundingClientRect();
+    const drawn = getComputedStyle(layer).display !== "none";
+    // Painted order at the short date's centre: which label is on top?
+    const stack = document.elementsFromPoint(sh.left + sh.width / 2, sh.top + sh.height / 2);
+    const fullIndex = stack.indexOf(fullEl);
+    const fullOnFirstLine = drawn && f.top < slot.bottom - 1;
+    return {
+      drawn,
+      fits: drawn && f.width <= slot.width + 0.5,
+      fullOnFirstLine,
+      // The label people see: the full date painted over the short one, or the short one.
+      shows: fullIndex !== -1 && fullIndex < stack.indexOf(shortEl) ? "full" : stack.includes(shortEl) ? "short" : "none",
+      visibleRight: Math.max(sh.right, fullOnFirstLine ? f.right : 0),
+      slotRight: slot.right,
+      shortFits: sh.width <= slot.width + 0.5,
+      // The screen reader's copy covers the whole slot (found by touch).
+      spokenCoversSlot: Math.abs(spoken.width - slot.width) < 1 && Math.abs(spoken.height - slot.height) < 1,
+      pillsBeside: Math.abs(nav.top + nav.height / 2 - (slot.top + slot.height / 2)) < 2,
+      viewport: document.documentElement.clientWidth,
+    };
+  }, date);
+}
+
+const DATES = [
+  { full: "Wednesday, September 30", short: "Wed, Sep 30" }, // the longest there is
+  { full: "Friday, May 1", short: "Fri, May 1" },
+];
+
+async function openToday(page: Page, width: number, textSize = 100) {
+  await page.setViewportSize({ width, height: 844 });
   await page.goto("/");
+  // Once streamed in (before that, the labels are in a hidden template).
   await expect(page.getByRole("heading", { name: "Today" })).toBeVisible();
+  if (textSize !== 100) await page.addStyleTag({ content: `html { font-size: ${textSize}% !important; }` });
+}
+
+test("Today's date: always short on phones, full on wider screens, never cut off, one date for screen readers", async ({ page }) => {
+  await openToday(page, 390);
   // Screen readers get exactly one date, the full one.
   const real = await page.locator('[data-day-label="spoken"]').textContent();
   expect(real).toMatch(/^[A-Z][a-z]+day, [A-Z][a-z]+ \d{1,2}$/);
   await expect(page.locator("header p")).toMatchAriaSnapshot(`- paragraph: ${real}`);
-  const dates = [
-    { full: "Wednesday, September 30", short: "Wed, Sep 30" },
-    { full: "Friday, May 1", short: "Fri, May 1" },
+  // And where the full-date layer is drawn (from 40rem), still one date.
+  await openToday(page, 768);
+  await expect(page.locator("header p")).toMatchAriaSnapshot(`- paragraph: ${real}`);
+
+  // [width, text size, expected]: "short" and "full" are fixed answers,
+  // "fit" is 8b's rule (full exactly when it fits), reached only by
+  // text-only zoom on a wide screen. 639 / 640: the edge of 40rem.
+  const cases: [number, number, "short" | "full" | "fit"][] = [
+    ...[320, 360, 390, 430, 480, 600, 639].flatMap((w) => [[w, 100, "short"], [w, 200, "short"]] as [number, number, "short"][]),
+    ...[640, 768, 1024].map((w) => [w, 100, "full"] as [number, number, "full"]),
+    [640, 200, "fit"],
+    [768, 200, "fit"],
   ];
-  const seen = new Set<string>();
-  for (const width of [320, 360, 390, 430]) {
-    for (const textSize of [100, 200]) {
-      for (const date of dates) {
-        await page.setViewportSize({ width, height: 844 });
-        await page.goto("/");
-        await expect(page.getByRole("heading", { name: "Today" })).toBeVisible();
-        await page.addStyleTag({ content: `html { font-size: ${textSize}% !important; }` });
-        const r = await page.evaluate(async ({ full, short }) => {
-          await document.fonts.ready;
-          const fullEl = document.querySelector<HTMLElement>('[data-day-label="full"]')!;
-          const shortEl = document.querySelector<HTMLElement>('[data-day-label="short"]')!;
-          fullEl.textContent = full;
-          shortEl.textContent = short;
-          const slot = shortEl.parentElement!.getBoundingClientRect();
-          const f = fullEl.getBoundingClientRect();
-          const sh = shortEl.getBoundingClientRect();
-          const nav = document.querySelector("header nav")!.getBoundingClientRect();
-          const spoken = document.querySelector<HTMLElement>('[data-day-label="spoken"]')!.getBoundingClientRect();
-          // Painted order at the short date's centre: is the full date over it?
-          const stack = document.elementsFromPoint(sh.left + sh.width / 2, sh.top + sh.height / 2);
-          const fullIndex = stack.indexOf(fullEl);
-          return {
-            fits: f.width <= slot.width + 0.5,
-            fullOnFirstLine: f.top < slot.bottom - 1,
-            fullOnTop: fullIndex !== -1 && fullIndex < stack.indexOf(shortEl),
-            // The screen reader's copy covers the whole slot (found by touch).
-            spokenCoversSlot: Math.abs(spoken.width - slot.width) < 1 && Math.abs(spoken.height - slot.height) < 1,
-            visibleRight: Math.max(sh.right, f.top < slot.bottom - 1 ? f.right : 0),
-            slotRight: slot.right,
-            shortFits: sh.width <= slot.width + 0.5,
-            pillsBeside: Math.abs(nav.top + nav.height / 2 - (slot.top + slot.height / 2)) < 2,
-            viewport: document.documentElement.clientWidth,
-          };
-        }, date);
-        const where = `${date.full} at ${width} px, ${textSize}% text`;
-        expect(r.fullOnFirstLine, `${where}: full date shown exactly when it fits`).toBe(r.fits);
-        expect(r.fullOnTop, `${where}: the copy on top`).toBe(r.fits);
-        expect(r.shortFits, `${where}: short date fits`).toBe(true);
-        expect(r.spokenCoversSlot, `${where}: the spoken copy is the slot's size`).toBe(true);
-        expect(r.visibleRight, `${where}: nothing cut off`).toBeLessThanOrEqual(r.slotRight + 0.5);
-        expect(r.slotRight, `${where}: inside the screen`).toBeLessThanOrEqual(r.viewport);
-        if (textSize === 100) expect(r.pillsBeside, `${where}: pills beside the date`).toBe(true);
-        seen.add(r.fits ? "full" : "short");
+  const fitSeen = new Set<string>();
+  for (const [width, textSize, expected] of cases) {
+    for (const date of DATES) {
+      await openToday(page, width, textSize);
+      const r = await measureDate(page, date);
+      const where = `${date.full} at ${width} px, ${textSize}% text`;
+      if (expected === "short") {
+        expect(r.drawn, `${where}: the full date isn't drawn on a phone`).toBe(false);
+        expect(r.shows, `${where}: the short date shows`).toBe("short");
+      } else if (expected === "full") {
+        expect(r.shows, `${where}: the full date shows`).toBe("full");
+        expect(r.fits, `${where}: and fits`).toBe(true);
+      } else {
+        expect(r.drawn, `${where}: drawn`).toBe(true);
+        expect(r.shows, `${where}: full exactly when it fits`).toBe(r.fits ? "full" : "short");
+        expect(r.fullOnFirstLine, `${where}: on the visible line exactly when it fits`).toBe(r.fits);
+        fitSeen.add(r.shows);
       }
+      expect(r.shortFits, `${where}: short date fits`).toBe(true);
+      expect(r.spokenCoversSlot, `${where}: the spoken copy is the slot's size`).toBe(true);
+      expect(r.visibleRight, `${where}: nothing cut off`).toBeLessThanOrEqual(r.slotRight + 0.5);
+      expect(r.slotRight, `${where}: inside the screen`).toBeLessThanOrEqual(r.viewport);
+      if (textSize === 100) expect(r.pillsBeside, `${where}: pills beside the date`).toBe(true);
     }
   }
-  // Both forms were really exercised.
-  expect([...seen].sort()).toEqual(["full", "short"]);
+  // Text-only zoom really exercised both sides of 8b's rule.
+  expect([...fitSeen].sort()).toEqual(["full", "short"]);
 });
 
-test("at 390 px the longest date is short, a short one is full", async ({ page }) => {
-  await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto("/");
-  // Once streamed in (before that, the label is in a hidden template).
-  await expect(page.getByRole("heading", { name: "Today" })).toBeVisible();
-  const fits = async (full: string) =>
-    page.evaluate(async (text) => {
-      await document.fonts.ready;
-      const fullEl = document.querySelector<HTMLElement>('[data-day-label="full"]')!;
-      fullEl.textContent = text;
-      return fullEl.getBoundingClientRect().top < fullEl.parentElement!.parentElement!.getBoundingClientRect().bottom - 1;
-    }, full);
-  expect(await fits("Wednesday, September 30")).toBe(false);
-  expect(await fits("Friday, May 1")).toBe(true);
+test("a larger default text size in the browser counts as a narrower screen: 768 px shows the short date", async ({ page }) => {
+  // The browser's own setting (not a page style): it moves the 40rem line,
+  // which is in the browser's default size. 32 px: 40rem = 1280 px.
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send("Page.setFontSizes", { fontSizes: { standard: 32 } });
+  await openToday(page, 768);
+  const r = await measureDate(page, DATES[0]);
+  expect(r.drawn).toBe(false);
+  expect(r.shows).toBe("short");
+  expect(r.visibleRight).toBeLessThanOrEqual(r.slotRight + 0.5);
 });
 
 test.describe("signed out", () => {

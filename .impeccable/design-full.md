@@ -237,9 +237,9 @@ A warm two-paper neutral set (bone and graphite) with a single persimmon voice a
 
 ## Layout
 
-A single column, `max-width` 32 rem (28 rem for login and error), with a 20 px gutter on phones and the safe-area insets added top and bottom. The rhythm is a 4 px grid: 12 px between keys and rows, 20 px inside a key, about 28 px from a header to its list, 32 px between History's sections. Headers hold the page title or date on the left and one or two compact pill links on the right; they wrap rather than squeeze when text is zoomed. Today's date shortens ("Wed, Nov 25") when the full one doesn't fit beside the pills, before anything wraps. Account links (Settings, reset demo, log out) live in a footer pushed to the bottom of the screen, below a hairline, under who is logged in. Settings is its own page: a titled section per topic, each a card of rows.
+A single column, `max-width` 32 rem (28 rem for login and error), with a 20 px gutter on phones and the safe-area insets added top and bottom. The rhythm is a 4 px grid: 12 px between keys and rows, 20 px inside a key, about 28 px from a header to its list, 32 px between History's sections. Headers hold the page title or date on the left and one or two compact pill links on the right; they wrap rather than squeeze when text is zoomed. Today's date is short on phones ("Wed, Nov 25", below 40rem) and full on wider screens, so the header looks the same every day; if text-only zoom makes the full one too wide there, it shortens before anything wraps. Account links (Settings, reset demo, log out) live in a footer pushed to the bottom of the screen, below a hairline, under who is logged in. Settings is its own page: a titled section per topic, each a card of rows.
 
-There are no breakpoints: wider screens get the same column, centred.
+One breakpoint (40rem), for Today's date only; otherwise wider screens get the same column, centred.
 
 ## Elevation & Depth
 

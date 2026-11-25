@@ -3,7 +3,8 @@
 // context, so the "hold-mode" cookie and the hint's "has held" flag in
 // localStorage start empty.
 
-import { expect, test, type Locator, type Page } from "@playwright/test";
+import type { Locator, Page } from "@playwright/test";
+import { expect, nextSave, test } from "./helpers/saves";
 import { expectNoA11yViolations, freshDemo, habitKey, holdKey } from "./helpers/app";
 
 const HINT = "Hold to complete, or turn on Tap to complete in Settings.";
@@ -139,11 +140,13 @@ test("leaving Today clears the hint, and two quick taps bring it back on the nex
 test("once this device has completed a real hold, quick taps only say Keep holding (this visit, and after a reload)", async ({ page }) => {
   const read = habitKey(page, "Read 10 pages");
   const stretch = habitKey(page, "Stretch for 5 minutes");
+  const saved = nextSave(page);
   await holdKey(page, stretch, 800);
   await expect(stretch).toHaveAttribute("aria-pressed", "true");
   await quickTap(page, read);
   await quickTap(page, read);
   await expect(page.getByText(HINT)).toHaveCount(0);
+  await saved;
   await page.reload();
   await quickTap(page, read);
   await quickTap(page, read);
@@ -154,11 +157,15 @@ test("once this device has completed a real hold, quick taps only say Keep holdi
 test("a real hold with Space counts, even if it's undone straight away", async ({ page }) => {
   const stretch = habitKey(page, "Stretch for 5 minutes");
   await stretch.focus();
+  const saved = nextSave(page);
   await page.keyboard.down(" ");
   await expect(stretch).toHaveAttribute("aria-pressed", "true");
   await page.keyboard.up(" ");
+  await saved;
+  const undone = nextSave(page);
   await stretch.click(); // undo
   await expect(stretch).toHaveAttribute("aria-pressed", "false");
+  await undone;
   await page.reload();
   const read = habitKey(page, "Read 10 pages");
   await quickTap(page, read);
@@ -170,8 +177,10 @@ test("a real hold with Space counts, even if it's undone straight away", async (
 test("a lone click (VoiceOver, Switch Control) completes but isn't a real hold", async ({ page }) => {
   const stretch = habitKey(page, "Stretch for 5 minutes");
   // A click with no press before it, as assistive tech sends.
+  const saved = nextSave(page);
   await stretch.dispatchEvent("click");
   await expect(stretch).toHaveAttribute("aria-pressed", "true");
+  await saved;
   await page.reload();
   const read = habitKey(page, "Read 10 pages");
   await quickTap(page, read);
