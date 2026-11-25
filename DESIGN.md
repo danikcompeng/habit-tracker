@@ -192,6 +192,7 @@ Do:
 - Do take every timing from `lib/motion.ts` / `--motion-*` (150, 200, 250, 650 ms) and wrap movement in `motion-safe:`.
 - Do give every filled button and key a lip in its own darker shade.
 - (+1 more)
+Map: lib/climb-scene/scene.ts (the Climb's pixel scene: --scene-* tokens, words only in token chips, still with Reduce Motion)
 Map: lib/palette.test.ts
 Map: e2e/text-size.e2e.ts
 Map: app/globals.css

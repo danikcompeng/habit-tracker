@@ -47,6 +47,128 @@
   }
 }
 
+/*
+  The Climb's pixel-art scene (plans/habit-tracker.md, Feature 10): the
+  canvas reads these and paints its colour roles with them. They match
+  SCENE_PALETTE in lib/palette.ts (tested). Light is a soft daytime sky;
+  dark a midnight navy with three rare accents: the gold moon, the coral
+  rim light on a few clouds, and Ascend's accent on your marker.
+*/
+
+/* scene light */
+:root {
+  --scene-sky-1: #4E72A6;
+  --scene-sky-2: #5A7DB0;
+  --scene-sky-3: #6D8FBE;
+  --scene-sky-4: #7D9DC8;
+  --scene-sky-5: #90AFD5;
+  --scene-sky-6: #A2BDDD;
+  --scene-sky-7: #B5CCE5;
+  --scene-sky-8: #C6D7EA;
+  --scene-sky-9: #D7E3EE;
+  --scene-sky-10: #E3E9EE;
+  --scene-sky-11: #ECECE8;
+  --scene-sky-12: #F2EEE3;
+  --scene-star: #FFFFFF;
+  --scene-star-dim: #DDE3F0;
+  --scene-moon: #F2C14E;
+  --scene-moon-shade: #D9A940;
+  --scene-moon-glow: #E8D9A8;
+  --scene-moon-glow-2: #F0E6C8;
+  --scene-bank-far: #EFEDE6;
+  --scene-bank-far-light: #FBFAF6;
+  --scene-bank-near: #F7F5EF;
+  --scene-bank-near-light: #FFFFFF;
+  --scene-bank-edge: #FFFFFF;
+  --scene-bank-shade: #D9E2EE;
+  --scene-ridge-far: #A9BBD2;
+  --scene-ridge-near: #93A9C4;
+  --scene-rock: #8F9DB3;
+  --scene-rock-shade: #6F7F99;
+  --scene-snow: #F7F9FC;
+  --scene-snow-shade: #CFDAE8;
+  --scene-pine: #4F8B5E;
+  --scene-pine-dark: #3C6F4B;
+  --scene-valley: #93C26F;
+  --scene-valley-dark: #7BAA5C;
+  --scene-lake: #5D9ED3;
+  --scene-lake-light: #A9D2F0;
+  --scene-cloud: #DDE5F2;
+  --scene-cloud-light: #FFFFFF;
+  --scene-cloud-shade: #C3D0E6;
+  --scene-cloud-deep: #A9B9D8;
+  --scene-cloud-far: #CFDCEB;
+  --scene-cloud-far-shade: #BCCBE0;
+  --scene-cirrus: #E9EFF6;
+  --scene-rim: #FFFFFF;
+  --scene-marker: #B8420E;
+  --scene-marker-ring: #FFFFFF;
+  --scene-marker-edge: #2A211A;
+  --scene-ruler: #FFFFFF;
+}
+
+/* scene dark */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --scene-sky-1: #050A1C;
+    --scene-sky-2: #070D23;
+    --scene-sky-3: #09112B;
+    --scene-sky-4: #0C1533;
+    --scene-sky-5: #0F1A3B;
+    --scene-sky-6: #121F44;
+    --scene-sky-7: #15244C;
+    --scene-sky-8: #182955;
+    --scene-sky-9: #1B2E5D;
+    --scene-sky-10: #1E3365;
+    --scene-sky-11: #22386D;
+    --scene-sky-12: #263D75;
+    --scene-star: #F4F7FF;
+    --scene-star-dim: #8FA0D0;
+    --scene-moon: #F4C55A;
+    --scene-moon-shade: #D9A940;
+    --scene-moon-glow: #1F2C5E;
+    --scene-moon-glow-2: #16224D;
+    --scene-bank-far: #17244B;
+    --scene-bank-far-light: #22336A;
+    --scene-bank-near: #1E2E5C;
+    --scene-bank-near-light: #3A4F8C;
+    --scene-bank-edge: #8F9EC4;
+    --scene-bank-shade: #121C3E;
+    --scene-ridge-far: #1A2650;
+    --scene-ridge-near: #22305E;
+    --scene-rock: #39466F;
+    --scene-rock-shade: #2A355A;
+    --scene-snow: #BBC8E6;
+    --scene-snow-shade: #8293BC;
+    --scene-pine: #1F3B4C;
+    --scene-pine-dark: #172E3C;
+    --scene-valley: #1F3647;
+    --scene-valley-dark: #192D3B;
+    --scene-lake: #2C4C7E;
+    --scene-lake-light: #F4C55A;
+    --scene-cloud: #5C6B92;
+    --scene-cloud-light: #8F9EC4;
+    --scene-cloud-shade: #424F76;
+    --scene-cloud-deep: #313D62;
+    --scene-cloud-far: #3A4772;
+    --scene-cloud-far-shade: #2D3961;
+    --scene-cirrus: #2E3D6E;
+    --scene-rim: #FF9F7C;
+    --scene-marker: #FF8F57;
+    --scene-marker-ring: #050A1C;
+    --scene-marker-edge: #F4F7FF;
+    --scene-ruler: #8F9EC4;
+  }
+}
+
+/* The zone moment's card (Feature 10): in with a small scale and fade (motion-safe only). */
+@keyframes card-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+}
+
 @theme inline {
   /* Only Ascend's colours exist as classes: Tailwind's default palette is
      switched off, so a stray bg-gray-100 can't sneak in. */
@@ -114,6 +236,8 @@
   --motion-base: 200ms;
   --motion-pop: 250ms;
   --motion-hold: 650ms;
+  --motion-drift: 700ms;
+  --motion-lift: 600ms;
   --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 

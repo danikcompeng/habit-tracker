@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-11-25T18:34:10+00:00",
+  "generatedAt": "2026-11-25T20:13:32+00:00",
   "title": "Design System: Ascend",
   "extensions": {
     "colorMeta": {
@@ -215,7 +215,7 @@
       "One accent, persimmon, reserved for \"done\" and the one main action on a screen.",
       "Depth by a solid lip under the element, never by blur shadows.",
       "Pills for buttons, 24 px keys for habits, 16 px for fields and cards.",
-      "Physical motion: things press down 2 px and spring back; nothing loops or moves on its own.",
+      "Physical motion: things press down 2 px and spring back; nothing loops or moves on its own, except the Climb's pixel scene (clouds drift a pixel at a time; still with Reduce Motion).",
       "Dark mode is warm graphite with a lighter persimmon, and shows depth by lightness."
     ],
     "rules": [

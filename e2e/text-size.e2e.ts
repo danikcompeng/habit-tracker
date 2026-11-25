@@ -56,6 +56,11 @@ test("Today (with the Tap to complete hint), Settings, Habits (with the editor a
     await expect(page.getByRole("button", { name: `${range} days` })).toHaveAttribute("aria-pressed", "true");
     await expectFitsAtDoubleText(page);
   }
+
+  // The Climb (Feature 10): its readout, zone line, ruler and zone labels.
+  await page.goto("/climb");
+  await expect(page.getByTestId("ruler-you")).toBeVisible();
+  await expectFitsAtDoubleText(page);
 });
 
 test("the empty states fit at 200% text", async ({ page }) => {

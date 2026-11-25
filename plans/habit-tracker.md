@@ -90,7 +90,7 @@ All text pairs must pass 4.5:1 (`ink-muted` on `background` and `surface`, `on-a
 - **Hold (signature)**: on press, an `accent-tint` circle grows out from the exact touch point until it covers the row, over 650 ms, linear so progress reads as honest. Let go early and it shrinks back in 150 ms.
 - **Done pop**: the row **snaps** to `accent-key` with `on-accent` text (no colour fade into done), scales 1 → 1.03 → 1 (about 250 ms), the check draws in, and the streak number updates. One short vibration where the device supports it.
 - **Undo**: the colour fades back to `surface` in 200 ms and the streak ticks down. No scale.
-- UI feedback 150–250 ms. Nothing loops, nothing moves on its own.
+- UI feedback 150–250 ms. Nothing loops, nothing moves on its own, with one exception since Feature 10 (2026-11-25, the user's brief): the Climb's pixel scene, whose clouds drift a pixel at a time (stars twinkle in dark), only while it's on screen, never with Reduce Motion. The scene is the app's one playful moment; everything else stays still.
 - **Reduce Motion**: no growing circle, no scale. The hold shows as the row's tint fading in over the same 650 ms (opacity only, from about a third so the press shows at once), and done or undone changes colour instantly.
 
 **Brand mark** (since 2026-11-24): the **Summit** icon, a bone (`background`, light) mountain with a trail cut up its face on a persimmon (`accent`, light) field. Its sharp corners are the one deliberate exception to the rounded, key-like UI: don't round the mark, and don't copy sharp corners into screens. Only the tab icon's field square is rounded. The geometry lives in `lib/app-identity.ts` (`SUMMIT`) and is pinned by a test next to `ICON_VERSION`.
@@ -784,6 +784,82 @@ Anything that no longer fits is fixed in the layout (wrapping, a threshold), not
 - The existing 200% / History-columns / date tests, now waiting for Manrope first; History's widest-values check (above).
 - Screenshots: a "before" set of the main screens in Bricolage (kept out of the repo, for the design-critic), then the full `npm run screens` set retaken in Manrope, light and dark (the per-feature folders show the current app).
 - design-critic on Today, History, Habits, Settings and login, light and dark, before and after.
+
+### Feature 10: The Climb (2026-11-25)
+
+The user's brief (`~/Documents/claude-inbox/habit-tracker/01-the-climb.md`): make Ascend actually ascend. The more habits completed, and especially perfect days, the higher you climb, through mountains and clouds: a real visual moment, at the craft level of Orbit's map view. Inspiration: Noillirk (playdaily.org/noillirk), a daily game where good answers lift a balloon through layers of sky. References, committed with the feature in `design/references/`:
+- `noillirk-sky.png`, the **concept and layout**: a pixel valley with a snowy peak and layered clouds; an "ALTITUDE 2,863m" readout; a ruler with 2,500 / 5,000 / 7,500 m ticks and the current altitude highlighted; a zone card ("CLOUD NINE", "+32 PTS · up to 2,863m").
+- `pixel-clouds.png`, the **art style**: clean pixel art, crisp stepped edges, soft rounded highlight arcs inside each cloud, no dithering, no outlines, no smooth vector blobs; small low puffs (white, lavender-grey shading), a few medium cumulus, huge soft banks behind.
+
+**The user's rules** (logic-checker: attack these):
+1. **Altitude is derived, never stored**, like streaks: a pure `lib/altitude.ts` and a SQL function `habit_altitude()`, with tests proving they agree. A new migration; applied ones are never edited.
+2. **Daily climb** = 100 m × (habits done ÷ habits counted that day) + 50 m if the day is perfect (every counted habit done). History's day rules decide what counts: done and missed count, "before" doesn't, and today's progress shows live. Missed days never lose altitude.
+3. **Zones**: Base camp 0 m, Forest 500 m, Treeline 1,500 m, Snowline 3,000 m, Above the clouds 5,000 m, Summit 8,848 m, Stratosphere beyond. _Decided: the Stratosphere starts at 10,000 m (where the real one does at mid-latitudes; Summit spans 8,848–9,999 m), so every zone has width and a step crosses two zones only between 8,800 and 10,000 m (then the higher one is shown)._ Reaching a new zone gets a small one-time moment, like Noillirk's card: the zone's name and "+150 m · up to 2,863 m".
+
+**The day rules, exactly** (History's, from `weekDots`): for each habit and day up to today, a day is *done* if there's a check-in (back-filled days included, even before the habit's created day), otherwise *before* if it's earlier than the habit's created day (in the user's time zone), *open* if it's today, else *missed*.
+- A past day's **counted** habits = done + missed; **done** = done. Climb = 100 × done ÷ counted, plus 50 if done = counted (> 0). A day with nothing counted climbs 0.
+- **Today** counts every habit that isn't "before" (done + open), so the climb grows live as you complete: 100 × done ÷ all-today, plus 50 once every habit is done. (Live on Today: the server gives the altitude **before today**; the page adds today's climb from the keys' own, optimistic, states, so a completion lifts the view at once.)
+- Altitude = the sum of every day's climb, from the first day with a habit or a check-in through today. Climbs are never negative, so missed days never lose altitude.
+- Check-ins dated after today (saved further east, viewed further west) are ignored, as in History.
+- Deleting a habit deletes its check-ins (as now), so altitude is recalculated without it, like streaks and History. It can go down, or up (a deleted habit that was often missed no longer lowers those days' share). Accepted: derived, like everything else; noted for the logic-checker.
+- **Units: whole centimetres** in both implementations, with the same integer rounding (a day's share rounded half up to the centimetre, `(20000·done + counted) div (2·counted)`, plus 5,000 for a perfect day), summed as integers (`bigint` in SQL), compared exactly in tests; zones are decided on centimetres. Shown in whole metres **rounded down** (never a height not yet reached: "1,499 m" in Forest, not "1,500 m"); the distance to the next zone rounded **up** (never "0 m to Summit" before you're there). _(Revised after logic-checker: SQL `numeric` and JS floats can't agree on thirds, and a hair could flip a zone.)_
+
+**SQL**: `supabase/migrations/20261125120000_altitude.sql`, `habit_altitude(p_today date, p_tz text) returns table (altitude_cm bigint, before_today_cm bigint)`: one row, security invoker (Row Level Security applies), revoke-then-grant to `authenticated` like the other functions. `p_tz` turns `created_at` into the created day exactly as the app does (`todayIn(tz, created_at)`); with no `tz` cookie yet (a first visit) the app passes `UTC`, the same fallback its "today" uses. **No `generate_series`**: only days with a check-in can climb (no check-in, nothing done, 0 m), so it works over your check-ins alone; the cost grows with your data and never with the dates passed in (a direct caller can't make the shared database count billions of days). Today counts every habit (as `weekDots` does, even one whose made-day is a second in the future). _(Revised after logic-checker: an unbounded series on a shared project; the UTC fallback.)_
+- **Applying it**: there's no service key, so the user pastes the migration into the Supabase SQL editor (as for Features 1 and 7). The PGlite tests run it locally; the browser tests and screenshots need it on the real project. **The build stops for that** after the code-review, before the e2e run.
+- **Until it's applied**, Today must not break (the deploy may go out first): if `habit_altitude` fails, Today shows no scene strip, logs it, and is otherwise the same; `/climb` shows "The climb isn't ready yet" with Done. Once shown, a later failed read keeps the last altitude (no strip vanishing under a finger), and "unknown" is never treated as 0 (nothing is recorded for the zone moment). The fallback is tested on the data function with a stand-in client (the e2e can't make the server's call fail). _(After logic-checker.)_
+
+**The demo** (a conflict in the brief, put to the user): the brief asked the demo to sit around Treeline, but its 90 days of sample history climb to about 7,100 m under rule 2 (its last 30 days alone are 2,330 m). **The user's call: keep the 90 days; the demo sits Above the clouds.** `reseed_demo_habits()` and the sample data don't change.
+
+**Scene: one world, two views**
+- **A pixel-art world**, drawn on a `<canvas>` at a low logical resolution and scaled up by a whole number (`image-rendering: pixelated`), so every pixel is a crisp square. The logical width follows the container (scale = 3 css px a pixel, about 117 pixels across a phone, the reference's density; 4 was too chunky, after design-critic), and everything is placed by seeded randomness (a fixed seed per world feature), so the scene is the same on every visit and every device. No library.
+- **Layers**, back to front:
+  1. **Sky**: stepped bands (no smooth gradient), by altitude: light, pale cream near the valley rising to sky blue (Noillirk's blue as the reference) and deep blue in the stratosphere; dark, midnight navy, darkest at the top.
+  2. **Stars** (dark only, and in the stratosphere in light too): single bright pixels, a few twinkling (one pixel brightening, slowly).
+  3. **Moon** (dark): a warm gold disc with a soft glow ring, high in the sky. One of the three dark accents.
+  4. **Cloud banks**: huge soft banks behind everything, built from overlapping rounded bumps on the pixel grid, two or three tones, each bump with a lighter crescent inside its top (the "soft rounded highlight curves" of the reference). Light: pale cream and white; dark: navy and slate, moonlit.
+  5. **Mountains**: far ridges in hazy blue-grey; the main peak in pastel pixel style, its summit at 8,848 m, snow from the snowline up with a shaded side (light from the left), pixel pine trees on the lower slopes from 500 m up to the treeline (1,500 m), green valley floor at base camp with a small lake.
+  6. **A cloud sea** at about 5,000 m ("Above the clouds"), and **small clouds** (mostly small low puffs like the reference's bottom cloud, a few medium cumulus like its top one) scattered at many heights and depths, drifting slowly sideways and wrapping around. Dark: coral/amber rim light on the top-left edge pixels of the medium clouds only (the second accent, rare).
+  7. **You**: a small marker in Ascend's accent (the third dark accent) on the climbing line up the peak's ridge at your altitude, and above the summit, straight above it.
+- **Clouds are hand-placed bump shapes** (a few small and medium ones: each a list of rounded bumps over a flat base, drawn on the pixel grid with a light crescent at each bump's upper left and a shaded one at its lower right), so they look drawn and keep the reference's highlight curves; banks and the cloud sea are the same rasteriser with big seeded bumps and a stepped, uneven underside; ridges and trees are procedural. Sprites keep their pixel size in both views.
+- **Today's strip is a window on the same world** at 40 m a pixel (so the peak shows when you're near it), with a near layer of small clouds at 5 m a pixel in front: a completion moves the near clouds past you while the world behind barely moves (parallax). With many habits a completion can lift less than a pixel: accepted.
+- **Colours are tokens**: `--scene-*` (sky bands, stars, moon, banks, ridges, rock, snow, pines, valley, lake, clouds, rim, marker) in their own light and dark blocks of `app/globals.css`, matching `SCENE_PALETTE` in `lib/palette.ts` (tested); the canvas reads them from CSS, and redraws when the colour scheme changes. **The marker** is the accent with a two-layer outline (a ring, then an edge of the opposite lightness), tested 3:1 against every sky, bank, cloud, ridge, rock, snow, pine and valley colour it can stand on (in light, the accent and a white ring alone failed on mid-tones, so the dark edge was added). Text never sits on the art directly (below).
+- **Motion**: clouds drift by one logical pixel at a time (crisp), slowly (`MOTION.drift` = 700 ms a pixel, ×0.6–1.4 by depth); stars stay still (no twinkle: the scene's still layer is drawn once and cached, only the clouds and the marker are redrawn on each tick, after code-reviewer); the view's lift after a completion eases over `MOTION.lift` (600 ms). Both in `lib/motion.ts` and as CSS variables (tested). The scene redraws on a timer at a third of the drift step, not every frame. **Reduce Motion: the scene is static** (no drift, no twinkle, the lift jumps). Drawing pauses when the scene is off screen or the page is hidden. This changes a recorded rule ("nothing moves on its own", Design direction): updated there with a dated note. _(After logic-checker.)_
+- **Before JavaScript** the scene's box has its final size and a token sky colour, so nothing moves when it draws.
+
+**Text on the scene**: Manrope only, in token chips (`bg-surface` / `text-ink`, the accent chip `bg-accent` / `text-on-accent`: pairs already tested at 4.5:1), never on the art. The canvas is `aria-hidden`; everything it shows that matters is in text.
+
+**Today: the scene strip**
+- Between the header (date, History, Edit) and the "Today" title: a strip the column's width, 140 px tall, key-radius corners. It's a **link to /climb**, named by its own visible words (below).
+- It's a close-up of the world around your altitude (a finer vertical scale than the Climb screen, about 5 m per pixel, so a day's climb is visible): your marker in the middle, the slope and clouds around it. Chips: "ALTITUDE 7,113 m" top-left, the zone's name bottom-left.
+- **Completing a habit lifts the view** by the climb it added (with five habits, 20 m: a few pixels; a perfect day's last habit, 20 + 50 m, lifts you past a few small clouds); undo lowers it back.
+- **Above the fold**: the keys stay the hero. At 390 × 844 with the demo's five habits, the first four keys stay fully above the fold; the strip pushes the fifth below it (it was fully visible before). Decided: the strip costs about 160 px; a shorter strip loses the sense of place. Measured in the e2e. _(Corrected after logic-checker.)_
+- **Nav**: the strip is the way into Climb from Today (the header has no room for a third pill: History, Edit and the date already fill 320–360 px phones), with a visible "Climb ›" chip on it. Logged as the reading of "in the nav".
+- **Its name is its visible words** ("Altitude 7,113 m, Above the clouds, Climb": the uppercase "ALTITUDE" is CSS), so Voice Control's "Tap Altitude" or "Tap Climb" works (WCAG 2.5.3). Its height is `8.75rem` (140 px at normal text, taller when text is enlarged, so the chips fit). Shown with zero habits too (Base camp). _(After logic-checker.)_
+
+**The zone moment** (one-time)
+- When a completion on Today lifts you into a zone you've never been celebrated for on this device, a card appears over the strip (beside the link, not inside it): "New zone", the zone's name and "+70 m · up to 1,523 m" (the climb that completion added, and where you are now), in Manrope on a token surface. **Only once the server has the save** (`ok`, not a new day): a refused or failed save never claims a height you don't have, nor uses up the moment; the card follows the completion by the save's round trip. Announced politely. It stays until you tap it or leave Today, or 6 s pass.
+- **One-time**, by a small pure rule (`lib/altitude.ts`: `newZone`, `silentlyRaised`, the memory's key and value): the highest zone celebrated is remembered in `localStorage` per account (`climb-zone:<user id>`, by the zone's height, not an index), read in the handler (another tab may have written it). A crossing is a step from one zone into a higher one that's above the memory. **The saved altitude raises the memory silently on every render** (not only the first visit), so a zone reached on another device, by a day rolling over or before this feature never gets a card later for a small step. Undo below a zone and complete again: no second card. Blocked storage: the moment can repeat; never an error. _(Revised after logic-checker #2, #8.)_
+- **Optimistic guesses are kept with their day**: a completion just before midnight never lands on the next day's key or climb. _(After logic-checker: an existing glitch the climb would have made visible.)_
+
+**Climb screen (`/climb`)**
+- Header like History's: "Climb" (34/700) and Done. Then the readout chip ("ALTITUDE 7,113 m"), the zone and what's next ("Above the clouds · 1,735 m to Summit"; in the Stratosphere, "The top of the climb, and it keeps going."), and the full scene, tall, from the valley (0 m) to the top of the world: 12,000 m, or higher if you are (then your altitude plus 1,500 m, in 2,500 m steps). 25 m per logical pixel.
+- **The scene scrolls inside a window** about two thirds of the screen tall, which opens on your marker; the heading, Done and the readout stay where they are, and screen readers start at the top as usual. _(After logic-checker: scrolling the whole page put them off screen.)_
+- **Everything is placed in metres**, seeded per band (sky bands, stars per kilometre, clouds per 500 m), so the world doesn't change as it grows; above 12,000 m the bands simply continue (stars, thin clouds, deep sky). A climber far above (36 km after a year) gets a long sky to scroll: accepted, it's the record of the climb.
+- **The ruler** down the right side: chips at every 2,500 m, your altitude as the highlighted (accent) chip at its height, a thin line between (decorative). **Zone labels** as chips on the left at each zone's altitude.
+- The page opens scrolled to your marker (centred); Reduce Motion doesn't animate that.
+- Screen readers: the heading, the readout and the zone line are text; the ruler and zone labels are a list ("Zones: Base camp, 0 m … Summit, 8,848 m, you are here: 7,113 m").
+
+**Logic in `lib/`** (pure, tested): `lib/altitude.ts` (day rules, climb, altitude, zones, next zone, zone crossings, formatting) and `lib/climb-scene/*` (sprites, palette roles, the world's layout by seed, altitude ↔ row mapping, camera). Components only draw.
+
+**Consequences of the rules, for the user** (logic-checker; the user's numbers, not changed): a day climbs at most 150 m however many habits; at a perfect pace Summit comes on day 59, at the demo's pace (~79 m a day) in about 112 days, and after the Stratosphere there are no more moments; deleting an often-missed habit raises past days (it can skip zones without a card); adding a habit lowers today's live climb (a share of more habits); a time-zone change can move past climbs a little (as History's days); the demo (~7,100 m, at most 150 m a day) never shows a zone moment to a visitor: it's seen in the e2e and the screenshots.
+
+**Tests**
+- Vitest: `dailyClimbCm` (shares, the perfect bonus, nothing counted, centimetre rounding), the day rules (back-filled before created, before doesn't count, today's open habits count, check-ins after today ignored), zones at and around every threshold, next-zone distance, a crossing found only upward and only once, formatting; the sprites' shape; the layout is deterministic and stays inside the world; altitude ↔ row round trips.
+- PGlite: `habit_altitude` equals `lib/altitude.ts` on generated histories (many random habits, check-ins, created days and time zones, including back-filled days, days after today, today open and perfect); RLS (another user's habits never count); privileges (revoke-then-grant; anon can't call it); `before_today` = altitude minus today's climb.
+- Palette: every new token in `globals.css` matches `lib/palette.ts`; the marker against every sky and cloud colour ≥ 3:1, light and dark.
+- Motion: the new timings match their CSS variables.
+- Playwright: the strip is on Today, is a link named with the altitude and zone, and opens Climb; the first four keys are above the fold at 390 × 844; the strip's altitude equals what `lib/altitude.ts` computes from the demo's sample data; completing a habit raises it by the expected climb and undo lowers it back; the zone moment (the demo reseeded just below a threshold): appears once with the right words and is announced, and not again after undo and redo or a reload; Climb: heading, readout, zone line, ruler and zone list, scrolled to the marker, axe light and dark; Reduce Motion: the canvas doesn't change over a second; with motion it does; the 200% text check and the type check include Climb and the strip; a failing `habit_altitude` leaves Today working without the strip.
+- Screenshots (`docs/screenshots/feature-10/`): Today (with the strip) and Climb (top and around the marker), light and dark, plus the zone moment.
 
 ## Reviews
 
@@ -1532,6 +1608,86 @@ Follow-up (the user's decisions after the review): proportional figures as above
 #### Takeaways
 - Two of my own checks could never fail (scrollWidth on a box that grows with its text; a `font` shorthand that's empty for tabular numbers). Every new check now gets a run where it must fail.
 - "Fits at 200%" isn't the same as "reads at 200%": a word cut in half overflows nothing. The word-by-word test is the one that sees it.
+
+
+### Feature 10: The Climb (2026-11-25)
+
+The user's brief: `~/Documents/claude-inbox/habit-tracker/01-the-climb.md` (references in `design/references/`). One question went to the user: the demo's 90 days climb to ~7,100 m under the brief's formula, not Treeline; **the user kept the 90 days** (the demo sits Above the clouds).
+
+#### logic-checker (plan review)
+Verdict: **Ready after fixes**.
+
+| # | Severity | Finding | Outcome | What changed |
+|---|----------|---------|---------|--------------|
+| 1 | High | SQL `numeric` and JS floats can't agree exactly (thirds), so zones could flip on a rounding hair. | Fixed | Whole centimetres in both, the same integer rounding, `bigint` sums; compared exactly (200 random histories, and a one-third case). |
+| 2 | High | The zone moment was recorded from an optimistic completion that might never be saved. | Fixed | Decided only after the server's `ok` (not a new day); a pure `zoneMomentAfterSave` (tested). |
+| 3 | High | `generate_series` up to any `p_today` let a direct caller load the shared database. | Fixed | No series: only check-in days can climb, so the cost follows your check-ins. |
+| 4 | High | The Stratosphere had no start. | Fixed | 10,000 m (Summit spans 8,848–9,999 m); two zones in one step show the higher. |
+| 5 | Medium | No `tz` cookie (a first visit) left `p_tz` empty. | Fixed | UTC, the same fallback as "today". |
+| 6 | Medium | Graceful degradation: untestable as an e2e, the strip could vanish under a finger, "unknown" could become 0. | Fixed | A data function tested with a stand-in client; the last known altitude kept (with its day); unknown never recorded. |
+| 7 | Medium | Optimistic guesses weren't tied to their day (a pre-midnight guess on the next day's key and climb). | Fixed | Kept with their day. |
+| 8 | Medium | The zone memory needed raising from saved data on every render, and a crossing defined. | Fixed | `silentlyRaised` from the saved altitude; a crossing is zone(after) > zone(before) and above the memory; stored by height. |
+| 9 | Medium | Drift breaks "nothing moves on its own". | Fixed | The rule updated with a dated exception (Design direction, design-full.md); still with Reduce Motion; drawing pauses off screen. |
+| 10 | Medium | The strip's name didn't start with its visible words (WCAG 2.5.3). | Fixed | Named by its words ("Altitude 7,113 m, Above the clouds, Climb"). |
+| 11 | Medium | The marker wasn't tested against the slopes it stands on. | Fixed | Tested against every backdrop (sky, banks, ridges, rock, snow, pines, valley, lake, clouds). |
+| 12 | Medium | Rounding could contradict the zone ("8,848 m" still Above the clouds). | Fixed | Heights rounded down; distance to the next zone rounded up. |
+| 13 | Medium | Consequences of the formula and zones. | Noted for the user | In the plan, and in the reply. |
+| 14 | Medium | One world at two scales; the world shifting as it grows. | Fixed | Everything placed in metres, seeded per band; the strip is the world at 40 m a pixel plus near clouds at 5 m. |
+| 15–19 | Low | The fold arithmetic; PGlite and time zones; today counting every habit; Climb's scroll; the card's nesting and announcement; small gaps. | Fixed or accepted | The fifth key now falls below the fold (said plainly); time zones tested; today counts every habit in both; Climb scrolls inside a window; the card is beside the link with its own announcement. |
+
+#### code-reviewer (diff review)
+Verdict: **Ship after fixes**. No security holes; SQL and TypeScript agree.
+
+| # | Severity | Finding | Outcome | What changed |
+|---|----------|---------|---------|--------------|
+| 1 | Medium | The zone-moment screenshot and e2e would fail: the demo's earlier visit already remembered "Above the clouds". | Fixed | Both forget the device's zone memory before the low demo. |
+| 2 | Medium | Chips could overlap at 320 px and 200% text, and nothing checked. | Fixed | A pairwise overlap check (it then caught three real overlaps, all fixed: the strip's chips now in the flow, Climb's labels sitting above their line and only narrowed near a ruler chip, tick labels hidden near you). |
+| 3 | Medium | The zone-moment rule lived in the component, untested. | Fixed | `zoneMomentAfterSave` in `lib/altitude.ts`, tested; the read-before-refresh ordering commented. |
+| 4 | Medium | Climb redrew the whole world ~4 times a second, allocating heavily. | Fixed | The still layer cached; only clouds and the marker redrawn; allocation-free noise; colours read once per theme; the image buffer reused. (Stars no longer twinkle.) |
+| 5–8 | Low | The card after leaving Today; `knownBefore` across a day change; the jump before the migration; the card's name and focus. | Fixed | Not shown on a hidden Today; kept with its day; the migration was applied before deploy; ", close" and focus back to the strip. |
+| 9 | Low | Tests that passed without testing (no completion after the reload; a trivial seeded test; the lake left out). | Fixed | All three. |
+| 10 | Low | The plan contradicted itself on the strip's name. | Fixed | Corrected. |
+
+Also found while testing: the production CSS shortens `#FFFFFF` to `#fff`, which the canvas's colour reader rejected, so white pixels came out black. Fixed (the browser normalises any CSS colour), and a new test checks every pixel of both scenes is a scene token, light and dark (it failed before the fix).
+
+#### design-critic, round 1 (Today, Climb, Climb's top, the zone moment; light and dark)
+Verdict: **Rework**. The text layer was close; the art wasn't.
+
+| # | Severity | Finding | Outcome | What changed |
+|---|----------|---------|---------|--------------|
+| 1 | High | The mountain read as a white pillar. | Fixed | Straight per-metre flanks, stepped edges, deliberate crags, a diagonal ridge (a widening shaded triangle), short diagonal strata, a broad summit cap. |
+| 2 | High | Clouds too few pixels for the reference's highlight arcs; light highlights invisible. | Fixed | Scale 3 (from 4); clouds about twice the pixels; thin arcs; a darker light-mode body so the arcs show; two tiers. |
+| 3 | High | The light sky saturated, khaki "sand" banks, hard seams. | Fixed | 12 gentle bands to cream; pale blue-grey bank shade; bodies in the base colour. |
+| 4 | High | Dark's accents almost never on screen. | Fixed | The moon always in view (and over clouds); a coral rim on every medium cloud; silver-blue bank edges; stars in two brightnesses. |
+| 5 | High | The zone card collided with the chips. | Fixed | Chips step aside under it; a short entrance (motion-safe). |
+| 6 | Medium | Pine and valley textures like dithering. | Fixed | Flat masses with staggered pixel trees and a few tufts. |
+| 7 | Medium | The marker's double outline read as a cursor. | Fixed | A bigger flag, one ring choosing its colour per backdrop. |
+| 8 | Medium | Climb opened with the next zone's label cut off. | Fixed | You at ~63% of the window. |
+| 9 | Medium | The ruler invisible in dark, off the grid, no ticks. | Fixed | One scene pixel wide on its own token, ticks, an accent tick at you. |
+| 10 | Medium | An empty, flat sky. | Fixed | More clouds in two tiers, banks every ~1,500 m, cirrus up high. |
+| 11 | Medium | Climb's window stopped short; the readout looked pressable. | Fixed | The window runs to the bottom; no lip on the readout. |
+| 12–14 | Low | Stars like glitches; no pressed state; dark chips warm on navy. | Fixed, fixed, kept | Stars spaced; the strip sinks when pressed; chips stay token-consistent. |
+
+#### design-critic, round 2 (the retaken shots)
+Verdict: **Ship after fixes**. "A large step up; it now meets the brief." All taken:
+
+| # | Severity | Finding | Outcome | What changed |
+|---|----------|---------|---------|--------------|
+| 1 | Medium | The coral rim had become an outline on every medium cloud. | Fixed | Only the upper-left arc (the first third of the top, facing the moon). |
+| 2 | Medium | Near clouds filled Today's strip. | Fixed | One every ~200 m, mostly small. |
+| 3 | Medium | The snow strata read as hatching. | Fixed | A third as many, 3–6 px along the flank, clustered by the crags; a shadow (not rock) on the lit face. |
+| 4 | Low–Medium | Banks ended in vertical walls. | Fixed | Smaller, lower lobes at the open end. |
+| 5 | Low | The moon hid behind the Altitude chip on the strip. | Fixed | In the free top area at the right. |
+| 6 | Low | The marker's ring mixed two colours. | Fixed | One colour per placement, chosen by the worst contrast under it (the per-backdrop test still guarantees each choice exists). |
+| 7 | Low | Speckles inside the small far clouds. | Fixed | Far clouds plain: body and a bottom band. |
+| 8 | Low | Pines read as bars. | Fixed | Triangular tops on a trunk. |
+
+Checks (final): 516 unit and database tests (including `habit_altitude` against `lib/altitude.ts` on 200 random histories, exactly), tsc, eslint, `next build`; the migration applied by the user to the shared project and checked live (the demo: 711,333 cm = 7,113 m, as the sample data gives); the full browser suite on `next start`: **90 passed, 0 failed**. Earlier runs on the way: 6 of 7 Climb tests on the first run (an overlap at 200%), then 86 passed and 3 failed (Climb's labels at 200%; two holds on a key the strip pushed below the fold: the helpers now scroll it into view), then 89 of 90 twice (two more overlaps after the switch to finer pixels), each fixed.
+
+#### Takeaways
+- The art needed a second eye and two rounds: tests prove the numbers, not the picture. The design-critic's "Rework" was right and the scene is much better for it.
+- A colour test that checks every pixel against the tokens caught a production-only bug (a minified `#fff`) that every other test missed.
+- Overlap checks earned their keep: they caught four real collisions that "fits at 200%" never could.
 
 <!--
 Template — copy for each feature:

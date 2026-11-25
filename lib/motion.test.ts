@@ -12,6 +12,10 @@ describe("motion tokens", () => {
   it("--ease-out matches", () => {
     expect(css).toContain(`--ease-out: ${EASE_OUT};`);
   });
+  it("the scene drifts slowly but visibly: a step under a second, never a glide", () => {
+    expect(MOTION.drift).toBeGreaterThanOrEqual(400);
+    expect(MOTION.drift).toBeLessThan(1_000);
+  });
   it("answers to a tap stay between 150 and 250 ms", () => {
     for (const ms of [MOTION.fast, MOTION.base, MOTION.pop]) {
       expect(ms).toBeGreaterThanOrEqual(150);

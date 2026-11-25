@@ -28,6 +28,8 @@ export function habitKey(page: Page, name: string): Locator {
 
 /** Presses and holds a key with the mouse for `ms`, at its centre. */
 export async function holdKey(page: Page, key: Locator, ms: number, options: { moveBy?: number } = {}) {
+  // A key can be below the fold (the Climb's strip pushes the fifth down).
+  await key.scrollIntoViewIfNeeded();
   const box = await key.boundingBox();
   if (!box) throw new Error("key not visible");
   const x = box.x + box.width / 2;

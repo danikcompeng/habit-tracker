@@ -184,7 +184,7 @@ Copy is short, warm and never guilt-tripping ("Hold to complete", "3-day streak"
 - One accent, persimmon, reserved for "done" and the one main action on a screen.
 - Depth by a solid lip under the element, never by blur shadows.
 - Pills for buttons, 24 px keys for habits, 16 px for fields and cards.
-- Physical motion: things press down 2 px and spring back; nothing loops or moves on its own.
+- Physical motion: things press down 2 px and spring back; nothing loops or moves on its own, except the Climb's pixel scene (clouds drift a pixel at a time; still with Reduce Motion).
 - Dark mode is warm graphite with a lighter persimmon, and shows depth by lightness.
 
 ## Colors
@@ -299,6 +299,9 @@ Soft, keycap geometry. Habit keys and empty-state boxes are 24 px round; text fi
 ### Focus
 - One focus ring everywhere: 2 px persimmon, 3 px outside the element (6 px on habit keys), so it sits on the page.
 - The one exception: a field marked invalid keeps crimson when focused, so a persimmon ring never wraps a crimson edge.
+
+### The Climb scene (signature, Feature 10)
+The one playful moment: a pixel-art world (Today's 140 px strip, and the Climb screen's tall window) where your altitude is a small accent flag on the mountain's climbing line. Drawn on a canvas at a low resolution and scaled by a whole number (3 css px a pixel, `image-rendering: pixelated`): crisp stepped edges, no dithering, no outlines. Clouds are rounded bumps over a flat base, each bump with a lighter crescent at its upper left and a shaded one at its lower right (the reference's soft highlight curves); mostly small low puffs, a few medium cumulus, huge banks behind. Light is a soft daytime sky in twelve gentle bands (muted blue down to cream), dark a midnight navy with three accents that pop against it: a gold moon always in view, a coral rim on the medium clouds' moon-facing edges, and the persimmon flag (silver-blue edges on the near banks). Colours are the `--scene-*` tokens. Clouds drift a pixel at a time; still with Reduce Motion. Words never sit on the art: they're Manrope in token chips (surface and ink; the accent chip for "you").
 
 ## Do's and Don'ts
 

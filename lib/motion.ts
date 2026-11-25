@@ -12,6 +12,14 @@ export const MOTION = {
   pop: 250,
   /** How long you hold a habit to complete it. */
   hold: 650,
+  /**
+   * The Climb's scene (Feature 10): clouds drift one logical pixel per this
+   * many ms (×0.6–1.4 by depth), stepping, never sliding, so the pixels stay
+   * crisp. The scene's only movement on its own; none with Reduce Motion.
+   */
+  drift: 700,
+  /** The view lifting (or settling) to a new altitude after a completion. */
+  lift: 600,
 } as const;
 
 /** Quick to start, gentle to land: cubic-bezier(0.2, 0.8, 0.2, 1). */

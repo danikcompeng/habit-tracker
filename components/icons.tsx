@@ -87,3 +87,12 @@ export function TrashIcon(props: IconProps) {
     </Icon>
   );
 }
+
+/** A chevron pointing right: "this opens a page" (Today's scene strip). */
+export function ChevronRightIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M9 6l6 6-6 6" />
+    </Icon>
+  );
+}

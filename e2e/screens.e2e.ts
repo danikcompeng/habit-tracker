@@ -7,7 +7,8 @@
 import type { Page } from "@playwright/test";
 import { expect, test } from "./helpers/saves";
 import { freshDemo, habitKey } from "./helpers/app";
-import { reseedDemo } from "./helpers/seed";
+import { localToday, reseedDemo } from "./helpers/seed";
+import { addDays } from "../lib/dates";
 
 const SCHEMES = ["light", "dark"] as const;
 
@@ -31,6 +32,7 @@ async function shoot(page: Page, folder: string, name: string, options: { fullPa
 
 async function hold(page: Page, name: string) {
   const key = habitKey(page, name);
+  await key.scrollIntoViewIfNeeded();
   const box = (await key.boundingBox())!;
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
   await page.mouse.down();
@@ -232,5 +234,46 @@ test("today's date screens", async ({ page }) => {
       document.querySelector('[data-day-label="short"]')!.textContent = "Wed, Sep 30";
     });
     await shoot(page, folder, `today-${width}`);
+  }
+});
+
+test("climb screens", async ({ page }) => {
+  // Feature 10: Today with the scene strip, the Climb screen, the zone moment.
+  const folder = "feature-10";
+  await freshDemo(page);
+  await shoot(page, folder, "today");
+  await page.getByRole("link", { name: /^Altitude/ }).click();
+  await expect(page.getByTestId("ruler-you")).toBeVisible();
+  await shoot(page, folder, "climb");
+  // And the top of the climb: the stratosphere and the summit.
+  await page.getByRole("region", { name: /^The climb/ }).evaluate((el) => el.scrollTo(0, 0));
+  await shoot(page, folder, "climb-top");
+
+  // The zone moment: a demo one completion short of Treeline.
+  const { today } = localToday();
+  await reseedDemo([
+    {
+      name: "Climb a little",
+      created_at: new Date(`${addDays(today, -9)}T12:00:00Z`).toISOString(),
+      days: Array.from({ length: 9 }, (_, i) => addDays(today, -9 + i)),
+    },
+  ]);
+  try {
+    // Forget the zones this device celebrated at the demo's ~7,100 m.
+    await page.evaluate(() => {
+      for (const key of Object.keys(localStorage)) if (key.startsWith("climb-zone:")) localStorage.removeItem(key);
+    });
+    await page.goto("/");
+    await hold(page, "Climb a little");
+    await expect(page.getByRole("button", { name: /New zone Treeline/ })).toBeVisible();
+    // Shot quickly: the card closes itself after 6 s.
+    for (const scheme of SCHEMES) {
+      await page.emulateMedia({ colorScheme: scheme, reducedMotion: "reduce" });
+      await page.evaluate(() => document.fonts.ready);
+      await page.waitForTimeout(300);
+      await page.screenshot({ path: `docs/screenshots/${folder}/zone-moment-${scheme}.png` });
+    }
+  } finally {
+    await reseedDemo();
   }
 });

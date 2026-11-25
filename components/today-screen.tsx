@@ -8,21 +8,53 @@
 // Not remounted on a new day (no key on it), so a message that arrives
 // together with the new day's data ("Saved for Monday…") stays on screen.
 
-import { startTransition, useLayoutEffect, useOptimistic, useRef, useState } from "react";
+import { startTransition, useEffect, useLayoutEffect, useOptimistic, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { ClimbStrip, type ZoneMoment } from "@/components/climb/climb-strip";
 import { DayWatcher } from "@/components/day-watcher";
 import { HabitKey, type KeyHabit } from "@/components/habit-key";
 import { CheckIcon, PlusIcon } from "@/components/icons";
 import { saveTimezoneCookie } from "@/components/timezone-sync";
 import { buttonClass } from "@/components/ui/button";
 import { ErrorText } from "@/components/ui/error-text";
+import { CM, celebratedIndex, dailyClimbCm, metres, silentlyRaised, zoneMemoryKey, zoneMemoryValue, zoneMomentAfterSave } from "@/lib/altitude";
 import { setCheckin, type CheckinResult } from "@/lib/checkin-actions";
 import type { HoldMode } from "@/lib/hold";
 import { NO_TAP_HINT, TAP_HINT_HELD_KEY, TAP_HINT_TEXT, nextTapHint, tapHintAnnouncement } from "@/lib/tap-hint";
 import { applyDone, streakText, summaryLine, weekdayName, type HabitView } from "@/lib/today";
 
-type Props = { today: string; habits: HabitView[]; mode: HoldMode };
+type Props = {
+  today: string;
+  habits: HabitView[];
+  mode: HoldMode;
+  /** The page's heading ("Today" and the Demo chip): drawn below the scene strip. */
+  heading: ReactNode;
+  /** Altitude through yesterday, in centimetres (Feature 10); null if it couldn't be read. */
+  beforeTodayCm: number | null;
+  /** For the zone moment's memory (per account on this device). */
+  userId: string;
+};
+
+/** How long the zone moment's card stays, unless tapped away first. */
+const MOMENT_MS = 6_000;
+
+/** The highest zone celebrated on this device, or -1 (none, or storage blocked). */
+function readCelebrated(userId: string): number {
+  try {
+    return celebratedIndex(localStorage.getItem(zoneMemoryKey(userId)));
+  } catch {
+    return -1;
+  }
+}
+
+function writeCelebrated(userId: string, index: number) {
+  try {
+    localStorage.setItem(zoneMemoryKey(userId), zoneMemoryValue(index));
+  } catch {
+    // Blocked storage: the moment may repeat. Never an error.
+  }
+}
 
 type Notice = { tone: "info" | "error"; text: string; id: number };
 
@@ -46,12 +78,37 @@ function noticeFor(result: CheckinResult): Omit<Notice, "id"> | null {
   }
 }
 
-export function TodayScreen({ today, habits, mode }: Props) {
+export function TodayScreen({ today, habits, mode, heading, beforeTodayCm, userId }: Props) {
   const router = useRouter();
+  // Guesses are kept with the day they were made for: one made just before
+  // midnight never lands on the next day's key (or its climb).
   const [done, setOptimisticDone] = useOptimistic(
-    Object.fromEntries(habits.map((h) => [h.id, h.doneToday])) as Record<string, boolean>,
-    (state, change: { id: string; done: boolean }) => ({ ...state, [change.id]: change.done }),
+    Object.fromEntries(habits.map((h) => [h.id, { done: h.doneToday, day: today }])) as Record<string, { done: boolean; day: string }>,
+    (state, change: { id: string; done: boolean; day: string }) => ({ ...state, [change.id]: { done: change.done, day: change.day } }),
   );
+  // The climb (Feature 10): once known, a failed read later (a refresh that
+  // hits a hiccup) keeps the last altitude rather than pulling the strip out
+  // from under a finger.
+  // Kept with its day: yesterday's "before today" is never used for today.
+  const [known, setKnown] = useState({ day: today, cm: beforeTodayCm });
+  if (beforeTodayCm !== null && (beforeTodayCm !== known.cm || known.day !== today)) setKnown({ day: today, cm: beforeTodayCm });
+  const knownBefore = known.day === today ? known.cm : null;
+  const [moment, setMoment] = useState<ZoneMoment | null>(null);
+  useEffect(() => {
+    if (!moment) return;
+    const timer = setTimeout(() => setMoment(null), MOMENT_MS);
+    return () => clearTimeout(timer);
+  }, [moment]);
+  // Leaving Today (hidden routes stay alive) closes the card, and a save
+  // that answers after you left doesn't bring it back.
+  const shown = useRef(false);
+  useLayoutEffect(() => {
+    shown.current = true;
+    return () => {
+      shown.current = false;
+      setMoment(null);
+    };
+  }, []);
   // Polite, for screen readers: what just changed. (Errors use their own
   // alert instead, so they aren't read out twice.)
   const [announcement, setAnnouncement] = useState("");
@@ -88,7 +145,15 @@ export function TodayScreen({ today, habits, mode }: Props) {
       }
     }
     setTapHint((state) => nextTapHint(state, { type: "complete", held }).state);
-    save(habit, true);
+    // The climb this completion adds, from the keys as they are now.
+    const climb =
+      knownBefore === null || habit.done
+        ? null
+        : {
+            beforeCm: knownBefore + dailyClimbCm(doneCount, keys.length),
+            afterCm: knownBefore + dailyClimbCm(doneCount + 1, keys.length),
+          };
+    save(habit, true, climb);
   }
 
   function say(text: string) {
@@ -96,7 +161,7 @@ export function TodayScreen({ today, habits, mode }: Props) {
     setAnnouncement((prev) => (prev === text ? `${text} ` : text));
   }
 
-  function save(habit: KeyHabit, nowDone: boolean) {
+  function save(habit: KeyHabit, nowDone: boolean, climb: { beforeCm: number; afterCm: number } | null = null) {
     const server = habits.find((h) => h.id === habit.id);
     if (!server) return;
     say(`${habit.name} ${nowDone ? "done" : "not done"}. ${streakText(applyDone(server, nowDone).streak)}.`);
@@ -104,7 +169,7 @@ export function TodayScreen({ today, habits, mode }: Props) {
     // The server works out "today" from this cookie: make sure it's there.
     saveTimezoneCookie();
     startTransition(async () => {
-      setOptimisticDone({ id: habit.id, done: nowDone });
+      setOptimisticDone({ id: habit.id, done: nowDone, day: today });
       let result: CheckinResult;
       try {
         result = await setCheckin(habit.id, today, nowDone);
@@ -113,6 +178,14 @@ export function TodayScreen({ today, habits, mode }: Props) {
         result = { ok: false, reason: "error" };
       }
       const next = noticeFor(result);
+      // The zone moment: only once the server has the save (a failed or
+      // refused one never claims a height you don't have), and only into a
+      // zone never celebrated on this device (read now: another tab may have).
+      // Read the memory HERE, as the answer arrives: the refreshed data (and
+      // the silent raise it triggers) only lands once this function ends.
+      const momentAfter = climb ? zoneMomentAfterSave(climb, result, readCelebrated(userId)) : null;
+      if (momentAfter) writeCelebrated(userId, momentAfter.store);
+      const zone = momentAfter?.zone ?? null;
       // Part of the same transition, so the message lands together with the
       // server's fresh data (not while the key still shows the guess).
       startTransition(() => {
@@ -120,19 +193,39 @@ export function TodayScreen({ today, habits, mode }: Props) {
           setNotice({ ...next, id: Date.now() });
           if (next.tone === "info") say(next.text);
         }
+        if (zone && climb && shown.current) {
+          setMoment({ id: Date.now(), zone, gainedCm: climb.afterCm - climb.beforeCm, altitudeCm: climb.afterCm });
+          say(`New zone: ${zone.name}. Up ${Math.floor((climb.afterCm - climb.beforeCm) / CM)} metres, to ${metres(climb.afterCm)}.`);
+        }
       });
       // The answer may have been lost after the save worked: show what's really saved.
       if (!result.ok && result.reason === "error") router.refresh();
     });
   }
 
-  const keys = habits.map((h) => applyDone(h, done[h.id] ?? h.doneToday));
+  const keys = habits.map((h) => {
+    const guess = done[h.id];
+    return applyDone(h, guess && guess.day === today ? guess.done : h.doneToday);
+  });
   const doneCount = keys.filter((k) => k.done).length;
   const allDone = keys.length > 0 && doneCount === keys.length;
+  // Live: through yesterday from the server, plus today's climb from the keys.
+  const altitudeCm = knownBefore === null ? null : knownBefore + dailyClimbCm(doneCount, keys.length);
+  // Saved (never a guess): raises the zone memory silently, so a zone reached
+  // elsewhere, or before this device knew, never gets a card for a small step.
+  const savedAltitudeCm =
+    beforeTodayCm === null ? null : beforeTodayCm + dailyClimbCm(habits.filter((h) => h.doneToday).length, habits.length);
+  useEffect(() => {
+    if (savedAltitudeCm === null) return;
+    const raised = silentlyRaised(readCelebrated(userId), savedAltitudeCm);
+    if (raised !== null) writeCelebrated(userId, raised);
+  }, [savedAltitudeCm, userId]);
 
   return (
     <>
       <DayWatcher isHolding={() => holds.current > 0} />
+      {altitudeCm !== null && <ClimbStrip altitudeCm={altitudeCm} moment={moment} onDismissMoment={() => setMoment(null)} />}
+      {heading}
       {/* At 5 of 5 the line is the day's payoff, so it stops looking like the
           muted instruction it replaces: ink, semibold, a persimmon check. */}
       <p

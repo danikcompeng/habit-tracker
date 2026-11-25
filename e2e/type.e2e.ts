@@ -95,6 +95,7 @@ test("Today, History, Habits and Settings are set in Manrope, no heavier than 70
     ["/history?range=30", "History"],
     ["/habits", "Habits"],
     ["/settings", "Settings"],
+    ["/climb", "Climb"],
   ] as const) {
     await page.goto(url);
     await expect(page.getByRole("heading", { name: title, level: 1 })).toBeVisible();

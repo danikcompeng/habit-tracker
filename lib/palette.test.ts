@@ -1,7 +1,8 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { HOLD_FILL_MIN_CONTRAST, NON_TEXT_PAIRS, PALETTE, TEXT_PAIRS, contrast, type Mode } from "./palette";
+import { HOLD_FILL_MIN_CONTRAST, NON_TEXT_PAIRS, PALETTE, SCENE_BACKDROPS, SCENE_PALETTE, TEXT_PAIRS, contrast, type Mode } from "./palette";
+import { ROLES, ringFor } from "./climb-scene/scene";
 
 const css = readFileSync(fileURLToPath(new URL("../app/globals.css", import.meta.url)), "utf8");
 
@@ -46,5 +47,34 @@ describe("contrast", () => {
     expect(contrast("#FFFFFF", "#000000")).toBeCloseTo(21, 5);
     expect(contrast("#777777", "#FFFFFF")).toBeCloseTo(4.48, 2);
     expect(contrast("#FFFFFF", "#FFFFFF")).toBe(1);
+  });
+});
+
+describe.each(["light", "dark"] as Mode[])("%s scene palette (Feature 10)", (mode) => {
+  const scene = SCENE_PALETTE[mode];
+
+  it("has a colour for every role the scene draws, and globals.css has exactly these", () => {
+    // Every role the scene draws, plus the ruler (drawn by the page over the scene).
+    expect(Object.keys(scene).sort()).toEqual([...ROLES.filter((r) => r !== "none"), "ruler"].sort());
+    const marker = mode === "light" ? "/* scene light */" : "/* scene dark */";
+    const start = css.indexOf(marker);
+    const block = css.slice(start, css.indexOf("}", start));
+    const fromCss = Object.fromEntries([...block.matchAll(/--scene-([a-z0-9-]+):\s*(#[0-9A-Fa-f]{6});/g)].map((m) => [m[1], m[2].toUpperCase()]));
+    expect(fromCss).toEqual(Object.fromEntries(Object.entries(scene).map(([k, v]) => [k, v.toUpperCase()])));
+  });
+
+  it("the marker is Ascend's accent", () => {
+    expect(scene.marker.toUpperCase()).toBe(PALETTE[mode].accent.toUpperCase());
+  });
+
+  it("the marker's ring has a light and a dark colour, 3:1 apart, and the flag stands out from its light ring", () => {
+    expect(contrast(scene["marker-ring"], scene["marker-edge"])).toBeGreaterThanOrEqual(3);
+  });
+
+  // The ring takes whichever of its two colours stands out more from what's
+  // under it (ringFor in lib/climb-scene/scene.ts): that one must be 3:1.
+  it.each(SCENE_BACKDROPS)("the marker's ring stands out 3:1 on %s", (backdrop) => {
+    const ring = ringFor(scene, backdrop);
+    expect(contrast(scene[ring], scene[backdrop])).toBeGreaterThanOrEqual(3);
   });
 });

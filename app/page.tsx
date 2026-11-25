@@ -13,6 +13,7 @@ import { isDemoEmail } from "@/lib/demo";
 import { HOLD_MODE_COOKIE, parseHoldMode } from "@/lib/preferences";
 import { userTimeZone, userToday } from "@/lib/server-helpers";
 import { createClient } from "@/lib/supabase/server";
+import { fetchAltitude } from "@/lib/altitude-data";
 import { addDays } from "@/lib/dates";
 import { buildToday, dayLabel, shortDayLabel, type CheckinRow, type HabitRow, type StreakRow } from "@/lib/today";
 
@@ -43,10 +44,12 @@ async function Today() {
   const [today, timeZone, cookieStore] = await Promise.all([userToday(), userTimeZone(), cookies()]);
   const mode = parseHoldMode(cookieStore.get(HOLD_MODE_COOKIE)?.value);
 
-  const [habits, checkins, streaks] = await Promise.all([
+  const [habits, checkins, streaks, altitude] = await Promise.all([
     supabase.from("habits").select("id, name, created_at").order("position").order("created_at").order("id"),
     supabase.from("habit_checkins").select("habit_id, day").gte("day", addDays(today, -6)).lte("day", today),
     supabase.rpc("habit_streaks", { p_today: today }),
+    // The climb (Feature 10). Never breaks the page: null means no strip.
+    fetchAltitude(supabase, today, timeZone),
   ]);
   const failed = habits.error ?? checkins.error ?? streaks.error;
   // app/error.tsx shows "Couldn't load your habits" with Try again.
@@ -109,17 +112,25 @@ async function Today() {
           </Link>
         </nav>
       </header>
-      {/* The Demo chip sits beside the heading, not in it: the heading is "Today". */}
-      <div className="mt-3 flex items-center gap-3">
-        <h1 className="text-title">Today</h1>
-        {demo && (
-          <span className="rounded-full border border-line bg-surface px-2.5 py-0.5 text-sm font-medium text-ink-muted">Demo</span>
-        )}
-      </div>
-
       {/* Not keyed by the day: messages like "Saved for Monday" arrive
-          together with the new day's data and must survive it. */}
-      <TodayScreen today={today} habits={view} mode={mode} />
+          together with the new day's data and must survive it. The scene
+          strip (Feature 10) comes first, then this heading. */}
+      <TodayScreen
+        today={today}
+        habits={view}
+        mode={mode}
+        beforeTodayCm={altitude?.beforeTodayCm ?? null}
+        userId={auth.claims.sub as string}
+        heading={
+          // The Demo chip sits beside the heading, not in it: the heading is "Today".
+          <div className="mt-5 flex items-center gap-3">
+            <h1 className="text-title">Today</h1>
+            {demo && (
+              <span className="rounded-full border border-line bg-surface px-2.5 py-0.5 text-sm font-medium text-ink-muted">Demo</span>
+            )}
+          </div>
+        }
+      />
 
       {/* "Tap to complete" moved to Settings (Feature 8); a hint on Today
           points there after two short taps. */}
@@ -157,7 +168,9 @@ function TodaySkeleton() {
           <div className="h-11 w-[68px] rounded-full bg-surface-sunk" />
         </div>
       </div>
-      <div className="mt-3 h-9 w-23 rounded bg-surface-sunk" />
+      {/* The scene strip's box (Feature 10), so nothing moves when it arrives. */}
+      <div className="mt-3 h-[8.75rem] rounded-key bg-surface-sunk" />
+      <div className="mt-5 h-9 w-23 rounded bg-surface-sunk" />
       <div className="mt-3 h-5 w-64 rounded bg-surface-sunk" />
       <div className="mt-7 flex flex-col gap-3">
         {[0, 1, 2].map((i) => (
