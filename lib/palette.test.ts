@@ -28,6 +28,12 @@ describe.each(["light", "dark"] as Mode[])("%s palette", (mode) => {
     expect(contrast(colors["accent-tint"], colors.surface)).toBeGreaterThanOrEqual(HOLD_FILL_MIN_CONTRAST);
   });
 
+  // ...and at its ceiling: darker would fail the accent dots on it (light)
+  // and crowd a done key (dark), so a held key could pass for a done one.
+  it("the hold fill stays clearly apart from a done key (at least 2.4:1)", () => {
+    expect(contrast(colors["accent-tint"], colors["accent-key"])).toBeGreaterThanOrEqual(2.4);
+  });
+
   it("globals.css has exactly these colours", () => {
     const fromCss = cssColors(mode === "light" ? "/* light */" : "/* dark */");
     const expected = Object.fromEntries(Object.entries(colors).map(([k, v]) => [k, v.toUpperCase()]));

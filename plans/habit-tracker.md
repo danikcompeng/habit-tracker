@@ -60,7 +60,7 @@ Decisions made while building, and why. Newest at the bottom of each group.
 | `line` | `#E0D8CA` | `#3A342E` | hairlines, row borders |
 | `accent` | `#B8420E` persimmon | `#FF8F57` | done rows, done dots, primary buttons, focus ring |
 | `on-accent` | `#FFFFFF` | `#1E120A` | text and icons on accent |
-| `accent-tint` | `#E9B79A` | `#7A4228` | the hold fill while pressing: 1.8 / 2.0:1 against the key (was `#F6D9C8` / `#5A3220`, 1.3 / 1.4:1, until 2026-11-24). Text on it is `ink`: a held key's grey streak caption turns ink |
+| `accent-tint` | `#E9B79A` | `#7A4228` | the hold fill while pressing: 1.8 / 2.0:1 against the key (was `#F6D9C8` / `#5A3220`, 1.3 / 1.4:1, until 2026-11-24). Text on it is `ink`: a held key's grey streak caption turns ink. **At its ceiling**: darker fails the accent dots on it (light) and crowds `accent-key` (dark); both ends are tested |
 | `accent-lip` | `#8A300A` | `#A84F24` | the bottom edge of a persimmon key: darker than the key in **both** themes (a lip, never a highlight) |
 | `accent-key` | `#B8420E` | `#D9733F` | a **done habit key**: the accent in light; calmer in dark, so five full-width done keys don't glare at night (dots, rings and buttons keep `accent`) |
 | `accent-soft` | `#CD7A55` | `#AD5A2E` | History: a day with **some** habits done (a day with all done is `accent-key`). Softer than the key but still 3:1 on the card (3.2 light, 3.2 dark) |
@@ -90,7 +90,7 @@ All text pairs must pass 4.5:1 (`ink-muted` on `background` and `surface`, `on-a
 - **Done pop**: the row **snaps** to `accent-key` with `on-accent` text (no colour fade into done), scales 1 → 1.03 → 1 (about 250 ms), the check draws in, and the streak number updates. One short vibration where the device supports it.
 - **Undo**: the colour fades back to `surface` in 200 ms and the streak ticks down. No scale.
 - UI feedback 150–250 ms. Nothing loops, nothing moves on its own.
-- **Reduce Motion**: no growing circle, no scale. The hold shows as the row's tint fading in over the same 650 ms (opacity only), and done or undone changes colour instantly.
+- **Reduce Motion**: no growing circle, no scale. The hold shows as the row's tint fading in over the same 650 ms (opacity only, from about a third so the press shows at once), and done or undone changes colour instantly.
 
 **Brand mark** (since 2026-11-24): the **Summit** icon, a bone (`background`, light) mountain with a trail cut up its face on a persimmon (`accent`, light) field. Its sharp corners are the one deliberate exception to the rounded, key-like UI: don't round the mark, and don't copy sharp corners into screens. Only the tab icon's field square is rounded. The geometry lives in `lib/app-identity.ts` (`SUMMIT`) and is pinned by a test next to `ICON_VERSION`.
 
@@ -1167,6 +1167,35 @@ Checks: 355 unit and database tests, tsc, eslint, `next build`, and all **59 bro
 - Assessment A's best findings were about moments (end of day, undo, errors), and most of its remaining ideas ran into decisions already recorded here, which is the plan doing its job.
 - The detector's two warnings were both the brand (bone paper, the key's lip): it can't know a chosen world from a default.
 - The dev server (Turbopack) kept serving an old value for one edited `@theme` token even after a touch; the production build had it. Check theme-token changes on `next build`.
+
+
+### Hold fill follow-up: review of 49a52a5 (2026-11-24)
+
+The user asked for the reviewers on the stronger hold fill (49a52a5, committed before review; this entry and the fixes are the follow-up). No logic-checker pass: a colour change and a caption state, no rules about what happens.
+
+#### code-reviewer (49a52a5)
+Verdict: **Ship**. Every tested pair on the fill passes in both themes (fill 1.77 / 1.98:1; ink 8.8 / 6.8; accent dots 3.06 / 3.53; grey rings 3.50 / 3.38).
+
+| # | Severity | Finding | Outcome | What changed |
+|---|----------|---------|---------|--------------|
+| 1 | Medium | Leaving Today (`<Activity>` hides it) cleared the timers but not the state: the ink caption, and (pre-existing) "Keep holding…" in place of the dots, could stay stuck on return. | Fixed | A `useLayoutEffect` cleanup resets `filled`, `hint` and the hold state (and says the hold is over, which moved here from the passive cleanup so it still runs first). e2e: early release, History, back; checked that it fails without the fix. |
+| 2 | Low | The mid-hold e2e check could race the 650 ms hold and complete the habit on a slow runner. | Fixed | The test pauses the fill's animation while it checks, then plays it to let the cancel finish. Now in light and dark. |
+| 3 | Low | The caption's 150 ms timer ran separately from the shrinking fill, so grey could show on the last frame of fill. | Fixed | No timer: the caption goes grey when the shrinking fill's animation finishes (or at once if there's no fill). |
+| 4 | Low | The faint "before" dots are 1.5:1 on the fill (1.7 on the key). | No change | Decorative and untested before too; noted in `palette.ts` so "dots stay ≥ 3:1" isn't read as covering them. |
+| 5 | Low | Committed before review. | Logged | This entry. |
+| — | Tests | Cancel keeps ink until the fill is gone; keyboard hold; leaving and returning; dark mode. | Added | Restart within 150 ms, done keys and Tap to complete never reach a holding state (checked in code, not added). |
+
+#### design-critic (mid-hold before / after, light and dark)
+Verdict: **Ship**. "The stronger fill does its job in both themes, and nothing on it fails contrast." The held key stays clearly apart from a done key (opposite text, hollow ring, grey lip); `::selection` on the new tint is fine (ink 8.8 / 6.8:1).
+
+| # | Severity | Finding | Outcome | What changed |
+|---|----------|---------|---------|--------------|
+| 1 | Medium | Reduce Motion fades the tint from 0, so for the first half of a hold it's as faint as the old tint, exactly when people check the press registered. | Fixed | The fade starts at 35% opacity (about 1.25:1 at once), still opacity only. |
+| 2 | Low | The tint is at its ceiling (accent dots 3.06:1 on it in light; 2.45:1 from a done key in dark), with only a floor tested. | Fixed | A test that the fill stays at least 2.4:1 from a done key; "at its ceiling" in the colour table. |
+| 3 | Low | The snap frame may depend on React's update order; at 1.8:1 a late commit would flash white. | Checked, no change | Measured per frame in Chromium at 1×, 4× and 6× CPU slowdown: the persimmon key and the fill share one frame, never a frame with neither. The comment calling the fill "underneath" was wrong (it paints above the key's background) and is corrected. |
+| 4 | Low | "Before" dots nearly vanish under the fill. | No change | As code-reviewer #4. |
+
+Checks: 361 unit and database tests, tsc, eslint, `next build`, and the full browser suite on `next start` pass.
 
 <!--
 Template — copy for each feature:

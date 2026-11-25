@@ -53,19 +53,58 @@ test("the last habit done turns the summary into the day's payoff, and the tab s
 });
 
 test("while a key is held, its streak caption is ink (grey would be too faint on the fill)", async ({ page }) => {
+  const read = habitKey(page, "Read 10 pages");
+  const caption = read.getByText("4-day streak");
+  for (const [scheme, ink, muted] of [
+    ["light", "rgb(42, 33, 26)", "rgb(107, 94, 82)"],
+    ["dark", "rgb(243, 236, 226)", "rgb(180, 167, 151)"],
+  ] as const) {
+    await page.emulateMedia({ colorScheme: scheme });
+    await expect(caption).toHaveCSS("color", muted);
+    const box = (await read.boundingBox())!;
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.mouse.down();
+    // Freeze the fill: the hold completes only when it finishes, so the
+    // check can take as long as it likes without completing the habit.
+    await page.evaluate(() => document.getAnimations().forEach((a) => a.pause()));
+    await expect(caption).toHaveCSS("color", ink);
+    // Slide away (a scroll): the hold is cancelled and the fill shrinks
+    // back; the caption stays ink until it's gone, then turns grey.
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2 + 40, { steps: 3 });
+    await page.mouse.up();
+    await expect(caption).toHaveCSS("color", ink);
+    await page.evaluate(() => document.getAnimations().forEach((a) => a.play()));
+    await expect(caption).toHaveCSS("color", muted);
+    await expect(read).toHaveAttribute("aria-pressed", "false");
+  }
+});
+
+test("a keyboard hold turns the caption ink too, and an early release teaches the gesture", async ({ page }) => {
   await page.emulateMedia({ colorScheme: "light" });
   const read = habitKey(page, "Read 10 pages");
   const caption = read.getByText("4-day streak");
-  await expect(caption).toHaveCSS("color", "rgb(107, 94, 82)"); // ink-muted
-  const box = (await read.boundingBox())!;
-  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
-  await page.mouse.down();
-  await expect(caption).toHaveCSS("color", "rgb(42, 33, 26)"); // ink
-  // Slide away (a scroll), so the hold is cancelled, then let go.
-  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2 + 40, { steps: 3 });
-  await page.mouse.up();
+  await read.focus();
+  await page.keyboard.down("Space");
+  await expect(caption).toHaveCSS("color", "rgb(42, 33, 26)");
+  await page.keyboard.up("Space");
+  await expect(read.getByText("Keep holding…")).toBeVisible();
   await expect(read).toHaveAttribute("aria-pressed", "false");
-  await expect(caption).toHaveCSS("color", "rgb(107, 94, 82)");
+});
+
+test("leaving Today just after an early release doesn't leave the key half-way on coming back", async ({ page }) => {
+  await page.emulateMedia({ colorScheme: "light" });
+  const read = habitKey(page, "Read 10 pages");
+  await holdKey(page, read, 200);
+  await expect(read.getByText("Keep holding…")).toBeVisible();
+  await page.getByRole("link", { name: "History" }).click();
+  await expect(page.getByRole("heading", { name: "History" })).toBeVisible();
+  await page.getByRole("link", { name: "Done" }).click();
+  await expect(page.getByRole("heading", { name: "Today" })).toBeVisible();
+  await expect(read.getByText("Keep holding…")).toHaveCount(0);
+  await expect(read.getByText("4-day streak")).toHaveCSS("color", "rgb(107, 94, 82)");
+  // And it still works.
+  await holdKey(page, read, 800);
+  await expect(read).toHaveAttribute("aria-pressed", "true");
 });
 
 test("letting go early doesn't complete it, and teaches the gesture", async ({ page }) => {

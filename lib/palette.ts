@@ -98,6 +98,7 @@ export const NON_TEXT_PAIRS: readonly [mark: ColorRole, on: ColorRole][] = [
   ["accent-key", "background"], // a done key against the page
   ["accent", "accent-tint"], // done and today dots under the hold fill
   ["ink-muted", "accent-tint"], // missed dots and the empty check ring under the hold fill
+  // (Not the faint "before" dots, ink-muted at 35%: decorative, 1.5:1 on the fill, 1.7 on the key.)
   ["accent-key", "surface"], // History: a day with every habit done, on the chart card
   ["accent-soft", "surface"], // History: a day with some habits done, on the chart card
   ["ink-muted", "surface-sunk"], // unavailable arrows are ink-muted at lower opacity: never below this

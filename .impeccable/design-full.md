@@ -264,7 +264,7 @@ Soft, keycap geometry. Habit keys and empty-state boxes are 24 px round; text fi
 - **At rest:** key face with the key lip; the name at Title size; an empty 32 px ring (walnut muted) top right; a row of seven 10 px dots and the streak caption along the bottom.
 - **Holding:** a hold-tint circle grows from the touch point over 650 ms, linear; let go early and it shrinks back in 150 ms. The streak caption is ink while the fill is on the key. "Keep holding…" replaces the dots if you let go too soon.
 - **Done:** snaps (no fade) to done-key persimmon with on-persimmon text, a persimmon lip, a filled check that draws in, scale 1 → 1.03 → 1 over 250 ms, one short vibration. Undo fades back over 200 ms.
-- **Reduce Motion:** no circle and no scale; the tint fades in over the same 650 ms and done/undone change instantly.
+- **Reduce Motion:** no circle and no scale; the tint fades in over the same 650 ms, from about a third so the press shows at once, and done/undone change instantly.
 
 ### Buttons
 - **Shape:** pills, 48 px (`md`) or 44 px (`sm`, header pills), full width only when they are the main action.

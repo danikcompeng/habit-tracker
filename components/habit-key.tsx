@@ -5,7 +5,7 @@
 // happens live in lib/hold.ts; this file turns browser events into its
 // events and draws the result: the fill under your finger, the pop, the dots.
 
-import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { Dots } from "@/components/dots";
 import { CheckIcon } from "@/components/icons";
 import { HINT_MS, HOLD_MS, IDLE, fillRadius, isActivationKey, next, type HoldEvent, type HoldMode, type HoldState, type Point } from "@/lib/hold";
@@ -44,7 +44,6 @@ export function HabitKey({ habit, mode, onComplete, onUndo, onHint, onHoldingCha
   // back), the grey streak caption turns ink: grey on the fill is 3.5:1.
   const [filled, setFilled] = useState(false);
   const hintTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  const unfillTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   // Always the latest props, for event handlers and animation callbacks.
   const latest = useRef({ habit, mode, onComplete, onUndo, onHint, onHoldingChange });
@@ -58,20 +57,19 @@ export function HabitKey({ habit, mode, onComplete, onUndo, onHint, onHoldingCha
     const step = next(state.current, event, currentMode);
     state.current = step.state;
     const isHolding = step.state.kind === "pointer-hold" || step.state.kind === "key-hold";
-    if (wasHolding !== isHolding) {
-      latest.current.onHoldingChange(isHolding);
-      clearTimeout(unfillTimer.current);
-      if (isHolding) setFilled(true);
-      // Let go early: the fill takes MOTION.fast to shrink away.
-      else unfillTimer.current = setTimeout(() => setFilled(false), MOTION.fast);
-    }
+    if (wasHolding !== isHolding) latest.current.onHoldingChange(isHolding);
+    if (isHolding) setFilled(true);
+    let shrinking = false;
     for (const effect of step.effects) {
       if (effect.type === "start-fill") startFill(effect.origin);
-      else if (effect.type === "cancel-fill") cancelFill();
+      else if (effect.type === "cancel-fill") shrinking = cancelFill();
       else if (effect.type === "complete") complete();
       else if (effect.type === "undo") latest.current.onUndo(latest.current.habit);
       else if (effect.type === "hint") showHint();
     }
+    // The hold is over: the caption goes back to grey now, or, if the fill
+    // is shrinking back, once it's gone (cancelFill).
+    if (wasHolding && !isHolding && !shrinking) setFilled(false);
   }
 
   /** `clientOrigin`: where the finger is, in viewport coordinates (null: keyboard). */
@@ -84,9 +82,11 @@ export function HabitKey({ habit, mode, onComplete, onUndo, onHint, onHoldingCha
     const origin = clientOrigin && { x: clientOrigin.x - left, y: clientOrigin.y - top };
     let animation: Animation;
     if (prefersReducedMotion()) {
-      // Reduce Motion: no growing circle; the tint just fades in.
+      // Reduce Motion: no growing circle; the tint fades in over the whole
+      // key. It starts at about a third, so the press shows at once (from 0
+      // the first half of the hold would be as faint as the old tint).
       Object.assign(el.style, { left: "0", top: "0", width: "100%", height: "100%", borderRadius: "0" });
-      animation = el.animate([{ opacity: 0 }, { opacity: 1 }], { duration: HOLD_MS, easing: "linear", fill: "forwards" });
+      animation = el.animate([{ opacity: 0.35 }, { opacity: 1 }], { duration: HOLD_MS, easing: "linear", fill: "forwards" });
     } else {
       // A circle centred on the finger, big enough to reach the far corner.
       const r = fillRadius(width, height, origin);
@@ -109,13 +109,19 @@ export function HabitKey({ habit, mode, onComplete, onUndo, onHint, onHoldingCha
     fill.current = animation;
   }
 
-  function cancelFill() {
+  /** Shrinks the fill back; true if there was one (it's still on screen). */
+  function cancelFill(): boolean {
     const animation = fill.current;
     fill.current = null;
-    if (!animation) return;
+    if (!animation) return false;
     // Shrink back from wherever it got to, quickly (150 ms for a full fill).
-    animation.onfinish = () => animation.cancel();
+    animation.onfinish = () => {
+      animation.cancel();
+      // The fill is gone: grey is readable again, unless a new hold began.
+      if (!fill.current) setFilled(false);
+    };
     animation.updatePlaybackRate(-HOLD_MS / MOTION.fast);
+    return true;
   }
 
   function complete() {
@@ -123,7 +129,10 @@ export function HabitKey({ habit, mode, onComplete, onUndo, onHint, onHoldingCha
     fill.current = null;
     latest.current.onComplete(latest.current.habit);
     setJustDone(true);
-    // The key is persimmon now; the tint underneath can go.
+    // The fill paints above the key's own background (a -z child of an
+    // isolated button), so it goes a frame later, once the done colour has
+    // been committed. Measured: the persimmon key and the fill share one
+    // frame, never a frame with neither, even at 6x CPU slowdown.
     requestAnimationFrame(() => animation?.cancel());
     if (!prefersReducedMotion()) {
       keyRef.current?.animate([{ transform: "scale(1)" }, { transform: "scale(1.03)" }, { transform: "scale(1)" }], {
@@ -155,16 +164,29 @@ export function HabitKey({ habit, mode, onComplete, onUndo, onHint, onHoldingCha
       document.removeEventListener("visibilitychange", onVisibility);
       window.removeEventListener("pagehide", interrupt);
       clearTimeout(hintTimer.current);
-      clearTimeout(unfillTimer.current);
       fill.current?.cancel();
-      // Removed mid-hold (deleted elsewhere, or the demo was reset): say the
-      // hold is over, or Today would wait for it forever and stop refreshing.
-      const kind = state.current.kind;
-      if (kind === "pointer-hold" || kind === "key-hold") latest.current.onHoldingChange(false);
     };
     // dispatch only reads refs, so it's safe to bind once.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Hidden routes stay alive (<Activity>): leaving Today mid-hold or just
+  // after an early release must not leave the key half-way when you come
+  // back (an ink caption, "Keep holding…" instead of the dots, or a hold
+  // the key still thinks is going on).
+  useLayoutEffect(
+    () => () => {
+      // Removed or hidden mid-hold (deleted elsewhere, the demo was reset,
+      // another page): say the hold is over, or Today would wait for it
+      // forever and stop refreshing.
+      const kind = state.current.kind;
+      if (kind === "pointer-hold" || kind === "key-hold") latest.current.onHoldingChange(false);
+      state.current = IDLE;
+      setFilled(false);
+      setHint(false);
+    },
+    [],
+  );
 
   // Viewport coordinates: if the key itself moves (the 2 px press, a
   // message appearing above the list), that isn't the finger moving.
