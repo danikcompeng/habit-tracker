@@ -75,8 +75,9 @@
   --text-habit: 1.375rem;
   --text-habit--line-height: 1.2;
 
-  /* The wordmark only: 52 px, extra bold. */
-  --text-display: 3.25rem;
+  /* The wordmark only: 52 px, extra bold. Capped at 17vw so the one word
+     still fits a phone when text is enlarged (66 px on a 390 px phone). */
+  --text-display: min(3.25rem, 17vw);
   --text-display--line-height: 1;
   /* The one-line promise under the wordmark. */
   --text-lead: 1.125rem;
@@ -84,6 +85,9 @@
   /* A habit's name in the /habits list (smaller than on Today's keys). */
   --text-list: 1.125rem;
   --text-list--line-height: 1.35;
+  /* History's three numbers (Completed, Current streak, Longest streak). */
+  --text-stat: 1.75rem;
+  --text-stat--line-height: 1.25;
 
   /* Shapes: the habit "key" is 24 px round, text boxes 16 px; buttons are pills. */
   --radius-key: 24px;
@@ -140,6 +144,13 @@
   :focus-visible {
     outline: 2px solid var(--accent);
     outline-offset: 3px;
+  }
+
+  /* The one exception: a field marked invalid keeps its error colour when
+     focused (focus moves to it on an error), so a persimmon ring never
+     wraps a crimson edge. Crimson on the page: 6.8:1 light, 8.4:1 dark. */
+  [aria-invalid="true"]:focus-visible {
+    outline-color: var(--danger);
   }
 
   ::selection {

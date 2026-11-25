@@ -1,0 +1,119 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-11-24T23:00:00-05:00",
+  "title": "Design System: Ascend",
+  "extensions": {
+    "colorMeta": {
+      "persimmon": { "role": "primary", "displayName": "Persimmon", "canonical": "#B8420E", "tonalRamp": ["#3D1604", "#5E2207", "#8A300A", "#B8420E", "#D9733F", "#EBA27E", "#F6D9C8", "#FBEDE4"] },
+      "bone-paper": { "role": "neutral", "displayName": "Bone Paper", "canonical": "#F4EFE6", "tonalRamp": ["#191613", "#26221E", "#3A342E", "#6B5E52", "#B4A797", "#E0D8CA", "#EAE3D6", "#F4EFE6"] },
+      "soot-ink": { "role": "neutral", "displayName": "Soot Ink", "canonical": "#2A211A" },
+      "walnut-muted": { "role": "neutral", "displayName": "Walnut Muted", "canonical": "#6B5E52" },
+      "crimson": { "role": "danger", "displayName": "Crimson", "canonical": "#A1173A", "tonalRamp": ["#3A0815", "#6E0F28", "#A1173A", "#C94B6A", "#FF8FA8", "#FFC4D1", "#FFE3EA", "#FFF2F5"] }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "Display", "purpose": "The Ascend wordmark on the login screen only." },
+      "headline": { "displayName": "Page title", "purpose": "Today, Habits, History." },
+      "stat": { "displayName": "Stat", "purpose": "History's three numbers only." },
+      "title": { "displayName": "Habit name", "purpose": "A habit's name on its key." },
+      "title-list": { "displayName": "List name", "purpose": "A habit's name in the Habits list and History rows." },
+      "lead": { "displayName": "Lead", "purpose": "The promise under the wordmark." },
+      "body": { "displayName": "Body", "purpose": "Buttons, fields and sentences; 16 px floor on inputs." },
+      "label": { "displayName": "Label", "purpose": "Dates, captions, streaks; tabular numbers." }
+    },
+    "shadows": [
+      { "name": "key-lip", "value": "0 4px 0 var(--surface-sunk)", "purpose": "The lip under a habit key at rest (accent-lip once done); 2 px when pressed." },
+      { "name": "button-lip", "value": "0 3px 0 var(--accent-lip)", "purpose": "The lip under primary, secondary (surface-sunk) and danger (danger-lip) buttons; 1 px when pressed." }
+    ],
+    "motion": [
+      { "name": "motion-fast", "value": "150ms", "purpose": "Answer to a tap; a cancelled hold shrinking back." },
+      { "name": "motion-base", "value": "200ms", "purpose": "Undo fading back." },
+      { "name": "motion-pop", "value": "250ms", "purpose": "The done pop (scale 1 to 1.03 to 1)." },
+      { "name": "motion-hold", "value": "650ms", "purpose": "How long a hold takes; linear so progress reads as honest." },
+      { "name": "ease-out", "value": "cubic-bezier(0.2, 0.8, 0.2, 1)", "purpose": "Quick to start, gentle to land." }
+    ],
+    "breakpoints": []
+  },
+  "components": [
+    {
+      "name": "Habit key",
+      "kind": "custom",
+      "refersTo": "habit-key",
+      "description": "The signature: a full-width key you press and hold to complete a habit.",
+      "html": "<button class=\"ds-key\"><span class=\"ds-key-top\"><span class=\"ds-key-name\">Read 10 pages</span><span class=\"ds-key-ring\"></span></span><span class=\"ds-key-foot\"><span class=\"ds-dots\"><i></i><i></i><i class=\"m\"></i><i></i><i></i><i></i><i class=\"o\"></i></span><span class=\"ds-key-streak\">5-day streak</span></span></button>",
+      "css": ".ds-key{display:flex;flex-direction:column;justify-content:space-between;gap:12px;width:100%;min-height:96px;padding:20px;border:1px solid var(--line);border-radius:24px;background:var(--surface);color:var(--ink);box-shadow:0 4px 0 var(--surface-sunk);font:inherit;text-align:left;transition:transform 150ms,box-shadow 150ms}.ds-key:active{transform:translateY(2px);box-shadow:0 2px 0 var(--surface-sunk)}.ds-key:focus-visible{outline:2px solid var(--accent);outline-offset:6px}.ds-key-top,.ds-key-foot{display:flex;justify-content:space-between;align-items:center;gap:12px}.ds-key-name{font-size:22px;font-weight:600;line-height:1.2}.ds-key-ring{width:32px;height:32px;border-radius:9999px;border:2px solid var(--ink-muted)}.ds-dots{display:flex;gap:6px}.ds-dots i{width:10px;height:10px;border-radius:9999px;background:var(--accent)}.ds-dots i.m{background:none;border:1.5px solid var(--ink-muted)}.ds-dots i.o{background:none;border:2px solid var(--accent)}.ds-key-streak{font-size:14px;font-weight:500;color:var(--ink-muted);font-variant-numeric:tabular-nums}"
+    },
+    {
+      "name": "Primary button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The one main action on a screen: a persimmon pill on its own lip.",
+      "html": "<button class=\"ds-btn-primary\">Email me a code</button>",
+      "css": ".ds-btn-primary{min-height:48px;padding:0 24px;margin-bottom:3px;border:0;border-radius:9999px;background:var(--accent);color:var(--on-accent);font:inherit;font-size:16px;font-weight:600;box-shadow:0 3px 0 var(--accent-lip);transition:transform 150ms cubic-bezier(.2,.8,.2,1),box-shadow 150ms}.ds-btn-primary:active{transform:translateY(2px);box-shadow:0 1px 0 var(--accent-lip)}.ds-btn-primary:focus-visible{outline:2px solid var(--accent);outline-offset:3px}"
+    },
+    {
+      "name": "Secondary button",
+      "kind": "button",
+      "refersTo": "button-secondary-sm",
+      "description": "Header pills (History, Edit, Done) and quieter actions.",
+      "html": "<button class=\"ds-btn-secondary\">History</button>",
+      "css": ".ds-btn-secondary{min-height:44px;padding:0 20px;margin-bottom:3px;border:1px solid var(--line);border-radius:9999px;background:var(--surface);color:var(--ink);font:inherit;font-size:14px;font-weight:600;box-shadow:0 3px 0 var(--surface-sunk);transition:transform 150ms,box-shadow 150ms}.ds-btn-secondary:active{transform:translateY(2px);box-shadow:0 1px 0 var(--surface-sunk)}.ds-btn-secondary:focus-visible{outline:2px solid var(--accent);outline-offset:3px}"
+    },
+    {
+      "name": "Danger button",
+      "kind": "button",
+      "refersTo": "button-danger",
+      "description": "Delete, only inside the inline confirmation; always with the trash icon.",
+      "html": "<button class=\"ds-btn-danger\"><svg width=\"18\" height=\"18\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3\"/></svg>Delete</button>",
+      "css": ".ds-btn-danger{display:inline-flex;align-items:center;gap:8px;min-height:48px;padding:0 24px;margin-bottom:3px;border:0;border-radius:9999px;background:var(--danger);color:var(--surface);font:inherit;font-size:16px;font-weight:600;box-shadow:0 3px 0 var(--danger-lip)}.ds-btn-danger:active{transform:translateY(2px);box-shadow:0 1px 0 var(--danger-lip)}.ds-btn-danger:focus-visible{outline:2px solid var(--accent);outline-offset:3px}"
+    },
+    {
+      "name": "Text field",
+      "kind": "input",
+      "refersTo": "text-field",
+      "description": "A labelled box with a findable 3:1 edge; 16 px text.",
+      "html": "<label class=\"ds-field\"><span>Email</span><input placeholder=\"name@email.com\"></label>",
+      "css": ".ds-field{display:flex;flex-direction:column;gap:8px}.ds-field span{font-size:14px;font-weight:500;color:var(--ink-muted)}.ds-field input{height:48px;padding:0 16px;border:1px solid var(--ink-muted);border-radius:16px;background:var(--surface);color:var(--ink);font:inherit;font-size:16px}.ds-field input::placeholder{color:var(--ink-muted)}.ds-field input:focus-visible{outline:2px solid var(--accent);outline-offset:3px}"
+    },
+    {
+      "name": "Range switch",
+      "kind": "nav",
+      "refersTo": "range-switch",
+      "description": "History's 7 / 30 / 90 days segmented control.",
+      "html": "<div class=\"ds-range\"><button>7 days</button><button aria-pressed=\"true\">30 days</button><button>90 days</button></div>",
+      "css": ".ds-range{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;padding:4px;border-radius:9999px;background:var(--surface-sunk)}.ds-range button{min-height:44px;border:1px solid transparent;border-radius:9999px;background:none;color:var(--ink-muted);font:inherit;font-size:16px;font-weight:500}.ds-range button[aria-pressed=true]{border-color:var(--ink-muted);background:var(--surface);color:var(--ink);font-weight:600}.ds-range button:focus-visible{outline:2px solid var(--accent);outline-offset:3px}"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Warm Keyboard",
+    "overview": "Ascend is a small, physical object on a sheet of bone paper. Every habit is a chunky key: it has a face, a lip along its bottom edge, and it sinks when you press it. Holding it down grows a persimmon tint out from under your finger; when the hold completes the key snaps to solid persimmon with a short pop. The whole system exists to make that one gesture feel honest and satisfying, and everything around the keys stays quiet so they can carry the screen.",
+    "keyCharacteristics": [
+      "One accent, persimmon, reserved for \"done\" and the one main action on a screen.",
+      "Depth by a solid lip under the element, never by blur shadows.",
+      "Pills for buttons, 24 px keys for habits, 16 px for fields and cards.",
+      "Physical motion: things press down 2 px and spring back; nothing loops or moves on its own.",
+      "Dark mode is warm graphite with a lighter persimmon, and shows depth by lightness."
+    ],
+    "rules": [
+      { "name": "The One Voice Rule", "body": "Persimmon means \"done\" or \"the one thing to do now\". A screen has at most one persimmon button; a secondary action that would compete steps back to the key-face style.", "section": "colors" },
+      { "name": "The Tested Pair Rule", "body": "Every text pair is 4.5:1 and every mark, edge and ring is 3:1, and lib/palette.test.ts proves it.", "section": "colors" },
+      { "name": "The Token-Only Rule", "body": "Components use the token classes; Tailwind's own palette is switched off, so a raw colour can't sneak in.", "section": "colors" },
+      { "name": "The 16 px Floor Rule", "body": "Anything you type into is 16 px. Nothing that must be read is under 14 px.", "section": "typography" },
+      { "name": "The Lip, Not Glow Rule", "body": "Depth is a hard edge under the object in a darker shade of itself. No blur, no glow, no glass.", "section": "elevation" }
+    ],
+    "dos": [
+      "Do keep 44 × 44 px as the smallest tap target, 48 px for main buttons.",
+      "Do put new colours in app/globals.css and lib/palette.ts together, with their pair in lib/palette.test.ts.",
+      "Do take every timing from lib/motion.ts / --motion-* (150, 200, 250, 650 ms) and wrap movement in motion-safe:.",
+      "Do give every filled button and key a lip in its own darker shade.",
+      "Do pair colour with a second signal: an icon for errors and delete, an edge for selected states, words for dots."
+    ],
+    "donts": [
+      "Don't use purple gradients, glassmorphism, blurred drop shadows or glows.",
+      "Don't use emoji as icons; icons are simple 2 px stroke line drawings.",
+      "Don't nest a card inside a card; separate inside a card with a hairline.",
+      "Don't put grey text on grey, or persimmon text on the key lip.",
+      "Don't use a second typeface, or a font size under 14 px for text people read.",
+      "Don't round the Summit mark, or bring its sharp corners into screens."
+    ]
+  }
+}

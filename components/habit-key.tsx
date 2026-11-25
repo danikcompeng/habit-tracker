@@ -233,11 +233,13 @@ export function HabitKey({ habit, mode, onComplete, onUndo, onHint, onHoldingCha
       <span ref={fillRef} aria-hidden="true" className="pointer-events-none absolute -z-10 bg-accent-tint opacity-0" />
 
       <span className="flex items-start justify-between gap-3">
-        <span className="text-habit font-semibold text-pretty">{habit.name}</span>
+        <span className="min-w-0 flex-1 text-habit font-semibold break-words text-pretty">{habit.name}</span>
         <CheckCircle done={habit.done} animate={justDone} />
       </span>
 
-      <span className="flex min-h-5 items-center justify-between gap-3">
+      {/* flex-wrap: with large text the streak drops below the dots instead of
+          being cut off at the key's edge. */}
+      <span className="flex min-h-5 flex-wrap items-center justify-between gap-x-3 gap-y-1">
         {/* "Keep holding…" takes the dots' place, at the left: away from a
             right thumb resting on the key, and in ink, as an instruction. */}
         {hint ? (

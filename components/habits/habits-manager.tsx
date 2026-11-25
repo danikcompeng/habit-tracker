@@ -187,7 +187,8 @@ export function HabitsManager({ habits }: { habits: Habit[] }) {
 
   return (
     <>
-      <header className="flex min-h-12 items-center justify-between gap-3">
+      {/* flex-wrap: with large text, Done drops below the title instead of off the screen. */}
+      <header className="flex min-h-12 flex-wrap items-center justify-between gap-x-3 gap-y-2">
         <h1 className="text-title font-bold tracking-tight">Habits</h1>
         {/* Hidden while arranging: "Done arranging" is the one way out of that mode. */}
         {!arranging && (
@@ -227,8 +228,10 @@ export function HabitsManager({ habits }: { habits: Habit[] }) {
         <p className="mt-7 text-base text-ink-muted">No habits yet. Add one above.</p>
       ) : (
         <>
-          <div className="mt-8 flex min-h-11 items-center justify-between gap-3">
-            <p className="text-sm font-medium text-ink-muted" id="list-hint">
+          {/* flex-wrap and a 10 rem basis: with large text the pill drops below
+              the hint instead of squeezing it to a word per line. */}
+          <div className="mt-8 flex min-h-11 flex-wrap items-center justify-between gap-x-3 gap-y-2">
+            <p className="grow basis-40 text-sm font-medium text-ink-muted" id="list-hint">
               {arranging ? "Use the arrows to change the order." : "Same order as Today."}
             </p>
             {arranging ? (

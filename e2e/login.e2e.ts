@@ -24,6 +24,25 @@ test("a bad email is explained next to the box, without sending anything", async
   await expect(page.getByRole("textbox", { name: "Email" })).toHaveAttribute("aria-invalid", "true");
 });
 
+test("a field with an error keeps its crimson when focused (not the persimmon ring)", async ({ page }) => {
+  await page.emulateMedia({ colorScheme: "dark" });
+  await page.goto("/login");
+  const email = page.getByRole("textbox", { name: "Email" });
+  await email.fill("not-an-email");
+  await page.getByRole("button", { name: "Email me a code" }).click();
+  // Focus moves back to the box with the error.
+  await expect(email).toBeFocused();
+  await expect(email).toHaveCSS("outline-color", "rgb(255, 143, 168)"); // danger, dark
+  await page.emulateMedia({ colorScheme: "light" });
+  await expect(email).toHaveCSS("outline-color", "rgb(161, 23, 58)"); // danger, light
+  // A field without an error keeps the usual persimmon ring.
+  await email.fill("you@example.com");
+  await page.getByRole("button", { name: "I already have a code" }).click();
+  const code = page.getByRole("textbox", { name: "Code from the email" });
+  await expect(code).toBeFocused();
+  await expect(code).toHaveCSS("outline-color", "rgb(184, 66, 14)"); // accent, light
+});
+
 test("'I already have a code' without an email says what's missing", async ({ page }) => {
   await page.goto("/login");
   await page.getByRole("button", { name: "I already have a code" }).click();

@@ -157,8 +157,15 @@ test("deletes with a confirmation; Keep it cancels; focus moves to the next habi
   await page.getByRole("button", { name: "Edit Read 10 pages" }).click();
   await page.getByRole("button", { name: "Delete habit" }).click();
   await expect(page.getByText("Delete Read 10 pages? Its streak and history go too.")).toBeVisible();
+  // Keep it comes first; while asking, the rename form and moves are inactive.
+  const choices = page.getByRole("group", { name: /^Delete Read 10 pages\?/ }).getByRole("button");
+  await expect(choices).toHaveText(["Keep it", "Delete"]);
+  await expect(page.getByRole("textbox", { name: "Name" })).toHaveAttribute("readonly", "");
+  await expect(page.getByRole("button", { name: "Save" })).toHaveAttribute("aria-disabled", "true");
+  await expect(page.getByRole("button", { name: "Move to bottom" })).toHaveAttribute("aria-disabled", "true");
   await page.getByRole("button", { name: "Keep it" }).click();
   await expect(page.getByRole("button", { name: "Delete habit" })).toBeFocused();
+  await expect(page.getByRole("button", { name: "Save" })).not.toHaveAttribute("aria-disabled");
 
   await page.getByRole("button", { name: "Delete habit" }).click();
   await page.getByRole("button", { name: "Delete", exact: true }).click();
@@ -166,6 +173,44 @@ test("deletes with a confirmation; Keep it cancels; focus moves to the next habi
   expect(await names(page)).not.toContain("Read 10 pages");
   await page.reload();
   expect(await names(page)).not.toContain("Read 10 pages");
+});
+
+test("while asking to delete: Enter and Escape don't rename or lose a typed name; axe passes", async ({ page }) => {
+  const posts = countActions(page);
+  await page.getByRole("button", { name: "Edit Read 10 pages" }).click();
+  const name = page.getByRole("textbox", { name: "Name" });
+  await name.fill("Read 20 pages");
+  await page.getByRole("button", { name: "Delete habit" }).click();
+  await expect(page.getByText("Delete Read 10 pages?", { exact: false })).toBeFocused();
+  for (const colorScheme of ["light", "dark"] as const) {
+    await page.emulateMedia({ colorScheme });
+    await expectNoA11yViolations(page);
+  }
+  // Enter in the (read-only) name saves nothing while the question is open.
+  await name.focus();
+  await page.keyboard.press("Enter");
+  await expect(page.getByRole("button", { name: "Keep it" })).toBeVisible();
+  // Escape steps back one layer: the question closes, the typed name stays.
+  await page.getByRole("button", { name: "Keep it" }).focus();
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("button", { name: "Delete habit" })).toBeFocused();
+  await expect(name).toHaveValue("Read 20 pages");
+  expect(posts).toEqual([]);
+});
+
+test("a delete that can't reach the server says so under the question, which stays open", async ({ page }) => {
+  await page.getByRole("button", { name: "Edit Read 10 pages" }).click();
+  await page.getByRole("button", { name: "Delete habit" }).click();
+  // Every server action fails, as if the connection dropped.
+  await page.route("**/*", (route) =>
+    route.request().method() === "POST" && route.request().headers()["next-action"] ? route.abort() : route.continue(),
+  );
+  await page.getByRole("button", { name: "Delete", exact: true }).click();
+  const question = page.getByRole("group", { name: /^Delete Read 10 pages\?/ });
+  await expect(question.getByRole("alert")).toContainText("Couldn't save");
+  await expect(question.getByRole("button", { name: "Delete", exact: true })).toBeVisible();
+  await page.unroute("**/*");
+  expect(await names(page)).toContain("Read 10 pages");
 });
 
 test("leaving and coming back closes an open editor", async ({ page }) => {

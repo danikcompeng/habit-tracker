@@ -36,6 +36,22 @@ test("holding a key completes it: streak +1, and it's saved", async ({ page }) =
   await expect(habitKey(page, "Read 10 pages")).toContainText("5-day streak");
 });
 
+test("the last habit done turns the summary into the day's payoff, and the tab says which app", async ({ page }) => {
+  await expect(page).toHaveTitle("Today · Ascend");
+  const summary = page.getByText("2 of 5 done");
+  await expect(summary).toHaveCSS("font-weight", "500");
+  for (const name of ["Read 10 pages", "Stretch for 5 minutes", "No phone in bed"]) {
+    const key = habitKey(page, name);
+    await holdKey(page, key, 800);
+    await expect(key).toHaveAttribute("aria-pressed", "true");
+  }
+  // Same words, more weight: ink, semibold, with a check before it.
+  const allDone = page.getByText("All done for today", { exact: true });
+  await expect(allDone).toBeVisible();
+  await expect(allDone).toHaveCSS("font-weight", "600");
+  await expect(allDone.locator("svg")).toHaveCount(1);
+});
+
 test("letting go early doesn't complete it, and teaches the gesture", async ({ page }) => {
   const read = habitKey(page, "Read 10 pages");
   await holdKey(page, read, 300);

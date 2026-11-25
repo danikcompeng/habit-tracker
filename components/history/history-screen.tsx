@@ -95,7 +95,7 @@ export function HistoryScreen({ habits, today, initialRange }: Props) {
 
 function RangeSwitch({ range, onChange }: { range: Range; onChange: (range: Range) => void }) {
   return (
-    <div role="group" aria-label="Range" className="mt-6 grid grid-cols-3 gap-1 rounded-full bg-surface-sunk p-1">
+    <div role="group" aria-label="Range" className="mt-6 grid grid-cols-3 gap-1 rounded-[26px] bg-surface-sunk p-1">
       {RANGES.map((r) => {
         const selected = r === range;
         return (
@@ -105,7 +105,10 @@ function RangeSwitch({ range, onChange }: { range: Range; onChange: (range: Rang
             aria-pressed={selected}
             onClick={() => onChange(r)}
             className={
-              "min-h-11 rounded-full border text-base tabular-nums transition-[background-color,color,transform] duration-(--motion-fast) ease-(--ease-out) " +
+              // Fixed radii, not rounded-full: full pills at normal size (44 px
+              // tall), and rounded boxes that hold "30 / days" on two lines
+              // when text is large, instead of circles cutting through it.
+              "min-h-11 rounded-[22px] border px-2 text-base leading-tight tabular-nums transition-[background-color,color,transform] duration-(--motion-fast) ease-(--ease-out) " +
               // Selected: the surface face with an ink-muted edge, which is
               // what carries the state at 3:1 (surface on sunk is 1.2:1).
               // No lip: in dark the only available one was lighter than the
@@ -145,28 +148,33 @@ function Numbers({ view }: { view: HistoryView }) {
     },
   ];
   return (
-    // Two shared rows (subgrid): the numbers line up, and so do the labels
-    // even when one wraps.
-    <dl className="mt-6 grid grid-cols-3 grid-rows-[auto_auto] gap-x-3 gap-y-1">
-      {items.map((item) => (
-        // dt first for screen readers ("Completed, 75%"), number first on screen.
-        <div key={item.label} className="row-span-2 grid grid-rows-subgrid">
-          <dt className="row-start-2 text-sm font-medium text-pretty text-ink-muted">
-            {item.label}
-            {"spokenExtra" in item && <span className="sr-only">{item.spokenExtra}</span>}
-          </dt>
-          <dd className="row-start-1 text-[1.75rem] leading-tight font-bold tracking-tight whitespace-nowrap tabular-nums">
-            {item.value}
-            {item.unit && (
-              <>
-                {" "}
-                <span className="text-base font-semibold text-ink-muted">{item.unit}</span>
-              </>
-            )}
-          </dd>
-        </div>
-      ))}
-    </dl>
+    // Each item spans two rows (subgrid): the numbers line up, and so do the
+    // labels even when one wraps. Three columns when three ~92 px columns fit
+    // (18.75 rem, so it follows the text size), else one: never 2 + 1.
+    // Three at normal text on 360 px phones and up; one at 320 px, or on a
+    // 390 px phone with text at about 115% or more (the gutter grows too).
+    <div className="@container mt-6">
+      <dl className="grid grid-cols-1 gap-x-3 gap-y-1 @min-[18.75rem]:grid-cols-3">
+        {items.map((item) => (
+          // dt first for screen readers ("Completed, 75%"), number first on screen.
+          <div key={item.label} className="row-span-2 grid grid-rows-subgrid">
+            <dt className="row-start-2 pb-3 text-sm font-medium text-pretty text-ink-muted">
+              {item.label}
+              {"spokenExtra" in item && <span className="sr-only">{item.spokenExtra}</span>}
+            </dt>
+            <dd className="row-start-1 text-stat font-bold tracking-tight whitespace-nowrap tabular-nums">
+              {item.value}
+              {item.unit && (
+                <>
+                  {" "}
+                  <span className="text-base font-semibold text-ink-muted">{item.unit}</span>
+                </>
+              )}
+            </dd>
+          </div>
+        ))}
+      </dl>
+    </div>
   );
 }
 
@@ -203,7 +211,7 @@ function DayChart({
   }
 
   return (
-    <section aria-labelledby="chart-title" className="mt-8 rounded-(--radius-field) border border-line bg-surface p-5">
+    <section aria-labelledby="chart-title" className="mt-5 rounded-(--radius-field) border border-line bg-surface p-5">
       <h2 id="chart-title" className="text-base font-semibold">
         Day by day
       </h2>

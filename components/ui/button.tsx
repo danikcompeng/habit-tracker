@@ -19,7 +19,7 @@ export type ButtonOptions = {
 };
 
 const BASE =
-  "inline-flex select-none items-center justify-center gap-2 rounded-full font-semibold whitespace-nowrap " +
+  "inline-flex select-none items-center justify-center gap-2 rounded-full py-2 text-center font-semibold text-balance " +
   "transition-[transform,box-shadow,background-color,color,opacity] duration-(--motion-fast) ease-(--ease-out) " +
   "aria-disabled:cursor-not-allowed";
 
@@ -41,7 +41,12 @@ const VARIANTS: Record<ButtonVariant, string> = {
 
 export function buttonClass(variant: ButtonVariant = "primary", options: ButtonOptions = {}, extra = ""): string {
   const { size = "md", block = true } = options;
-  return [BASE, SIZES[size], block ? "w-full" : "w-auto", VARIANTS[variant], extra].filter(Boolean).join(" ");
+  // Labels wrap only when text is very large, instead of spilling out of
+  // the pill (py-2 only shows then: one line is 24 px inside the 48 / 44 px
+  // minimum). Rows of pills wrap first (flex-wrap), so a squeezed row
+  // never breaks "To bottom" in two at normal size.
+  const width = block ? "w-full" : "w-auto max-w-full";
+  return [BASE, SIZES[size], width, VARIANTS[variant], extra].filter(Boolean).join(" ");
 }
 
 type Props = ButtonHTMLAttributes<HTMLButtonElement> &

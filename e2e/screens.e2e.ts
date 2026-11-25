@@ -165,3 +165,24 @@ test("history screens", async ({ page }) => {
     await reseedDemo();
   }
 });
+
+test("text at 200% screens", async ({ page }) => {
+  // The refinement pass (plans/habit-tracker.md): every screen with text
+  // enlarged to 200%, full page, light only.
+  const folder = "impeccable-after";
+  const big = async (name: string) => {
+    await page.addStyleTag({ content: "html { font-size: 200% !important; }" });
+    await page.emulateMedia({ colorScheme: "light", reducedMotion: "reduce" });
+    await settle(page);
+    await page.screenshot({ path: `docs/screenshots/${folder}/${name}-text200.png`, fullPage: true });
+  };
+  await freshDemo(page);
+  await big("today");
+  await page.goto("/habits");
+  await page.getByRole("button", { name: "Edit Read 10 pages" }).click();
+  await page.getByRole("button", { name: "Delete habit" }).click();
+  await big("habits-delete-confirm");
+  await page.goto("/history?range=30");
+  await expect(page.getByRole("button", { name: "30 days" })).toHaveAttribute("aria-pressed", "true");
+  await big("history-30");
+});

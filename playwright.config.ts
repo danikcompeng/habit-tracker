@@ -38,7 +38,7 @@ export default defineConfig({
         { name: "setup", testMatch: "**/demo.setup.ts" },
         {
           name: "signed-in",
-          testMatch: ["**/today.e2e.ts", "**/habits.e2e.ts", "**/history.e2e.ts", "**/screens.e2e.ts"],
+          testMatch: ["**/today.e2e.ts", "**/habits.e2e.ts", "**/history.e2e.ts", "**/text-size.e2e.ts", "**/screens.e2e.ts"],
           dependencies: ["setup"],
           use: { storageState: DEMO_SESSION },
         },

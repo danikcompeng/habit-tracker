@@ -13,7 +13,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { DayWatcher } from "@/components/day-watcher";
 import { HabitKey, type KeyHabit } from "@/components/habit-key";
-import { PlusIcon } from "@/components/icons";
+import { CheckIcon, PlusIcon } from "@/components/icons";
 import { saveTimezoneCookie } from "@/components/timezone-sync";
 import { buttonClass } from "@/components/ui/button";
 import { ErrorText } from "@/components/ui/error-text";
@@ -94,11 +94,19 @@ export function TodayScreen({ today, habits, mode }: Props) {
 
   const keys = habits.map((h) => applyDone(h, done[h.id] ?? h.doneToday));
   const doneCount = keys.filter((k) => k.done).length;
+  const allDone = keys.length > 0 && doneCount === keys.length;
 
   return (
     <>
       <DayWatcher isHolding={() => holds.current > 0} />
-      <p className="mt-2 text-base font-medium text-ink-muted tabular-nums">{summaryLine(doneCount, keys.length, mode)}</p>
+      {/* At 5 of 5 the line is the day's payoff, so it stops looking like the
+          muted instruction it replaces: ink, semibold, a persimmon check. */}
+      <p
+        className={`mt-2 text-base tabular-nums ${allDone ? "flex items-center gap-2 font-semibold text-ink" : "font-medium text-ink-muted"}`}
+      >
+        {allDone && <CheckIcon size={20} strokeWidth={2.5} className="shrink-0 text-accent" />}
+        {summaryLine(doneCount, keys.length, mode)}
+      </p>
 
       {notice && (
         <div key={notice.id} className="mt-4">

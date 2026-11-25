@@ -50,6 +50,12 @@ export function HabitEditor({ habit, isFirst, isLast, onClose, onMove, onDeleted
   const questionRef = useRef<HTMLParagraphElement>(null);
   const wasConfirming = useRef(false);
   const busy = saving || deleting;
+  // While "Delete …?" is open, the buttons above it step back (dimmed,
+  // inactive), so the one live choice is Delete or Keep it. The name stays
+  // at full contrast (read-only, so it still has to be readable), and a
+  // dimmed button comes back to full strength while it has focus, so its
+  // ring keeps 3:1.
+  const DIM = "not-focus-visible:opacity-60";
 
   // Asking: focus goes to the QUESTION (read out, and nothing destructive
   // is one keypress away). "Keep it" puts focus back on "Delete habit".
@@ -107,17 +113,19 @@ export function HabitEditor({ habit, isFirst, isLast, onClose, onMove, onDeleted
     <div
       className="flex flex-col gap-4 border-t border-line px-4 pt-4 pb-5"
       onKeyDown={(e) => {
-        if (e.key === "Escape" && !busy) {
-          e.stopPropagation();
-          onClose(true);
-        }
+        if (e.key !== "Escape" || busy) return;
+        e.stopPropagation();
+        // While asking, Escape steps back one layer (Keep it: the question
+        // closes, a half-typed rename stays); otherwise it closes the editor.
+        if (confirming) setConfirming(false);
+        else onClose(true);
       }}
     >
       <form
         noValidate
         onSubmit={(e) => {
           e.preventDefault();
-          if (!busy) save();
+          if (!busy && !confirming) save();
         }}
         className="flex flex-col gap-3"
       >
@@ -125,6 +133,7 @@ export function HabitEditor({ habit, isFirst, isLast, onClose, onMove, onDeleted
           id={`rename-${habit.id}`}
           label="Name"
           value={draft}
+          readOnly={confirming}
           autoFocus
           enterKeyHint="done"
           autoComplete="off"
@@ -143,29 +152,39 @@ export function HabitEditor({ habit, isFirst, isLast, onClose, onMove, onDeleted
             {length}/{HABIT_NAME_MAX}
           </p>
         )}
-        <div className="flex gap-2">
-          <Button type="submit" busy={busy} className="flex-1">
+        {/* flex-wrap: with large text the second button drops below the first. */}
+        <div className="flex flex-wrap gap-2">
+          <Button
+            type="submit"
+            // Secondary while asking, so a persimmon Save never sits above the crimson Delete.
+            variant={confirming ? "secondary" : "primary"}
+            busy={busy || confirming}
+            className={`flex-1 ${confirming ? DIM : ""}`}
+          >
             {saving ? "Saving…" : "Save"}
           </Button>
-          <Button variant="secondary" busy={busy} onClick={() => onClose(true)} className="flex-1 aria-disabled:opacity-60">
+          <Button variant="secondary" busy={busy || confirming} onClick={() => onClose(true)} className="flex-1 aria-disabled:not-focus-visible:opacity-60">
             Cancel
           </Button>
         </div>
-        {problem && <ErrorText>{problem}</ErrorText>}
+        {/* While asking, a failure shows under Delete / Keep it instead. */}
+        {problem && !confirming && <ErrorText>{problem}</ErrorText>}
       </form>
 
       {/* Moving is secondary to renaming: a light, compact row. */}
-      <div className="flex gap-2">
+      {/* -ml-3 on the row: the first button's text lines up with the field,
+          and so does the second's when it wraps below (large text). */}
+      <div className="-ml-3 flex flex-wrap gap-2">
         <Button
           variant="ghost"
           size="sm"
           block={false}
-          busy={busy}
-          aria-disabled={isFirst || busy || undefined}
+          busy={busy || confirming}
+          aria-disabled={isFirst || busy || confirming || undefined}
           aria-label={isFirst ? "Already first" : "Move to top"}
           data-move={`${habit.id}-top`}
-          onClick={() => !isFirst && onMove("top")}
-          className="-ml-3 aria-disabled:opacity-60"
+          onClick={() => !isFirst && !confirming && onMove("top")}
+          className="aria-disabled:not-focus-visible:opacity-60"
         >
           <ArrowUpIcon size={18} />
           {isFirst ? "First" : "To top"}
@@ -174,12 +193,12 @@ export function HabitEditor({ habit, isFirst, isLast, onClose, onMove, onDeleted
           variant="ghost"
           size="sm"
           block={false}
-          busy={busy}
-          aria-disabled={isLast || busy || undefined}
+          busy={busy || confirming}
+          aria-disabled={isLast || busy || confirming || undefined}
           aria-label={isLast ? "Already last" : "Move to bottom"}
           data-move={`${habit.id}-bottom`}
-          onClick={() => !isLast && onMove("bottom")}
-          className="aria-disabled:opacity-60"
+          onClick={() => !isLast && !confirming && onMove("bottom")}
+          className="aria-disabled:not-focus-visible:opacity-60"
         >
           <ArrowDownIcon size={18} />
           {isLast ? "Last" : "To bottom"}
@@ -194,15 +213,18 @@ export function HabitEditor({ habit, isFirst, isLast, onClose, onMove, onDeleted
             <p ref={questionRef} tabIndex={-1} id={`confirm-${habit.id}`} className="text-base font-medium text-ink outline-none">
               Delete {habit.name}? Its streak and history go too.
             </p>
-            <div className="flex gap-2">
+            {/* Keep it first: the safe choice takes the spot the thumb already
+                knows (Save's, above), and comes first after the question. */}
+            <div className="flex flex-wrap gap-2">
+              <Button variant="secondary" busy={deleting} onClick={() => setConfirming(false)} className="flex-1 aria-disabled:not-focus-visible:opacity-60">
+                Keep it
+              </Button>
               <Button variant="danger" busy={deleting} onClick={remove} className="flex-1">
                 <TrashIcon size={18} />
                 {deleting ? "Deleting…" : "Delete"}
               </Button>
-              <Button variant="secondary" busy={deleting} onClick={() => setConfirming(false)} className="flex-1 aria-disabled:opacity-60">
-                Keep it
-              </Button>
             </div>
+            {problem && <ErrorText>{problem}</ErrorText>}
           </div>
         ) : (
           <button
@@ -210,7 +232,7 @@ export function HabitEditor({ habit, isFirst, isLast, onClose, onMove, onDeleted
             type="button"
             aria-disabled={busy || undefined}
             onClick={() => !busy && setConfirming(true)}
-            className="inline-flex min-h-11 items-center gap-2 self-start rounded-full pr-2 text-base font-semibold text-danger active:bg-surface-sunk aria-disabled:opacity-60"
+            className="inline-flex min-h-11 items-center gap-2 self-start rounded-full pr-2 text-base font-semibold text-danger active:bg-surface-sunk aria-disabled:not-focus-visible:opacity-60"
           >
             <TrashIcon size={18} />
             Delete habit

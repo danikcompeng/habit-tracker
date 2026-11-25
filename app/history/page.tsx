@@ -14,7 +14,8 @@ export const metadata: Metadata = { title: "History" };
 export default function HistoryPage({ searchParams }: PageProps<"/history">) {
   return (
     <main className="mx-auto flex w-full max-w-[32rem] flex-1 flex-col px-5 pt-[max(1.25rem,env(safe-area-inset-top))] pb-[max(2rem,env(safe-area-inset-bottom))]">
-      <header className="flex min-h-12 items-center justify-between gap-3">
+      {/* flex-wrap: with large text, Done drops below the title instead of off the screen. */}
+      <header className="flex min-h-12 flex-wrap items-center justify-between gap-x-3 gap-y-2">
         <h1 className="text-title font-bold tracking-tight">History</h1>
         <Link href="/" className={buttonClass("secondary", { size: "sm", block: false }, "shrink-0")}>
           Done

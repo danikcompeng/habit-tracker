@@ -8,6 +8,7 @@ import { LogOutButton, ResetDemoButton } from "@/components/account-actions";
 import { TapModeSwitch } from "@/components/tap-mode-switch";
 import { TodayScreen } from "@/components/today-screen";
 import { buttonClass } from "@/components/ui/button";
+import { APP_NAME } from "@/lib/app-identity";
 import { isDemoEmail } from "@/lib/demo";
 import { HOLD_MODE_COOKIE, parseHoldMode } from "@/lib/preferences";
 import { userTimeZone, userToday } from "@/lib/server-helpers";
@@ -15,7 +16,9 @@ import { createClient } from "@/lib/supabase/server";
 import { addDays } from "@/lib/dates";
 import { buildToday, dayLabel, type CheckinRow, type HabitRow, type StreakRow } from "@/lib/today";
 
-export const metadata: Metadata = { title: "Today" };
+// "absolute": the layout's "%s · Ascend" template only reaches pages in
+// child segments, and this page shares the layout's segment.
+export const metadata: Metadata = { title: { absolute: `Today · ${APP_NAME}` } };
 
 export default function TodayPage() {
   return (
@@ -90,9 +93,10 @@ async function Today() {
         <div className="flex flex-wrap items-center justify-between gap-2 border-t border-line pt-4">
           {/* Who's logged in, so a login link from someone else's email
               (which would log you into THEIR account) is easy to notice. */}
-          <p className="min-w-0 truncate text-sm font-medium text-ink-muted">{demo ? "Demo account" : email}</p>
-          {/* -mr-3: the links' own padding, so their text lines up with the keys' right edge. */}
-          <div className="-mr-3 flex items-center gap-2">
+          <p className="min-w-0 text-sm font-medium [overflow-wrap:anywhere] text-ink-muted">{demo ? "Demo account" : email}</p>
+          {/* -mx-3: the links' own padding, so their text lines up with the keys'
+              right edge, and with the left gutter when they wrap below (large text). */}
+          <div className="-mx-3 flex flex-wrap items-center gap-2">
             {demo && <ResetDemoButton />}
             <LogOutButton />
           </div>

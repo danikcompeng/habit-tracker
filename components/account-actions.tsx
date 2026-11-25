@@ -8,7 +8,7 @@ import { resetDemo } from "@/lib/demo-actions";
 import type { FormState } from "@/lib/types";
 
 const LINK =
-  "inline-flex min-h-11 min-w-11 items-center justify-center rounded-full px-3 text-sm font-semibold text-ink-muted " +
+  "inline-flex min-h-11 min-w-11 items-center justify-center rounded-full px-3 text-sm font-semibold whitespace-nowrap text-ink-muted " +
   "hover:text-ink active:bg-surface-sunk active:text-ink aria-disabled:cursor-not-allowed";
 
 export function LogOutButton() {

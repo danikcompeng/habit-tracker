@@ -624,6 +624,30 @@ A **History** page with charts of what's been logged. It's reachable from Today 
 3. **"Best streak now" is renamed "Current streak".**
 - The legend (All done · Some done · Habits) moves below the day labels; three items don't fit beside the title.
 
+### Refinement pass: /impeccable audit and critique (2026-11-24)
+
+The request: run the impeccable skill over the whole app as a **refinement, not a redesign** (keep the look, colours, fonts, identity and copy): write `DESIGN.md` from the current design, audit and critique every main screen at 390×844 in light and dark, fix the real findings, and skip any that conflict with a decision recorded here.
+
+- `DESIGN.md` (and its machine-readable sidecar `.impeccable/design.json`) describes the system as built; this plan stays where decisions and their reasons live. It changes nothing.
+- "Before" screenshots of every screen: `docs/screenshots/impeccable-before/`.
+
+**Fixes** (all inside the existing tokens; no colour, font or copy changes):
+1. **Text at 200%** (WCAG 1.4.4; Android's font size and Safari's text zoom both do this). Rows that couldn't wrap now wrap instead of running off the screen or clipping:
+   - Today: a key's bottom row (dots, then the streak below them if they don't fit); a long name wraps inside its column, so the check disc keeps its place; the footer's Reset demo / Log out never break mid-label, line up with the gutter when they wrap, and the email wraps instead of being cut off (it's there so a forged login is noticed).
+   - Habits and History headers wrap like Today's (the Done pill drops below the title); so does the "Same order as Today." / Arrange row.
+   - The Habits editor's Save / Cancel, To top / To bottom and Delete / Keep it rows wrap.
+   - **Buttons**: a label wraps inside its pill when text is very large, instead of spilling out (`max-w-full` on content-width pills; rows of pills wrap first, so nothing wraps at normal size).
+   - History's three numbers are **three columns or one, never 2 + 1**: a container query switches at 18.75 rem (three ~92 px columns), so 360 px phones and up get three at normal text, and a 390 px phone gets one from about 115% text. Their size becomes a token, `text-stat` (28 px, the one size off the type scale). _(Revised after logic-checker: an auto-fit grid left "Longest streak" alone on a second row on 360 and 375 px phones.)_
+   - History's range switch: fixed radii instead of `rounded-full` (full pills at normal size), so a two-line "30 / days" isn't cut by a circle.
+   - The login wordmark is capped at 17vw (66 px on a 390 px phone), so the one word fits when text is enlarged; 52 px as before at normal size.
+2. **The day's payoff**: at 5 of 5, "All done for today" is ink and semibold with a persimmon check before it, instead of looking like the muted instruction it replaces. The words don't change; nothing moves.
+3. **Errors keep their colour when focused**: a field marked invalid gets a crimson focus ring instead of persimmon, so the error reads as an error (crimson vs persimmon was the point of the `danger` colour). The one exception to the persimmon ring.
+4. **Delete confirmation**: **Keep it** comes first (left, where the thumb already is) and **Delete** second. While the question is open, the buttons above step back: Save turns secondary, and Save, Cancel and the moves are dimmed and `aria-disabled` (`save()` and moves return early too, so Enter in the name does nothing). The name field is read-only but **not** dimmed (its text must stay 4.5:1), and a dimmed button regains full strength while focused, so its ring stays 3:1. **Escape while asking means Keep it** (the question closes, a half-typed rename stays); otherwise it closes the editor as before. A failed delete shows its message under Delete / Keep it. _(Revised after logic-checker and code-reviewer.)_
+5. Today's tab title is "Today · Ascend" like every other page (a page in the root segment doesn't get the layout's title template).
+6. ESLint ignores `.claude/**` (the skill's own scripts were 93 warnings).
+
+**Tests**: e2e for the delete confirmation's order and the inactive form, Enter and Escape while asking, a failed delete, and axe with the question open (light and dark); a 200%-text check on every screen and the empty states (no sideways scroll, nothing past the right edge, no text wider than its own box); History's numbers at 320 / 360 / 375 / 390 px and 100–150% text; the all-done line's emphasis; the invalid field's ring colour in light and dark; Today's title. Screenshots retaken (`docs/screenshots/feature-2,3,4,7/`), plus 200%-text shots in `docs/screenshots/impeccable-after/`.
+
 ## Reviews
 
 _One entry per feature. Every agent finding is logged with its severity and what was done about it, so the log shows what each reviewer caught and what changed as a result._
@@ -1049,6 +1073,95 @@ Verdict: **Ship**. "The rename is clean and the icons draw the specified geometr
 #### Takeaways
 - The most useful finding wasn't in the diff: moving to a new `vercel.app` host resets every cookie and strands old installs, which changed the reason given for keeping `hold-auth` and added a step to the phone check.
 - `TaskStop` on a backgrounded `next start` left its node child listening, so one check ran against a stale server with the new build's files (an axe failure that wasn't real). Re-run on a fresh server: all pass.
+
+### Refinement pass: /impeccable document, audit and critique (2026-11-24)
+
+The request: run the impeccable skill over the whole app as a refinement (look, colours, fonts, identity and copy kept); write `DESIGN.md`; audit and critique every main screen at 390×844, light and dark; fix the real findings, skipping any that conflict with a recorded decision. "Before" shots: `docs/screenshots/impeccable-before/`; after: the feature folders, plus 200%-text shots in `docs/screenshots/impeccable-after/`.
+
+**`/impeccable document`**: `DESIGN.md` (North Star "The Warm Keyboard", tokens in its front matter, named rules) and `.impeccable/design.json`, written from the code. The descriptive language comes from this plan's Design direction rather than a fresh interview, since nothing was to change.
+
+#### /impeccable audit (code and rendered checks: tokens, targets, axe, overflow at 390 / 320 px, text at 200%)
+Health: Accessibility 3, Performance 4, Theming 4, Responsive 2, Implementation integrity 4: **17/20, Good**. No raw colours (Tailwind's palette is off), every tap target ≥ 44 px, no sideways scroll at 390 px, no axe violations except one rule below, motion all `motion-safe` with Reduce Motion paths.
+
+| # | Severity | Finding | Outcome | What changed |
+|---|----------|---------|---------|--------------|
+| 1 | P2 | Text at 200% (WCAG 1.4.4) broke layouts: History's three numbers overlapped ("71%12 da19 days"); the Habits and History headers and the editor's Save / Cancel and To top / To bottom ran off the screen; Today's streak was cut off inside each key; "Log out" broke in two. | Fixed | Rows wrap; numbers 3-or-1 (Fixes 1 above); `e2e/text-size.e2e.ts`. |
+| 2 | — | axe `label-content-name-mismatch` (serious) on every habit key: the key's name is the habit's name, but it also shows the streak. | False positive, no change | WCAG 2.5.3 needs the visible *label* inside the name, and it is (the name, first). The streak and week are the key's description (`aria-describedby`), a Feature 3 decision. The project's axe check (WCAG tags) doesn't run this rule. |
+
+#### /impeccable critique: Assessment A (design review, isolated agent) and B (detector, isolated agent)
+Method: dual-agent. Heuristics **28/40, Good** (status 3, real world 3, control 3, consistency 3, error prevention 3, recognition 3, flexibility 2, minimalism 3, recovery 3, help 2). Verdict: "this design belongs to this product"; the weak spots are around the key (end of day, undo, errors, empty states), not the identity. Not saved as a snapshot: the target was the whole app (the skill only keeps history per page).
+
+| # | Severity | Finding | Outcome | What changed |
+|---|----------|---------|---------|--------------|
+| A1 | P1 | The day's payoff ("All done for today") looked exactly like the muted instruction it replaces. | Fixed (style only) | Ink, semibold, persimmon check. The suggested full stop is a copy change: not made. |
+| A2 | P2 | The hold fill is 1.32:1 (light) / 1.44:1 (dark) against the key: the progress bar of the main gesture is faint. | **Skipped: your call** | Deepening `accent-tint` changes a palette colour, which this pass was told to keep (plan: `accent-tint` #F6D9C8 / #5A3220, "text stays ink"). Suggested values if you want it: about #E9B79A light, #7A4228 dark (ink stays ≥ 6.7:1), plus a tint-vs-face pair in `palette.test.ts`. |
+| A3 | P2 | A focused invalid field wore a persimmon ring around its crimson edge, so the error read as "selected". | Fixed | Crimson ring on `[aria-invalid="true"]:focus-visible`. |
+| A4 | P2 | The delete question sat under a live persimmon Save; Delete took the left spot Save had; six actions at once. | Fixed | Keep it first; the rest steps back while asking. |
+| A5 | P2 | Undo isn't shown to sighted users, and a stray tap undoes. | Skipped | A visible "Tap to undo" is new copy; a hold-to-undo conflicts with the recorded decision "A single tap undoes, as the brief asked" (Feature 3 open questions). Worth deciding later. |
+| A6 | P3 | The three empty states differ, and Today's says "no habits" twice. | Skipped | Copy changes, and Today's "Add your first habit" is recorded in Feature 3. |
+| A7 | Minor | "Start today" next to five filled dots reads as "never started". | Skipped | Recorded copy ("Start today" at 0). |
+| A8 | Minor | The Demo chip looks like a button. | Skipped | Recorded fix, Feature 3 design-critic #11 (surface with a line border). |
+| A9 | Minor | In dark, not-done keys' lip is ~1.06:1 on the page, so they read as flat cards. | Skipped | Recorded: dark mode shows depth by lightness, never by shadows. |
+| A10 | Minor | Habits list names start 16 px in, keys 20 px. | No change | The list row matches the text field above it (16 px); a different component on purpose. |
+| A11 | Minor | Arrange mode keeps the dimmed Add form. | Skipped | Recorded: Feature 4 design-critic #3. |
+| A12 | Minor | History's "Done" changes nothing. | Skipped | Recorded: History's header matches Habits. |
+| A13 | Minor | Dark History shows done in three oranges. | Skipped | Recorded: dots keep `accent`; bars use `accent-key` / `accent-soft` (Feature 7 design pass). |
+| A14 | Minor | The 7-day selection band reads like a ghost bar. | Skipped | Recorded: Feature 7 design pass #1 (band above the bar). |
+| A15 | Minor | The code field has no placeholder. | Skipped | Copy. |
+| A16 | Personas | Navigation in the top-right thumb zone; Tap to complete below the fold with five habits; a walking finger moving > 10 px cancels a hold without saying why; 65% of the screen persimmon at bedtime when all is done. | Skipped | Layout and gesture decisions recorded in Feature 3 (header pills, footer switch, scroll-cancel) and the calmer dark `accent-key`; noted for a later pass. |
+| B1 | Advisory | `text-[1.75rem]` on History's numbers is off the type ramp. | Fixed | `text-stat` token. |
+| B2 | Warning ×5 | "Cream / beige palette" on every light page. | False positive | Bone paper is the chosen page colour. |
+| B3 | Advisory ×10 | "Hard offset shadow" on habit keys. | False positive | The key's solid lip is the design (Design direction, "Space and shape"). |
+| B4 | Side note | Today's tab title was just "Today". | Fixed | `title.absolute`: a layout's template doesn't reach a page in its own segment. |
+
+#### logic-checker (plan review)
+Verdict: **Ready after fixes**.
+
+| # | Severity | Finding | Outcome | What changed |
+|---|----------|---------|---------|--------------|
+| 1 | High | The auto-fit numbers grid gave 2 + 1 on 360 / 375 px phones and at 125–150% text. | Fixed | Container query, 3 or 1; tested at four widths and three text sizes. |
+| 2 | High | A failed delete's message would appear inside the stepped-back form, away from the question. | Fixed | Shown under Delete / Keep it; e2e with the connection dropped. |
+| 3 | Medium | "Inactive" undefined: Enter in the field could still rename mid-question. | Fixed | `save()` and moves return early while asking; buttons `aria-disabled`; field read-only; e2e checks no request is sent. |
+| 4 | Medium | Escape while asking closed the editor and lost a half-typed rename. | Fixed | Escape means Keep it while asking; tested. |
+| 5 | Low | Dimming would stack (0.6 × 0.6). | No change needed | Dimming is per button, never on a container. |
+| 6 | Low | A conditional wrapper would remount the autofocused input. | No change needed | No wrapper; attributes only. |
+| 7 | Low | A habit removed by a refresh while its question is open drops focus to the page; delete failures say "Couldn't save". | Not fixed (pre-existing) | Rare (needs a lost answer or another device); the wording is copy. |
+| 8 | Low | The crimson ring also shows on the read-only New habit box's "Finish arranging first" message. | Not fixed (pre-existing) | That message is set only on submit, when focus is on Add, not the box. |
+| 9 | Low | The footer email was cut off at 200%, hiding the domain. | Fixed | It wraps instead. |
+
+#### code-reviewer (diff review)
+Verdict: **Ship after fixes**.
+
+| # | Severity | Finding | Outcome | What changed |
+|---|----------|---------|---------|--------------|
+| 1 | Medium | The dimmed read-only name was 4.2:1 in light, and dimmed buttons' focus rings fell to ~2.6:1. | Fixed | The field isn't dimmed; a dimmed button is full strength while focused (`not-focus-visible:opacity-60`, also on the older bystander dims). axe runs with the question open. |
+| 2 | Low | Escape inconsistent with the dimmed Cancel. | Fixed | As logic-checker #4. |
+| 3 | Low | Failed delete message placement. | Fixed | As logic-checker #2. |
+| 4 | Low | The 200% check couldn't see overlap inside the page. | Fixed | It now flags any text wider than its own box (text boxes excluded: they scroll by design). That caught two more: the login wordmark and "I already have a code" spilling out of its pill (fixed: the wordmark is capped at 17vw; button labels wrap inside the pill). |
+| 5 | Low | The plan and a comment described the old grid. | Fixed | Plan and comment updated (one column from ~115% on a 390 px phone). |
+| — | Tests | Enter / Escape while asking, failed delete, axe while asking, dark ring, the numbers' switch point, empty states at 200%. | Added | All of them. |
+
+#### design-critic (before/after, light and dark, plus 200% text)
+Verdict: **Ship after fixes**. "All five changes are improvements in both themes, and nothing regressed at normal text size."
+
+| # | Severity | Finding | Outcome | What changed |
+|---|----------|---------|---------|--------------|
+| 1 | Medium | At 200%, the selected range segment's round outline cut through "days". | Fixed | Fixed radii (22 / 26 px): pills at normal size, rounded boxes when the label wraps. |
+| 2 | Low | Only the input was dimmed (not its label), the dimmed name looked like a placeholder, and it snapped while buttons faded. | Fixed | The field isn't dimmed at all (code-reviewer #1). |
+| 3 | Low | At 200% the check disc drifted right on keys with long words. | Fixed | The name is `min-w-0 flex-1 break-words`. |
+| 4 | Low | To top / To bottom misaligned once wrapped. | Fixed | `-ml-3` on the row. |
+| 5 | Low | Footer links indented from the gutter once wrapped. | Fixed | `-mx-3`. |
+| 6 | Low | "Same order as Today." went one word per line at 200%. | Fixed | The row wraps; the hint has a 10 rem basis. |
+| 7 | Low | Icons are px-sized, so they stay small at 200%. | Not fixed | Touches every icon; worth a pass of its own. |
+| 8 | Low | Save \| Cancel and Keep it \| Delete use opposite orders, unwritten. | Fixed | The rule is in `DESIGN.md` (Buttons, Order). |
+
+Checks: 355 unit and database tests, tsc, eslint, `next build`, and all **59 browser tests** (on `next start`, the full suite including screenshots) pass.
+
+#### Takeaways
+- The rendered 200%-text probe found the only real accessibility failures; the screenshot critique and the detector didn't. Making that check strict (text wider than its own box) found two more on a screen everyone had passed.
+- Assessment A's best findings were about moments (end of day, undo, errors), and most of its remaining ideas ran into decisions already recorded here, which is the plan doing its job.
+- The detector's two warnings were both the brand (bone paper, the key's lip): it can't know a chosen world from a default.
+- The dev server (Turbopack) kept serving an old value for one edited `@theme` token even after a touch; the production build had it. Check theme-token changes on `next build`.
 
 <!--
 Template — copy for each feature:
