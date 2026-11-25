@@ -184,10 +184,10 @@ export function TodayScreen({ today, habits, mode }: Props) {
 /** Under a key after two quick taps: where "Tap to complete" lives now. */
 function TapHint() {
   return (
-    // px-5: lines up with the key's name and dots above. The link is one
+    // The key's side padding (capped at 20 px): lines up with its name and dots. The link is one
     // piece (inline-block, so it isn't split across lines at normal size)
     // with a 44 px tall hit area that stays in the gap between the keys.
-    <p className="mt-3 px-5 text-sm font-medium text-pretty text-ink-muted">
+    <p className="mt-3 px-[min(1.25rem,20px)] text-sm font-medium text-pretty text-ink-muted">
       {TAP_HINT_TEXT.before}
       <Link href="/settings" className="-my-3 inline-block py-3 font-semibold text-accent underline decoration-1 underline-offset-2">
         {TAP_HINT_TEXT.link}

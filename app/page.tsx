@@ -111,7 +111,7 @@ async function Today() {
       </header>
       {/* The Demo chip sits beside the heading, not in it: the heading is "Today". */}
       <div className="mt-3 flex items-center gap-3">
-        <h1 className="text-title font-bold tracking-tight">Today</h1>
+        <h1 className="text-title">Today</h1>
         {demo && (
           <span className="rounded-full border border-line bg-surface px-2.5 py-0.5 text-sm font-medium text-ink-muted">Demo</span>
         )}
@@ -153,11 +153,11 @@ function TodaySkeleton() {
         {/* The date's width: short on phones, full from 40rem (as above). */}
         <div className="h-4 w-20 rounded bg-surface-sunk sm:w-44" />
         <div className="flex gap-2">
-          <div className="h-11 w-[92px] rounded-full bg-surface-sunk" />
-          <div className="h-11 w-[70px] rounded-full bg-surface-sunk" />
+          <div className="h-11 w-[90px] rounded-full bg-surface-sunk" />
+          <div className="h-11 w-[68px] rounded-full bg-surface-sunk" />
         </div>
       </div>
-      <div className="mt-3 h-9 w-32 rounded bg-surface-sunk" />
+      <div className="mt-3 h-9 w-23 rounded bg-surface-sunk" />
       <div className="mt-3 h-5 w-64 rounded bg-surface-sunk" />
       <div className="mt-7 flex flex-col gap-3">
         {[0, 1, 2].map((i) => (

@@ -267,7 +267,7 @@ export function HabitKey({ habit, mode, onComplete, onUndo, onHint, onHoldingCha
       // No iOS/Android long-press menu or text selection on a key.
       onContextMenu={(e) => e.preventDefault()}
       className={
-        "relative isolate mb-1 flex min-h-24 w-full touch-pan-y flex-col justify-between gap-3 overflow-hidden rounded-key p-5 text-left select-none [-webkit-touch-callout:none] " +
+        "@container relative isolate mb-1 flex min-h-24 w-full touch-pan-y flex-col justify-between gap-3 overflow-hidden rounded-key px-[min(1.25rem,20px)] py-5 text-left select-none [-webkit-touch-callout:none] " +
         "motion-safe:active:translate-y-[2px] focus-visible:outline-offset-[6px] border " +
         // Completing SNAPS to persimmon (no colour transition into the done
         // state); undoing fades back over 200 ms (the not-done state carries
@@ -282,8 +282,15 @@ export function HabitKey({ habit, mode, onComplete, onUndo, onHint, onHoldingCha
       {/* The hold fill: grows from the finger (or fades in, with Reduce Motion). */}
       <span ref={fillRef} aria-hidden="true" className="pointer-events-none absolute -z-10 bg-accent-tint opacity-0" />
 
-      <span className="flex items-start justify-between gap-3">
-        <span className="min-w-0 flex-1 text-habit font-semibold break-words text-pretty">{habit.name}</span>
+      {/* With large text the key gets narrow for its name (under 10rem
+          inside, which normal text never reaches, even at 320 px): the check
+          moves above the name, so words keep the key's full width instead of
+          breaking in the middle (Feature 9). The key's side padding is
+          capped at 20 px for the same reason (at 200% on a 320 px phone a
+          rem padding left "minutes" no room). break-words stays as the last
+          resort for one very long word. */}
+      <span className="flex items-start justify-between gap-3 @max-[10rem]:flex-col-reverse @max-[10rem]:items-end">
+        <span className="min-w-0 flex-1 text-habit font-semibold break-words text-pretty @max-[10rem]:self-stretch">{habit.name}</span>
         <CheckCircle done={habit.done} animate={justDone} />
       </span>
 

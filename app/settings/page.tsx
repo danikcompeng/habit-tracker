@@ -15,11 +15,11 @@ export default function SettingsPage() {
     <main className="mx-auto flex w-full max-w-[32rem] flex-1 flex-col px-5 pt-[max(1.25rem,env(safe-area-inset-top))] pb-[max(2rem,env(safe-area-inset-bottom))]">
       {/* flex-wrap: with large text, Done drops below the title instead of off the screen. */}
       <header className="flex min-h-12 flex-wrap items-center justify-between gap-x-3 gap-y-2">
-        <h1 className="text-title font-bold tracking-tight">Settings</h1>
+        <h1 className="text-title">Settings</h1>
         <SettingsDone />
       </header>
       <section aria-labelledby="completing-title" className="mt-7">
-        <h2 id="completing-title" className="text-base font-semibold">
+        <h2 id="completing-title" className="text-section">
           Completing habits
         </h2>
         {/* px-5: the same text column as History's cards and Today's keys. */}
@@ -46,8 +46,8 @@ function SwitchSkeleton() {
   return (
     <div aria-hidden="true" className="flex min-h-11 items-center justify-between gap-4">
       <div className="flex flex-col gap-1.5">
-        <div className="h-4 w-32 rounded bg-surface-sunk" />
-        <div className="h-3.5 w-44 rounded bg-surface-sunk" />
+        <div className="h-4 w-28 rounded bg-surface-sunk" />
+        <div className="h-3.5 w-40 rounded bg-surface-sunk" />
       </div>
       <div className="h-7 w-12 rounded-full bg-surface-sunk" />
     </div>

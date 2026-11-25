@@ -9,10 +9,12 @@
 
 import type { Page } from "@playwright/test";
 import { expect, test } from "./helpers/saves";
-import { freshDemo, habitKey, holdKey } from "./helpers/app";
+import { expectManropeLoaded, freshDemo, habitKey, holdKey } from "./helpers/app";
 import { reseedDemo } from "./helpers/seed";
 
 async function expectFitsAtDoubleText(page: Page) {
+  // Measured in the real font, never its fallback (Feature 9).
+  await expectManropeLoaded(page);
   await page.addStyleTag({ content: "html { font-size: 200% !important; }" });
   const problems = await page.evaluate(() => {
     const width = document.documentElement.clientWidth;
@@ -87,8 +89,111 @@ test("History's numbers are three columns or one, never 2 + 1", async ({ page })
     await page.setViewportSize({ width, height: 844 });
     await page.goto("/history?range=30");
     await expect(page.getByRole("definition").first()).toBeVisible();
+    await expectManropeLoaded(page);
     await page.addStyleTag({ content: `html { font-size: ${textSize}% !important; }` });
     expect(await columns(), `${width} px at ${textSize}%`).toBe(expected);
+  }
+});
+
+test("habit names on Today never break inside a word, at any text size", async ({ page }) => {
+  // With large text the key gets narrow for its name; the check then moves
+  // above the name instead of words being cut ("Stretc / h", Feature 9).
+  // The 200% check above can't see this: a cut word doesn't overflow.
+  await freshDemo(page);
+  for (const [width, textSize] of [
+    [390, 100],
+    [320, 100],
+    [390, 150],
+    [320, 150],
+    [390, 175],
+    [390, 200],
+    [320, 200],
+  ] as const) {
+    await page.setViewportSize({ width, height: 844 });
+    await page.goto("/");
+    await expect(habitKey(page, "Read 10 pages")).toBeVisible();
+    await expectManropeLoaded(page);
+    if (textSize !== 100) await page.addStyleTag({ content: `html { font-size: ${textSize}% !important; }` });
+    const broken = await page.locator("button[aria-pressed] .text-habit").evaluateAll((names) =>
+      names.flatMap((name) => {
+        const text = name.firstChild as Text;
+        const out: string[] = [];
+        for (const match of text.data.matchAll(/\S+/g)) {
+          const word = document.createRange();
+          word.setStart(text, match.index!);
+          word.setEnd(text, match.index! + match[0].length);
+          if (new Set([...word.getClientRects()].map((r) => Math.round(r.top))).size > 1) out.push(match[0]);
+        }
+        return out;
+      }),
+    );
+    expect(broken, `${width} px at ${textSize}%: words cut across lines`).toEqual([]);
+  }
+});
+
+test("History's range switch keeps its labels inside the segment at 200% text", async ({ page }) => {
+  await freshDemo(page);
+  await page.goto("/history?range=30");
+  await expect(page.getByRole("button", { name: "30 days" })).toBeVisible();
+  await expectManropeLoaded(page);
+  await page.addStyleTag({ content: "html { font-size: 200% !important; }" });
+  const tight = await page.locator('[aria-label="Range"] button').evaluateAll((buttons) =>
+    buttons
+      .map((button) => {
+        const box = button.getBoundingClientRect();
+        const text = document.createRange();
+        text.selectNodeContents(button);
+        const lines = [...text.getClientRects()];
+        const room = Math.min(...lines.map((l) => l.left - box.left), ...lines.map((l) => box.right - l.right));
+        return { label: button.textContent, room };
+      })
+      // At least 6 px between the text and the segment's edge (it was 4).
+      .filter((b) => b.room < 6)
+      .map((b) => `${b.label}: ${b.room.toFixed(1)} px`),
+  );
+  expect(tight).toEqual([]);
+});
+
+test("History's numbers fit their columns with the widest values, in three columns", async ({ page }) => {
+  // Streaks can reach back before the 90-day window, so three digits are
+  // possible: "100%", "999 days" must fit three columns at normal text
+  // (Feature 9: Manrope is wider). Set in the page, so the demo's numbers
+  // don't decide. 340 px is the narrowest three-column phone width; 390 px
+  // at 110% is just above the switch to one column.
+  await freshDemo(page);
+  for (const [width, textSize] of [
+    [340, 100],
+    [360, 100],
+    [375, 100],
+    [390, 100],
+    [390, 110],
+  ] as const) {
+    await page.setViewportSize({ width, height: 844 });
+    await page.goto("/history?range=30");
+    await expect(page.getByRole("definition").first()).toBeVisible();
+    await expectManropeLoaded(page);
+    if (textSize !== 100) await page.addStyleTag({ content: `html { font-size: ${textSize}% !important; }` });
+    const r = await page.getByRole("definition").evaluateAll((dds) => {
+      dds.forEach((dd, i) => {
+        dd.firstChild!.textContent = i === 0 ? "100%" : "999";
+        const unit = dd.querySelector("span");
+        if (unit) unit.textContent = "days";
+      });
+      return {
+        columns: new Set(dds.map((dd) => Math.round(dd.getBoundingClientRect().left))).size,
+        // The text's own width against its column (the dd grows with its
+        // text instead of overflowing, so its scrollWidth can't tell).
+        overflowing: dds
+          .filter((dd) => {
+            const text = document.createRange();
+            text.selectNodeContents(dd);
+            return text.getBoundingClientRect().width > dd.parentElement!.getBoundingClientRect().width + 0.5;
+          })
+          .map((dd) => dd.textContent),
+      };
+    });
+    expect(r.columns, `${width} px at ${textSize}%: three columns`).toBe(3);
+    expect(r.overflowing, `${width} px at ${textSize}%: every number fits its column`).toEqual([]);
   }
 });
 
@@ -142,6 +247,8 @@ async function openToday(page: Page, width: number, textSize = 100) {
   // Once streamed in (before that, the labels are in a hidden template).
   await expect(page.getByRole("heading", { name: "Today" })).toBeVisible();
   if (textSize !== 100) await page.addStyleTag({ content: `html { font-size: ${textSize}% !important; }` });
+  // Measured in the real font, never its fallback (Feature 9).
+  await expectManropeLoaded(page);
 }
 
 test("Today's date: always short on phones, full on wider screens, never cut off, one date for screen readers", async ({ page }) => {

@@ -37,7 +37,7 @@ function HabitsSkeleton() {
   return (
     <div aria-hidden="true">
       <div className="flex min-h-12 items-center justify-between">
-        <div className="h-9 w-32 rounded bg-surface-sunk" />
+        <div className="h-9 w-[102px] rounded bg-surface-sunk" />
         <div className="h-11 w-24 rounded-full bg-surface-sunk" />
       </div>
       <div className="mt-6 h-5 w-24 rounded bg-surface-sunk" />

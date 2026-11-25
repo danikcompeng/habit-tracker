@@ -189,7 +189,7 @@ export function HabitsManager({ habits }: { habits: Habit[] }) {
     <>
       {/* flex-wrap: with large text, Done drops below the title instead of off the screen. */}
       <header className="flex min-h-12 flex-wrap items-center justify-between gap-x-3 gap-y-2">
-        <h1 className="text-title font-bold tracking-tight">Habits</h1>
+        <h1 className="text-title">Habits</h1>
         {/* Hidden while arranging: "Done arranging" is the one way out of that mode. */}
         {!arranging && (
         <Button

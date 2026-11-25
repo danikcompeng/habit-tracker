@@ -88,7 +88,7 @@ tokens: colour classes from `app/globals.css` (`bg-surface`,
 colours; `lib/palette.ts` mirrors them and `lib/palette.test.ts` checks
 contrast (4.5:1 text, 3:1 marks). Motion timings in `lib/motion.ts` and
 `--motion-*`. Respect Reduce Motion (`motion-safe:`), 44 px tap targets,
-Bricolage Grotesque only.
+Manrope only (400–700).
 
 ## Commands
 

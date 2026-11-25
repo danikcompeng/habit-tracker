@@ -66,19 +66,31 @@
   --color-danger-lip: var(--danger-lip);
   --color-danger: var(--danger);
 
-  --font-sans: var(--font-bricolage), ui-sans-serif, system-ui, sans-serif;
+  --font-sans: var(--font-manrope), ui-sans-serif, system-ui, sans-serif;
 
   /* Type: page title 34, habit name 22; body 16 (text-base) and labels 14
-     (text-sm) are Tailwind's own. */
+     (text-sm) are Tailwind's own. The large styles carry their own weight
+     and letter-spacing (slightly tight, Feature 9), so every use gets them. */
   --text-title: 2.125rem;
   --text-title--line-height: 1.05;
+  --text-title--font-weight: 700;
+  --text-title--letter-spacing: -0.03em;
   --text-habit: 1.375rem;
   --text-habit--line-height: 1.2;
+  /* Section headings inside a page ("Day by day", "Each habit", "Completing
+     habits"): body size, bold, so they stay a level above the 18 / 600
+     names under them (Manrope's 600 reads lighter than Bricolage's did). */
+  --text-section: 1rem;
+  --text-section--line-height: 1.5;
+  --text-section--font-weight: 700;
 
-  /* The wordmark only: 52 px, extra bold. Capped at 17vw so the one word
-     still fits a phone when text is enlarged (66 px on a 390 px phone). */
+  /* The wordmark only: 52 px, bold, -0.04em (the tightest the craft floor
+     allows). Capped at 17vw so the one word still fits a phone when text is
+     enlarged (66 px on a 390 px phone). */
   --text-display: min(3.25rem, 17vw);
   --text-display--line-height: 1;
+  --text-display--font-weight: 700;
+  --text-display--letter-spacing: -0.04em;
   /* The one-line promise under the wordmark. */
   --text-lead: 1.125rem;
   --text-lead--line-height: 1.4;
@@ -88,6 +100,8 @@
   /* History's three numbers (Completed, Current streak, Longest streak). */
   --text-stat: 1.75rem;
   --text-stat--line-height: 1.25;
+  --text-stat--font-weight: 700;
+  --text-stat--letter-spacing: -0.025em;
 
   /* Shapes: the habit "key" is 24 px round, text boxes 16 px; buttons are pills. */
   --radius-key: 24px;
@@ -136,7 +150,6 @@
 
   body {
     font-family: var(--font-sans);
-    font-optical-sizing: auto;
   }
 
   /* One focus ring everywhere: persimmon, just outside the element, so it

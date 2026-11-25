@@ -31,46 +31,51 @@ colors:
   crimson-lip-night: "#B24A63"
 typography:
   display:
-    fontFamily: "Bricolage Grotesque, ui-sans-serif, system-ui, sans-serif"
+    fontFamily: "Manrope, ui-sans-serif, system-ui, sans-serif"
     fontSize: "min(3.25rem, 17vw)"
-    fontWeight: 800
+    fontWeight: 700
     lineHeight: 1
-    letterSpacing: "-0.025em"
+    letterSpacing: "-0.04em"
   headline:
-    fontFamily: "Bricolage Grotesque, ui-sans-serif, system-ui, sans-serif"
+    fontFamily: "Manrope, ui-sans-serif, system-ui, sans-serif"
     fontSize: "2.125rem"
     fontWeight: 700
     lineHeight: 1.05
-    letterSpacing: "-0.025em"
+    letterSpacing: "-0.03em"
   stat:
-    fontFamily: "Bricolage Grotesque, ui-sans-serif, system-ui, sans-serif"
+    fontFamily: "Manrope, ui-sans-serif, system-ui, sans-serif"
     fontSize: "1.75rem"
     fontWeight: 700
     lineHeight: 1.25
     letterSpacing: "-0.025em"
     fontFeature: "tnum"
+  section:
+    fontFamily: "Manrope, ui-sans-serif, system-ui, sans-serif"
+    fontSize: "1rem"
+    fontWeight: 700
+    lineHeight: 1.5
   title:
-    fontFamily: "Bricolage Grotesque, ui-sans-serif, system-ui, sans-serif"
+    fontFamily: "Manrope, ui-sans-serif, system-ui, sans-serif"
     fontSize: "1.375rem"
     fontWeight: 600
     lineHeight: 1.2
   title-list:
-    fontFamily: "Bricolage Grotesque, ui-sans-serif, system-ui, sans-serif"
+    fontFamily: "Manrope, ui-sans-serif, system-ui, sans-serif"
     fontSize: "1.125rem"
     fontWeight: 600
     lineHeight: 1.35
   lead:
-    fontFamily: "Bricolage Grotesque, ui-sans-serif, system-ui, sans-serif"
+    fontFamily: "Manrope, ui-sans-serif, system-ui, sans-serif"
     fontSize: "1.125rem"
     fontWeight: 400
     lineHeight: 1.4
   body:
-    fontFamily: "Bricolage Grotesque, ui-sans-serif, system-ui, sans-serif"
+    fontFamily: "Manrope, ui-sans-serif, system-ui, sans-serif"
     fontSize: "1rem"
     fontWeight: 500
     lineHeight: 1.5
   label:
-    fontFamily: "Bricolage Grotesque, ui-sans-serif, system-ui, sans-serif"
+    fontFamily: "Manrope, ui-sans-serif, system-ui, sans-serif"
     fontSize: "0.875rem"
     fontWeight: 500
     lineHeight: 1.43
@@ -172,7 +177,7 @@ components:
 
 Ascend is a small, physical object on a sheet of bone paper. Every habit is a chunky key: it has a face, a lip along its bottom edge, and it sinks when you press it. Holding it down grows a persimmon tint out from under your finger; when the hold completes the key snaps to solid persimmon with a short pop. The whole system exists to make that one gesture feel honest and satisfying, and everything around the keys stays quiet so they can carry the screen.
 
-The mood is tactile and warm, never clinical: warm paper and soft graphite instead of white and black, one persimmon accent instead of a rainbow of categories, one typeface (Bricolage Grotesque) whose optical sizes keep small labels calm and let titles show character. References are the feel of a mechanical keyboard key, Things 3's restraint (one accent, lots of air) and the bold type of Arc and Teenage Engineering product pages. It is a phone app first: a single 20 px-guttered column, big targets, thumb-height actions.
+The mood is tactile and warm, never clinical: warm paper and soft graphite instead of white and black, one persimmon accent instead of a rainbow of categories, one clean, open typeface (Manrope) in four weights, so the type stays quiet and the keys carry the screen. References are the feel of a mechanical keyboard key and Things 3's restraint (one accent, lots of air). It is a phone app first: a single 20 px-guttered column, big targets, thumb-height actions.
 
 Copy is short, warm and never guilt-tripping ("Hold to complete", "3-day streak", "Start today").
 
@@ -214,17 +219,18 @@ A warm two-paper neutral set (bone and graphite) with a single persimmon voice a
 
 ## Typography
 
-**Display Font:** Bricolage Grotesque (with ui-sans-serif, system-ui)
-**Body Font:** Bricolage Grotesque
-**Label Font:** Bricolage Grotesque, tabular figures for every number
+**Display Font:** Manrope (with ui-sans-serif, system-ui)
+**Body Font:** Manrope
+**Label Font:** Manrope, tabular figures for streaks, percentages and every count
 
-**Character:** One variable grotesque with optical sizing: chunky and a little quirky at 34–52 px, calm and even at 14–16 px. The single family keeps the app feeling like one object.
+**Character:** One clean, open sans in four weights (400, 500, 600, 700; nothing heavier): minimal and even at every size, with the large headings and the wordmark set slightly tight so they hold together. The single family keeps the app feeling like one object.
 
 ### Hierarchy
-- **Display** (800, 52 px, line-height 1, tight tracking): the "Ascend" wordmark on the login screen only. Capped at 17vw so the word still fits a phone at large text sizes.
+- **Display** (700, 52 px, line-height 1, −0.04 em): the "Ascend" wordmark on the login screen only. Capped at 17vw so the word still fits a phone at large text sizes.
 - **Lead** (400, 18 px, 1.4): the one-line promise under the wordmark, and the error page's explanation.
-- **Headline** (700, 34 px, 1.05, tight tracking): page titles ("Today", "Habits", "History").
-- **Stat** (700, 28 px, 1.25, tabular): History's three numbers only (`text-stat`).
+- **Headline** (700, 34 px, 1.05, −0.03 em): page titles ("Today", "Habits", "History").
+- **Stat** (700, 28 px, 1.25, −0.025 em, tabular): History's three numbers only (`text-stat`); the unit beside them ("days") is normal spacing. Three digits ("999 days", "100%") fit three columns from 340 px.
+- **Section** (700, 16 px, 1.5): section headings inside a page ("Day by day", "Each habit", "Completing habits"; `text-section`). Bold, so they stay a level above the 18 / 600 names under them.
 - **Title** (600, 22 px, 1.2): a habit's name on its key.
 - **Title, list** (600, 18 px, 1.35): a habit's name in the Habits list and History rows.
 - **Body** (500–600, 16 px): buttons, fields, sentences. 16 px is a floor on inputs so iOS never zooms.

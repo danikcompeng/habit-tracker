@@ -44,9 +44,9 @@ Decisions made while building, and why. Newest at the bottom of each group.
 
 ## Design direction
 
-**Tactile and warm.** Every habit is a chunky key you press. Where Staple is calm white paper with a matcha accent and Figtree, Ascend is warm bone paper and soft graphite with one **persimmon** accent, set in **Bricolage Grotesque**. It should feel physical: things have weight, press down, and spring back.
+**Tactile and warm.** Every habit is a chunky key you press. Where Staple is calm white paper with a matcha accent and Figtree, Ascend is warm bone paper and soft graphite with one **persimmon** accent, set in **Manrope** (Bricolage Grotesque until Feature 9). It should feel physical: things have weight, press down, and spring back.
 
-**References:** the physical feel of a mechanical keyboard key; Things 3's restraint (one accent, lots of air); the bold type of Arc / Teenage Engineering product pages.
+**References:** the physical feel of a mechanical keyboard key; Things 3's restraint (one accent, lots of air). _(Until Feature 9 also "the bold type of Arc / Teenage Engineering product pages", dropped with the move to Manrope's cleaner type.)_
 
 **Colour roles** (light / dark). Hex is the source of truth; tests check contrast.
 
@@ -69,10 +69,11 @@ Decisions made while building, and why. Newest at the bottom of each group.
 
 All text pairs must pass 4.5:1 (`ink-muted` on `background` and `surface`, `on-accent` on `accent`, `ink` on `accent-tint`); dots, borders and focus rings 3:1 against what they sit on. Dark mode is warm, not pure black, and shows depth by lightness (background < surface), never by shadows. The accent gets lighter in dark mode, so it doesn't glare at night.
 
-**Type**: Bricolage Grotesque for everything (variable; its optical sizes keep small text calm).
-- Display 52 px / 800: the "Ascend" wordmark on the login screen only (`text-display`)
+**Type**: Manrope for everything, weights 400–700 only (_changed 2026-11-25, Feature 9: was Bricolage Grotesque, for a cleaner, more minimal feel; the user's call_).
+- Display 52 px / 700, −0.04 em: the "Ascend" wordmark on the login screen only (`text-display`)
 - Lead 18 px / 400: the one-line promise under the wordmark (`text-lead`)
-- Page title 34 px / 700, tight leading ("Today")
+- Page title 34 px / 700, −0.03 em, tight leading ("Today")
+- Section heading 16 px / 700 inside a page ("Each habit", `text-section`; since Feature 9)
 - Habit name 22 px / 600 on Today's keys; 18 px / 600 in the `/habits` list (`text-list`)
 - Body and buttons 16 px / 500–600 (16 px stops iOS zooming into inputs)
 - Labels and captions 14 px / 500, `ink-muted`
@@ -234,7 +235,7 @@ Order: 1 data model → 2 login and demo → 3 Today → 4 manage habits → 5 i
 - `components/timezone-sync.tsx`: sets the `tz` cookie from the browser and refreshes once if it changed (Staple's approach).
 - **Design system**:
   - `app/globals.css` holds the colour tokens from Design direction as CSS variables, light and dark via `prefers-color-scheme`, mapped to Tailwind colours (`bg-surface`, `text-ink-muted`...).
-  - Bricolage Grotesque via `next/font/google`.
+  - Bricolage Grotesque via `next/font/google` (Manrope since Feature 9).
   - `lib/palette.ts` holds the same hex values, and `lib/palette.test.ts` checks every text pair is at least 4.5:1 and every non-text pair at least 3:1, plus that `globals.css` matches `palette.ts`, so the design-critic's contrast estimates have a measured backstop.
 - **Login page** (`/login`):
   - The wordmark ("Hold" then, "Ascend" since 2026-11-24), a one-line promise, and an email field with "Email me a code" (primary pill).
@@ -753,6 +754,7 @@ The user's call: switch the app's one font from Bricolage Grotesque to **Manrope
 
 **Weights** (400 / 500 / 600 / 700 only)
 - 700: page titles, History's three numbers, and the "Ascend" wordmark (was 800, the only weight above 700).
+- 700 also: section headings inside a page ("Day by day", "Each habit", "Completing habits"), a new `text-section` token (16 px / 700): at 600 in Manrope they read lighter than the 18 / 600 names under them. _(After design-critic.)_
 - 600: habit names, buttons, selected states. 500: labels, captions and most text that has a class. 400: text with no weight class (the lead line, inputs, the error page's lead), as today.
 - The weight of the three large styles lives in their tokens too (`--text-title--font-weight`, `--text-display--font-weight`, `--text-stat--font-weight`: 700), so the headings drop their `font-bold` / `font-extrabold` classes and a stray heavier class can't come back with them. _(After logic-checker.)_
 
@@ -760,7 +762,7 @@ The user's call: switch the app's one font from Bricolage Grotesque to **Manrope
 - `text-title` (34 px page titles): −0.03 em (was −0.025 em).
 - `text-display` (the wordmark): −0.04 em (was −0.025 em), the impeccable craft floor's limit.
 - `text-stat` (History's numbers, 28 px): stays −0.025 em, now in the token.
-- Habit names (22 px) and everything smaller: unchanged (0).
+- Habit names (22 px) and everything smaller: unchanged (0); History's unit ("days") is reset to 0 so it doesn't inherit the number's −0.025 em. _(After code-reviewer.)_
 Every current use of those three sizes had `tracking-tight`, so moving it into the tokens changes nothing else.
 
 **Tabular numbers**: streaks (the key's caption) and percentages (History's numbers and each habit's percent), as now, plus the other counts already marked (summary line, day readout, name length).
@@ -771,7 +773,9 @@ Every current use of those three sizes had `tracking-tight`, so moving it into t
 - Today's date (Feature 8c): short below 40 rem; at 640 px and up the full date must still fit.
 - Buttons and pills: History / Edit in Today's header (the 320 px "pills beside the date" check), Habits' rows of pills, the login buttons.
 - Every skeleton width (Today's date bar, title and pills; Habits' and Settings' title and Done) is re-measured against Manrope, so nothing jumps sideways when the page arrives. _(After logic-checker: not just the date bar.)_
-Anything that no longer fits is fixed in the layout (wrapping, a threshold), not by shrinking the type.
+Anything that no longer fits is fixed in the layout (wrapping, a threshold), not by shrinking the type. Found by design-critic and fixed that way:
+- At 200% text, habit names broke inside words ("Stretc / h", "outsid / e"): with large text the name only had the width left beside the check. The key is now a container: under 10rem inside (only large text gets there, even at 320 px) the check moves above the name and the name gets the full width. On a 320 px phone at 200% even that was 14 px short for "minutes", so the key's side padding is capped at 20 px (the same at normal text; the tap hint under a key uses the same padding, to stay aligned). Tested word by word at 320 / 390 px and 100–200%.
+- At 200%, History's range switch left "days" (one word, it can't wrap) 4 px from the segment's edge: its side padding is capped at 8 px. Tested: at least 6 px of room.
 
 **Docs** (every mention, not just the typography sections): CLAUDE.md ("Manrope only"); the plan's Design direction (the direction paragraph and the Type list, with a dated note); DESIGN.md (frontmatter font family, the wordmark's weight, the letter-spacing values, the map's Fonts line); `.impeccable/design-full.md` (tokens, the Overview sentence about the typeface, the Typography section and its Character line); `.impeccable/design.json` (regenerated from design-full, so the Overview changes too); code comments in `app/layout.tsx` and `app/globals.css`. The manifest, icons and README don't name the font (checked).
 
@@ -1475,6 +1479,57 @@ Checks: 379 unit and database tests, tsc, eslint, `next build`; the Today file �
 #### Takeaways
 - An optimistic UI makes "the screen looks right" a bad signal for "it's saved"; tests that reload must wait for the server's answer, and now the fixture enforces it.
 - A guard that's too eager is its own bug: the first version of the cancelled-save check failed six correct tests. A probe that must fail, plus the suite that must pass, pinned down exactly what counts.
+
+
+### Feature 9: Manrope (2026-11-25)
+
+#### logic-checker (plan review)
+Verdict: **Ready after fixes**.
+
+| # | Severity | Finding | Outcome | What changed |
+|---|----------|---------|---------|--------------|
+| 1 | High | `weight: "400 700"` fails the types and the build: this Next.js only takes single weights, `"variable"` or an array (its docs describe ranges, the validator rejects them). | Fixed | `["400", "500", "600", "700"]`. After the build: 4 weights × 6 subsets point at 6 files, latin preloaded; a heavier class draws at 700. |
+| 2 | Medium | The planned "font is Manrope" check (`document.fonts.check`) says yes for any family. | Fixed | `expectManropeLoaded`: a loaded face named Manrope (not the fallback) that is the body's first family. The type tests failed against the Bricolage build (checked). |
+| 3 | Medium | History's three columns were never checked with their widest values at normal text. | Fixed | "100%" and "999 days" set in the page at 340 / 360 / 375 / 390 px and just below the switch: the text's own width against its column. (The first version compared the box's scrollWidth, which grows with the text and could never fail: caught by a probe, rewritten, and confirmed to fail with "99999".) "999 days" fits at 340 px with 4 px to spare. |
+| 4 | Medium | The width tests didn't wait for the web font. | Fixed | Every width check calls `expectManropeLoaded` first (including Today's date, after code-reviewer #2). |
+| 5 | Low | Every skeleton width was measured against Bricolage. | Fixed | Re-measured: Today's title 92, pills 90 / 68; Habits' title 102; Settings' switch text 112 / 160 px. Manrope came out almost the same width as Bricolage. |
+| 6 | Low | A tabular test should check the font really has tabular figures. | Fixed | "111" and "000" drawn at the same width (and see code-reviewer #1). |
+| 7 | Low | Docs outside the typography sections still named Bricolage, optical sizes and 800. | Fixed | All updated; the remaining mentions in the plan are dated history. |
+| 8 | Low | Retaking every screenshot overwrites the before. | Taken | A Bricolage "before" set was kept outside the repo for the design-critic. |
+| 9 | Low | Letter-spacing has to be compared as a ratio. | Fixed | Letter-spacing ÷ font size. |
+| 10 | Low | Let the tokens carry the weight too. | Taken | `--text-*--font-weight: 700` on title, display, stat (and section). |
+| — | Questions | The widest History number? Overwrite the shots? The body's weight? | Answered | Three digits must fit; overwritten (with a kept before set); unclassed text stays 400 as today. |
+
+#### code-reviewer (diff review)
+Verdict: **Ship after fixes**. Production code right; the tests needed tightening.
+
+| # | Severity | Finding | Outcome | What changed |
+|---|----------|---------|---------|--------------|
+| 1 | Medium | The tabular probe copied the computed `font` shorthand, which is empty when the numbers are tabular, so it measured in the body font; and two visits didn't wait for Manrope (Arial's figures are tabular anyway). | Fixed | The probe copies family, weight, size and stretch; Manrope is checked after each visit; a control requires proportional "111" to be narrower than "000", true of Manrope and not Arial. |
+| 2 | Medium | Today's date and pills test didn't check for Manrope first. | Fixed | `openToday` waits for it. |
+| 3 | Low | History's "days" inherited the number's tracking (−0.044 em, tighter than the wordmark). | Fixed | `tracking-normal` on the unit; tested (0). |
+| 4 | Low | The widest-values test didn't set the unit (a streak of 1 says "day"). | Fixed | Sets "days" too. |
+| 5 | Low | The helper comment said next/font hashes the family; in this build it's plain "Manrope". | Fixed | Comment corrected. |
+| 6 | Low | The plan's Design direction still cited "the bold type of Arc / Teenage Engineering". | Fixed | Dropped, with a dated note (design-full.md had already dropped it). |
+| 7 | Low | The new `text-section` style wasn't documented. | Fixed | In the plan, DESIGN.md, design-full.md and the sidecar. |
+| — | Tests | The error page's title. | Not added | It gets its weight and spacing from the same token the other titles are tested through. |
+
+#### design-critic (every screen, Bricolage before and Manrope after; light, dark, 200%)
+Verdict: **Ship after fixes**. Better than before at normal size: the wordmark still carries the login screen at 700, titles are crisp, 14–16 px text is more open, dark mode doesn't bloom, and the vertical rhythm is unchanged.
+
+| # | Severity | Finding | Outcome | What changed |
+|---|----------|---------|---------|--------------|
+| 1 | Medium | At 200% text, habit names on Today broke inside words ("Stretc / h for 5 / minut / es"), and the 200% check couldn't see it. | Fixed | The key is a container: under 10rem inside, the check moves above the name. That still left "minutes" 14 px short on a 320 px phone at 200%, so the key's side padding is capped at 20 px (unchanged at normal text). A word-by-word test at 320 / 390 px and 100–200%; it failed before each fix. |
+| 2 | Medium | Section headings ("Day by day", "Each habit", "Completing habits") at 16 / 600 read lighter than the 18 / 600 names under them. | Fixed | A `text-section` token, 16 px / 700; tested. |
+| 3 | Medium, the user's call | Tabular "1" leaves a gap: "12-day streak" reads "1 2", History's "71%" reads "7 1%". | Kept, offered | The user asked for tabular streaks and percentages. Options put to them: proportional figures for Today's streak caption (and History's big numbers), or keep. |
+| 4 | Low | Word spaces in habit names look tight at 600. | Not changed | Optional `word-spacing`; names left as they were. |
+| 5 | Low | At 200%, the selected range segment's "days" touches its edge. | Fixed | Not with more padding (that would make it worse): side padding capped at 8 px; tested (≥ 6 px of room; it was 4). |
+
+Checks: 379 unit and database tests, tsc, eslint, `next build`. Browser suite on `next start`: first Manrope run 80 passed, 0 failed; after the design-critic fixes, the three new checks failed against the build without them (as they must); then a full run with 81 passed and 1 failed (words still cut at 320 px / 200%: the padding cap followed); then 81 passed and 1 failed (my letter-spacing helper read "normal" as NaN: fixed in the test); final full run: **82 passed, 0 failed**. Screenshots retaken (all folders), light and dark.
+
+#### Takeaways
+- Two of my own checks could never fail (scrollWidth on a box that grows with its text; a `font` shorthand that's empty for tabular numbers). Every new check now gets a run where it must fail.
+- "Fits at 200%" isn't the same as "reads at 200%": a word cut in half overflows nothing. The word-by-word test is the one that sees it.
 
 <!--
 Template — copy for each feature:

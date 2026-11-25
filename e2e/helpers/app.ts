@@ -51,3 +51,22 @@ export async function expectNoA11yViolations(page: Page) {
   const serious = results.violations.filter((v) => v.impact === "serious" || v.impact === "critical");
   expect(serious.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(" ")).join(", ")}`)).toEqual([]);
 }
+
+/**
+ * Waits for the web font and checks it really is Manrope, loaded, and the
+ * body's first font (Feature 9). `document.fonts.check()` says yes even for
+ * a font that isn't there, so this looks for a loaded face whose name has
+ * Manrope in it and isn't the "Manrope Fallback" (a resized Arial) next/font
+ * adds. Width checks call it first, so they never measure the fallback.
+ */
+export async function expectManropeLoaded(page: Page) {
+  const result = await page.evaluate(async () => {
+    await document.fonts.ready;
+    const faces = [...document.fonts].filter((f) => /manrope/i.test(f.family) && !/fallback/i.test(f.family));
+    const loaded = faces.filter((f) => f.status === "loaded").map((f) => f.family.replace(/["']/g, ""));
+    const first = getComputedStyle(document.body).fontFamily.split(",")[0].trim().replace(/["']/g, "");
+    return { loaded, first };
+  });
+  expect(result.loaded.length, "a Manrope face has loaded").toBeGreaterThan(0);
+  expect(result.loaded, "the body's first font is the loaded Manrope").toContain(result.first);
+}

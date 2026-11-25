@@ -31,46 +31,51 @@ colors:
   crimson-lip-night: "#B24A63"
 typography:
   display:
-    fontFamily: "Bricolage Grotesque, ui-sans-serif, system-ui, sans-serif"
+    fontFamily: "Manrope, ui-sans-serif, system-ui, sans-serif"
     fontSize: "min(3.25rem, 17vw)"
-    fontWeight: 800
+    fontWeight: 700
     lineHeight: 1
-    letterSpacing: "-0.025em"
+    letterSpacing: "-0.04em"
   headline:
-    fontFamily: "Bricolage Grotesque, ui-sans-serif, system-ui, sans-serif"
+    fontFamily: "Manrope, ui-sans-serif, system-ui, sans-serif"
     fontSize: "2.125rem"
     fontWeight: 700
     lineHeight: 1.05
-    letterSpacing: "-0.025em"
+    letterSpacing: "-0.03em"
   stat:
-    fontFamily: "Bricolage Grotesque, ui-sans-serif, system-ui, sans-serif"
+    fontFamily: "Manrope, ui-sans-serif, system-ui, sans-serif"
     fontSize: "1.75rem"
     fontWeight: 700
     lineHeight: 1.25
     letterSpacing: "-0.025em"
     fontFeature: "tnum"
+  section:
+    fontFamily: "Manrope, ui-sans-serif, system-ui, sans-serif"
+    fontSize: "1rem"
+    fontWeight: 700
+    lineHeight: 1.5
   title:
-    fontFamily: "Bricolage Grotesque, ui-sans-serif, system-ui, sans-serif"
+    fontFamily: "Manrope, ui-sans-serif, system-ui, sans-serif"
     fontSize: "1.375rem"
     fontWeight: 600
     lineHeight: 1.2
   title-list:
-    fontFamily: "Bricolage Grotesque, ui-sans-serif, system-ui, sans-serif"
+    fontFamily: "Manrope, ui-sans-serif, system-ui, sans-serif"
     fontSize: "1.125rem"
     fontWeight: 600
     lineHeight: 1.35
   lead:
-    fontFamily: "Bricolage Grotesque, ui-sans-serif, system-ui, sans-serif"
+    fontFamily: "Manrope, ui-sans-serif, system-ui, sans-serif"
     fontSize: "1.125rem"
     fontWeight: 400
     lineHeight: 1.4
   body:
-    fontFamily: "Bricolage Grotesque, ui-sans-serif, system-ui, sans-serif"
+    fontFamily: "Manrope, ui-sans-serif, system-ui, sans-serif"
     fontSize: "1rem"
     fontWeight: 500
     lineHeight: 1.5
   label:
-    fontFamily: "Bricolage Grotesque, ui-sans-serif, system-ui, sans-serif"
+    fontFamily: "Manrope, ui-sans-serif, system-ui, sans-serif"
     fontSize: "0.875rem"
     fontWeight: 500
     lineHeight: 1.43
@@ -161,7 +166,7 @@ components:
 <!-- impeccable:design-map -->
 Name: Ascend
 Colors: primary: persimmon #B8420E; neutral: bone-paper #F4EFE6; danger: crimson #A1173A; neutral: soot-ink #2A211A; neutral: walnut-muted #6B5E52
-Fonts: Bricolage Grotesque (display, headline, stat, title, title-list, lead, body, label)
+Fonts: Manrope, weights 400–700 (display, headline, stat, section, title, title-list, lead, body, label)
 Spacing: unit 4px, gap 12px, gutter 20px, key-padding 20px, section 28px
 Radius: field 16px, key 24px, pill 9999px
 North Star: "The Warm Keyboard"

@@ -1,17 +1,18 @@
 import type { Metadata, Viewport } from "next";
-import { Bricolage_Grotesque } from "next/font/google";
+import { Manrope } from "next/font/google";
 import { TimezoneSync } from "@/components/timezone-sync";
 import { APP_DESCRIPTION, APP_NAME, iconByFile, iconUrl } from "@/lib/app-identity";
 import { PALETTE } from "@/lib/palette";
 import "./globals.css";
 
-// The one font for the whole app (plans/habit-tracker.md, Design direction).
-// Variable, with optical sizes, so small text stays calm and titles get
-// their character.
-const bricolage = Bricolage_Grotesque({
-  variable: "--font-bricolage",
+// The one font for the whole app (plans/habit-tracker.md, Design direction
+// and Feature 9). Four weights, 400 to 700: Manrope goes to 800, but nothing
+// here is heavier than 700 (a heavier class draws at 700). This Next.js
+// takes a list of weights, not a range like "400 700".
+const manrope = Manrope({
+  variable: "--font-manrope",
   subsets: ["latin"],
-  axes: ["opsz"],
+  weight: ["400", "500", "600", "700"],
 });
 
 // Both are in APP_ICONS (lib/app-identity.test.ts checks the list).
@@ -45,7 +46,7 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="en" className={`${bricolage.variable} h-full antialiased`}>
+    <html lang="en" className={`${manrope.variable} h-full antialiased`}>
       <body className="flex min-h-full flex-col">
         <TimezoneSync />
         {children}

@@ -108,7 +108,9 @@ function RangeSwitch({ range, onChange }: { range: Range; onChange: (range: Rang
               // Fixed radii, not rounded-full: full pills at normal size (44 px
               // tall), and rounded boxes that hold "30 / days" on two lines
               // when text is large, instead of circles cutting through it.
-              "min-h-11 rounded-[22px] border px-2 text-base leading-tight tabular-nums transition-[background-color,color,transform] duration-(--motion-fast) ease-(--ease-out) " +
+              // Side padding capped at 8 px: at 200% text a rem padding left
+              // "days" (one word, it can't wrap) touching the edge (Feature 9).
+              "min-h-11 rounded-[22px] border px-[min(0.5rem,8px)] text-base leading-tight tabular-nums transition-[background-color,color,transform] duration-(--motion-fast) ease-(--ease-out) " +
               // Selected: the surface face with an ink-muted edge, which is
               // what carries the state at 3:1 (surface on sunk is 1.2:1).
               // No lip: in dark the only available one was lighter than the
@@ -162,12 +164,12 @@ function Numbers({ view }: { view: HistoryView }) {
               {item.label}
               {"spokenExtra" in item && <span className="sr-only">{item.spokenExtra}</span>}
             </dt>
-            <dd className="row-start-1 text-stat font-bold tracking-tight whitespace-nowrap tabular-nums">
+            <dd className="row-start-1 text-stat whitespace-nowrap tabular-nums">
               {item.value}
               {item.unit && (
                 <>
                   {" "}
-                  <span className="text-base font-semibold text-ink-muted">{item.unit}</span>
+                  <span className="text-base font-semibold tracking-normal text-ink-muted">{item.unit}</span>
                 </>
               )}
             </dd>
@@ -212,7 +214,7 @@ function DayChart({
 
   return (
     <section aria-labelledby="chart-title" className="mt-5 rounded-(--radius-field) border border-line bg-surface p-5">
-      <h2 id="chart-title" className="text-base font-semibold">
+      <h2 id="chart-title" className="text-section">
         Day by day
       </h2>
 
@@ -462,7 +464,7 @@ function DayLabels({ view }: { view: HistoryView }) {
 function HabitRows({ view }: { view: HistoryView }) {
   return (
     <section aria-labelledby="habits-title" className="mt-8">
-      <h2 id="habits-title" className="text-base font-semibold">
+      <h2 id="habits-title" className="text-section">
         Each habit
       </h2>
       <ul className="mt-3 flex flex-col gap-3">

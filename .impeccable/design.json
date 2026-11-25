@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-11-25T17:35:49+00:00",
+  "generatedAt": "2026-11-25T18:19:09+00:00",
   "title": "Design System: Ascend",
   "extensions": {
     "colorMeta": {
@@ -77,6 +77,10 @@
       "stat": {
         "displayName": "Stat",
         "purpose": "History's three numbers only."
+      },
+      "section": {
+        "displayName": "Section heading",
+        "purpose": "Section headings inside a page (Day by day, Each habit, Completing habits)."
       },
       "title": {
         "displayName": "Habit name",
@@ -206,7 +210,7 @@
   ],
   "narrative": {
     "northStar": "The Warm Keyboard",
-    "overview": "Ascend is a small, physical object on a sheet of bone paper. Every habit is a chunky key: it has a face, a lip along its bottom edge, and it sinks when you press it. Holding it down grows a persimmon tint out from under your finger; when the hold completes the key snaps to solid persimmon with a short pop. The whole system exists to make that one gesture feel honest and satisfying, and everything around the keys stays quiet so they can carry the screen.\n\nThe mood is tactile and warm, never clinical: warm paper and soft graphite instead of white and black, one persimmon accent instead of a rainbow of categories, one typeface (Bricolage Grotesque) whose optical sizes keep small labels calm and let titles show character. References are the feel of a mechanical keyboard key, Things 3's restraint (one accent, lots of air) and the bold type of Arc and Teenage Engineering product pages. It is a phone app first: a single 20 px-guttered column, big targets, thumb-height actions.\n\nCopy is short, warm and never guilt-tripping (\"Hold to complete\", \"3-day streak\", \"Start today\").",
+    "overview": "Ascend is a small, physical object on a sheet of bone paper. Every habit is a chunky key: it has a face, a lip along its bottom edge, and it sinks when you press it. Holding it down grows a persimmon tint out from under your finger; when the hold completes the key snaps to solid persimmon with a short pop. The whole system exists to make that one gesture feel honest and satisfying, and everything around the keys stays quiet so they can carry the screen.\n\nThe mood is tactile and warm, never clinical: warm paper and soft graphite instead of white and black, one persimmon accent instead of a rainbow of categories, one clean, open typeface (Manrope) in four weights, so the type stays quiet and the keys carry the screen. References are the feel of a mechanical keyboard key and Things 3's restraint (one accent, lots of air). It is a phone app first: a single 20 px-guttered column, big targets, thumb-height actions.\n\nCopy is short, warm and never guilt-tripping (\"Hold to complete\", \"3-day streak\", \"Start today\").",
     "keyCharacteristics": [
       "One accent, persimmon, reserved for \"done\" and the one main action on a screen.",
       "Depth by a solid lip under the element, never by blur shadows.",
