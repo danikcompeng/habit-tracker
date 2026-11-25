@@ -48,7 +48,6 @@ typography:
     fontWeight: 700
     lineHeight: 1.25
     letterSpacing: "-0.025em"
-    fontFeature: "tnum"
   section:
     fontFamily: "Manrope, ui-sans-serif, system-ui, sans-serif"
     fontSize: "1rem"

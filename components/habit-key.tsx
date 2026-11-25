@@ -304,7 +304,9 @@ export function HabitKey({ habit, mode, onComplete, onUndo, onHint, onHoldingCha
         ) : (
           <Dots dots={habit.dots} onAccent={habit.done} />
         )}
-        <span id={ids.streak} className={`text-sm font-medium tabular-nums ${habit.done ? "" : filled ? "text-ink" : "text-ink-muted"}`}>
+        {/* Proportional figures (Feature 9, the user's call): Manrope's
+            tabular "1" sits alone in a wide slot ("1 2-day streak"). */}
+        <span id={ids.streak} className={`text-sm font-medium ${habit.done ? "" : filled ? "text-ink" : "text-ink-muted"}`}>
           {streakText(habit.streak)}
         </span>
       </span>

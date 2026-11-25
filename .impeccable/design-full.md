@@ -48,7 +48,6 @@ typography:
     fontWeight: 700
     lineHeight: 1.25
     letterSpacing: "-0.025em"
-    fontFeature: "tnum"
   section:
     fontFamily: "Manrope, ui-sans-serif, system-ui, sans-serif"
     fontSize: "1rem"
@@ -221,7 +220,7 @@ A warm two-paper neutral set (bone and graphite) with a single persimmon voice a
 
 **Display Font:** Manrope (with ui-sans-serif, system-ui)
 **Body Font:** Manrope
-**Label Font:** Manrope, tabular figures for streaks, percentages and every count
+**Label Font:** Manrope. Proportional figures for streaks and History's big numbers (so "12" reads tight); tabular only where numbers line up in a column (History's per-habit percentages) or change in place (counters, the code field, the scrub readout)
 
 **Character:** One clean, open sans in four weights (400, 500, 600, 700; nothing heavier): minimal and even at every size, with the large headings and the wordmark set slightly tight so they hold together. The single family keeps the app feeling like one object.
 
@@ -229,12 +228,12 @@ A warm two-paper neutral set (bone and graphite) with a single persimmon voice a
 - **Display** (700, 52 px, line-height 1, −0.04 em): the "Ascend" wordmark on the login screen only. Capped at 17vw so the word still fits a phone at large text sizes.
 - **Lead** (400, 18 px, 1.4): the one-line promise under the wordmark, and the error page's explanation.
 - **Headline** (700, 34 px, 1.05, −0.03 em): page titles ("Today", "Habits", "History").
-- **Stat** (700, 28 px, 1.25, −0.025 em, tabular): History's three numbers only (`text-stat`); the unit beside them ("days") is normal spacing. Three digits ("999 days", "100%") fit three columns from 340 px.
+- **Stat** (700, 28 px, 1.25, −0.025 em, proportional figures): History's three numbers only (`text-stat`); the unit beside them ("days") is normal spacing. Three digits ("999 days", "100%") fit three columns from 340 px.
 - **Section** (700, 16 px, 1.5): section headings inside a page ("Day by day", "Each habit", "Completing habits"; `text-section`). Bold, so they stay a level above the 18 / 600 names under them.
 - **Title** (600, 22 px, 1.2): a habit's name on its key.
 - **Title, list** (600, 18 px, 1.35): a habit's name in the Habits list and History rows.
 - **Body** (500–600, 16 px): buttons, fields, sentences. 16 px is a floor on inputs so iOS never zooms.
-- **Label** (500, 14 px, walnut muted): dates, captions, streaks, legends. Numbers are tabular.
+- **Label** (500, 14 px, walnut muted): dates, captions, streaks, legends. Streaks use proportional figures.
 
 ### Named Rules
 **The 16 px Floor Rule.** Anything you type into is 16 px. Nothing that must be read is under 14 px.

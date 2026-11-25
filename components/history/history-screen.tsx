@@ -164,7 +164,9 @@ function Numbers({ view }: { view: HistoryView }) {
               {item.label}
               {"spokenExtra" in item && <span className="sr-only">{item.spokenExtra}</span>}
             </dt>
-            <dd className="row-start-1 text-stat whitespace-nowrap tabular-nums">
+            {/* Proportional figures, so "12" and "71%" read tight (Feature 9,
+                the user's call); the three aren't a column to line up. */}
+            <dd className="row-start-1 text-stat whitespace-nowrap">
               {item.value}
               {item.unit && (
                 <>
@@ -484,6 +486,7 @@ function HabitRow({ habit, range }: { habit: HabitSummary; range: Range }) {
       <p className="sr-only">{habitSentence(habit)}</p>
       <div aria-hidden="true" className="flex items-baseline justify-between gap-3">
         <span className="min-w-0 text-list font-semibold text-pretty">{habit.name}</span>
+        {/* Tabular: the percentages line up down the list. */}
         <span className="shrink-0 text-list font-semibold tabular-nums">
           {habit.percent === null ? "—" : `${habit.percent}%`}
         </span>

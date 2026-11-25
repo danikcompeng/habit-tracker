@@ -77,7 +77,7 @@ All text pairs must pass 4.5:1 (`ink-muted` on `background` and `surface`, `on-a
 - Habit name 22 px / 600 on Today's keys; 18 px / 600 in the `/habits` list (`text-list`)
 - Body and buttons 16 px / 500–600 (16 px stops iOS zooming into inputs)
 - Labels and captions 14 px / 500, `ink-muted`
-- Numbers are `tabular-nums`.
+- Numbers: proportional for streaks and History's big numbers; `tabular-nums` where they line up in a column (per-habit percentages) or change in place (counters, the code field) (Feature 9).
 
 **Space and shape**
 - 4 px grid. Page gutter 20 px. Gap between habit rows 12 px. Row padding 20 px. Header-to-list gap 28 px.
@@ -765,7 +765,7 @@ The user's call: switch the app's one font from Bricolage Grotesque to **Manrope
 - Habit names (22 px) and everything smaller: unchanged (0); History's unit ("days") is reset to 0 so it doesn't inherit the number's −0.025 em. _(After code-reviewer.)_
 Every current use of those three sizes had `tracking-tight`, so moving it into the tokens changes nothing else.
 
-**Tabular numbers**: streaks (the key's caption) and percentages (History's numbers and each habit's percent), as now, plus the other counts already marked (summary line, day readout, name length).
+**Tabular numbers**: streaks (the key's caption) and percentages (History's numbers and each habit's percent), as now, plus the other counts already marked (summary line, day readout, name length). _Revised after design-critic, the user's call: Manrope's tabular "1" sits alone in a wide slot ("12-day streak" read "1 2", "71%" read "7 1%"), so Today's streak captions and History's three big numbers use **proportional** figures; tabular stays only where numbers line up in a column (History's per-habit percentages). The other tabular counts (name length, the code field, the scrub readout, the summary line) aren't streaks or percentages and are unchanged._
 
 **Manrope is a bit wider**, so everything that depends on text width is re-checked rather than assumed, and every width test first waits for the web font and checks it's really Manrope (not the fallback) before measuring:
 - The 200% text check on every screen and the empty states.
@@ -1521,11 +1521,13 @@ Verdict: **Ship after fixes**. Better than before at normal size: the wordmark s
 |---|----------|---------|---------|--------------|
 | 1 | Medium | At 200% text, habit names on Today broke inside words ("Stretc / h for 5 / minut / es"), and the 200% check couldn't see it. | Fixed | The key is a container: under 10rem inside, the check moves above the name. That still left "minutes" 14 px short on a 320 px phone at 200%, so the key's side padding is capped at 20 px (unchanged at normal text). A word-by-word test at 320 / 390 px and 100–200%; it failed before each fix. |
 | 2 | Medium | Section headings ("Day by day", "Each habit", "Completing habits") at 16 / 600 read lighter than the 18 / 600 names under them. | Fixed | A `text-section` token, 16 px / 700; tested. |
-| 3 | Medium, the user's call | Tabular "1" leaves a gap: "12-day streak" reads "1 2", History's "71%" reads "7 1%". | Kept, offered | The user asked for tabular streaks and percentages. Options put to them: proportional figures for Today's streak caption (and History's big numbers), or keep. |
+| 3 | Medium, the user's call | Tabular "1" leaves a gap: "12-day streak" reads "1 2", History's "71%" reads "7 1%". | Fixed, the user's call | First kept and offered; the user chose proportional figures for Today's streak captions and History's three big numbers, tabular only where numbers line up in a column (History's per-habit percentages). The other tabular counts (name length, code field, scrub readout, summary line) aren't streaks or percentages and stay. The figures test now checks both kinds (with the Manrope control); it failed against the build before the change. Result after the change: 379 unit tests; full browser suite 82 passed, 0 failed; screenshots retaken. |
 | 4 | Low | Word spaces in habit names look tight at 600. | Not changed | Optional `word-spacing`; names left as they were. |
 | 5 | Low | At 200%, the selected range segment's "days" touches its edge. | Fixed | Not with more padding (that would make it worse): side padding capped at 8 px; tested (≥ 6 px of room; it was 4). |
 
 Checks: 379 unit and database tests, tsc, eslint, `next build`. Browser suite on `next start`: first Manrope run 80 passed, 0 failed; after the design-critic fixes, the three new checks failed against the build without them (as they must); then a full run with 81 passed and 1 failed (words still cut at 320 px / 200%: the padding cap followed); then 81 passed and 1 failed (my letter-spacing helper read "normal" as NaN: fixed in the test); final full run: **82 passed, 0 failed**. Screenshots retaken (all folders), light and dark.
+
+Follow-up (the user's decisions after the review): proportional figures as above; the tablet date breakpoint (600–639 px short) left as it is.
 
 #### Takeaways
 - Two of my own checks could never fail (scrollWidth on a box that grows with its text; a `font` shorthand that's empty for tabular numbers). Every new check now gets a run where it must fail.
