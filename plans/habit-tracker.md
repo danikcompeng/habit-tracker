@@ -683,6 +683,38 @@ The request: move "Tap to complete" off Today into a small **Settings** screen r
 - Playwright: Settings opens from Today's footer, has the switch, Done returns; turning it on there makes a tap complete on Today, by Done and by the back button, and Today's footer no longer has the switch; two quick taps show the hint under the key with a working link and announce it; a 400 ms release doesn't count; a third pair the same day (after reload) doesn't show it; never in tap mode; axe on Settings and on Today with the hint, light and dark; 200%-text check on Settings and the hint.
 - Screenshots (`docs/screenshots/feature-8/`): Settings off and on, Today with the hint, Today's footer; light and dark.
 
+_The once-a-day rule above was replaced the next day by "until this device has completed a real hold" (Feature 8b)._
+
+### Feature 8b: the hint until a real hold, and a short date on Today (2026-11-25)
+
+The user's two calls after Feature 8: (1) take the logic-checker's alternative for the hint: keep showing it after quick taps **until this device has completed one real hold**, since the people who can't hold are exactly who it's for; (2) Today's date line becomes a **short date ("Wed, Nov 25") when the full one doesn't fit** beside History and Edit (on a 390 px phone, "Wednesday, November 25" needs 354 of the 350 px, so the pills dropped below it).
+
+**1. The hint, until a real hold**
+- **A real hold** = a habit completed by the hold itself: the fill reaching the end under a finger, mouse, or Space / Enter, in hold mode. Not a completion in Tap to complete mode, not a click with no press before it (VoiceOver double-tap, Switch Control: these can't hold, which is the point), not an undo. The gesture machine says which: its `complete` effect gets `held: true | false` (true only from `finish`).
+- On a real hold, Today saves `tap-hint-held` = `"1"` in `localStorage`, at once, in the key's `onComplete` handler before `save()` (so a habit that just vanished from the server data still counts): it proves they can hold, whether or not the save then reaches the server. `HabitKey`'s `onComplete(habit, { held })` passes it on. Read only in the release handler, like before. A real hold that's undone straight away still counts (they could hold). _(After logic-checker.)_
+- The hint shows on the second quick release (< 300 ms, as in Feature 8) since Today was last shown or since the last completion (any completion, held or not, as before), **unless** a real hold is on record: `tap-hint-held` is set, or one happened earlier in this page's life (kept in the hint's own state, so it holds when storage is blocked). No daily cap: every visit can show it again until a real hold.
+- A shown hint still stays for the visit, even if a real hold happens while it's showing (it never disappears under a finger); it's gone from the next visit on.
+- Replaced: the `tap-hint-day` key, the day compared on every release, and the reset on a new day (nothing depends on the day any more). The old key is left in browsers that have it: a few bytes nothing reads.
+- Blocked `localStorage`: the hold is only remembered until the page reloads, so someone who can hold may see the hint again on a later load. Never an error.
+- "This device" is one browser's storage: people who held before this change, an iPhone home-screen install (its storage is separate from Safari's), and a Safari tab whose storage was cleared after 7 days unvisited may each see the hint once more, until their next hold. Accepted.
+- Rules stay in `lib/tap-hint.ts`: the `release` event carries `heldBefore` (the flag) instead of `shownOn` / `today`; `complete` carries `held`; the state gains `held` (a real hold this page's life), which a `reset` keeps.
+
+**2. A short date when the full one doesn't fit**
+- `shortDayLabel(day)` in `lib/today.ts`: "Wed, Nov 25" (en-US, like `dayLabel`). It's the formatter History's day readout already uses (`lib/history.ts`), moved here and shared, so the two can't drift. _(After logic-checker.)_
+- Decided by layout, not by counting letters, so it's exact for every date, text size and font, and needs no JavaScript (while the web font loads, a date within a few px of fitting may switch once when it arrives):
+  - The date slot grows into the space left of the pills (`flex-1`), and keeps the automatic minimum width (no `min-w-0`, no clipping on the slot), which is the short date's width because the short date is `whitespace-nowrap`.
+  - The full date sits in a layer the size of the slot (`absolute inset-0`), in a clipped `flex-wrap` box, after a spacer that is zero wide and **a full line tall** (`h-full`: a zero-height spacer would make line 1 zero tall and put the "hidden" line in view). If the full date is wider than the slot it wraps onto the clipped second line and the short date shows; if it fits, it covers the short date (on the page background, `bg-background`). _(Revised after logic-checker #1, #3.)_
+  - The header still wraps: if even the short date and the pills don't fit (large text), the pills drop below as before, and the slot, now the full width, shows the full date if that fits.
+- Screen readers get one copy of the full date: invisible (`opacity-0`), the slot's size and on top, so a finger exploring the date finds it (a 1 px `sr-only` box can't be found by touch, as History's slider showed). Both visible copies are `aria-hidden`. The date isn't selectable (`select-none` on the line), so copying never gives it twice. _(After logic-checker and code-reviewer.)_
+- The cover is the page background: if the header ever gets its own surface, `bg-background` changes with it (a comment says so). The skeleton's date bar is 160 px, between the two forms at 390 px. _(After design-critic.)_
+- Same type (14/500 `ink-muted`), same place; the skeleton doesn't change.
+
+**Tests**
+- Vitest: `lib/tap-hint.ts` (shows on the second quick release with no hold on record; never once a hold is on record, from storage or from this page's life, through a reset; a shown hint stays through a completion; slow releases, tap mode, a reset as before); `lib/hold.ts` (`complete` is `held: true` from a finished pointer or key hold, `false` in tap mode and from a lone click); `shortDayLabel`.
+- Playwright, the hint: `e2e/settings.e2e.ts`'s "doesn't come back the same day" and "at most once a day" flip: after History → Done, and after a reload, two quick taps show it again; after a real hold completes (same visit, then after a reload), two quick taps only say "Keep holding…"; a hold with Space counts, even undone straight away; a completion in tap mode, or by a lone click (assistive tech), doesn't count.
+- Playwright, the date, by geometry and independent of the run date (the label text is set in the page to the longest, "Wednesday, September 30", and a short one, "Friday, May 1"): at 320 / 360 / 390 / 430 px and 100% and 200% text, the full date is on the visible line exactly when it's no wider than the slot, it's painted over the short one exactly then (`elementsFromPoint`), the screen reader's copy covers the slot, nothing visible is cut off, and at 100% text the pills stay on the date's line. The header's accessibility tree has exactly one date. Also checked once in WebKit (iPhone's engine), by laying out the built page there. The date layer is left out of the generic 200% overflow check on purpose (it clips by design). The accessible text is the full date. _(Revised after logic-checker #2.)_
+- Screenshots: Today's top at 390 px with the long date (short form) and 430 px (full form), light and dark (`docs/screenshots/feature-8b/`), with the label set to "Wednesday, September 30" so the shots don't depend on the day.
+
 ## Reviews
 
 _One entry per feature. Every agent finding is logged with its severity and what was done about it, so the log shows what each reviewer caught and what changed as a result._
@@ -1281,6 +1313,57 @@ Checks: 374 unit and database tests, tsc, eslint, `next build`, and all **71 bro
 #### Takeaways
 - The logic-checker's sharpest point was a conflict with the request itself (once a day vs. people who can't hold). It's kept as asked and put to the user rather than silently overridden.
 - The High bug was the same `<Activity>` lesson as before, in a new place: any "busy" state in a page that can be hidden needs a reset on hide.
+
+
+### Feature 8b: the hint until a real hold, and a short date on Today (2026-11-25)
+
+The user's two calls after Feature 8: the logic-checker's alternative for the hint (until this device completes a real hold), and a short date when the full one doesn't fit.
+
+#### logic-checker (plan review)
+Verdict: **Ready after fixes**.
+
+| # | Severity | Finding | Outcome | What changed |
+|---|----------|---------|---------|--------------|
+| 1 | High | The zero-width spacer had no height, so line 1 was 0 tall and the "hidden" second line, with a cut-off full date, was the visible one: exactly on the dates the feature is for. | Fixed | The spacer is a full line tall (`h-full`). (A prototype found the same thing.) The date e2e fails without it (checked). |
+| 2 | Medium | The planned date tests couldn't see clipping or covering, depended on the day they run, and the generic 200% check never looked at the layer. | Fixed | Geometry tests with the label set in the page to the longest and a short date, at 4 widths × 2 text sizes; both forms must occur. The layer is left out of the generic check on purpose. |
+| 3 | Medium | The slot's minimum width rests on two unstated things: the short date must be `nowrap`, and the slot must have no `min-w-0` or clipping. | Fixed | Both in the plan and in a code comment. |
+| 4 | Low | Screen readers: one hidden full date is simpler than relying on a clipped copy; copying gave both dates. | Fixed | One spoken copy; visible copies `aria-hidden` (revised again after code-reviewer #1). |
+| 5 | Low | Feature 8's Tests block ended up under 8b; two e2e tests and comments contradicted 8b. | Fixed | Block moved back; both tests flipped; comments updated. |
+| 6 | Low | With blocked storage, the hint could return straight after a real hold on the same page. | Fixed | The pure state keeps `held` (and a reset keeps it). |
+| 7 | Low | Write the flag before `save()`'s early return; `onComplete` must carry `held`. | Fixed | `completed()` writes it first; `onComplete(habit, { held })`. |
+| 8 | Low | `shortDayLabel` duplicated History's formatter. | Fixed | One formatter in `lib/today.ts`, shared. |
+| 9 | Low | "Nothing to flash" isn't true while the web font loads. | Fixed (wording) | The plan says a near-fit date may switch once when the font arrives. |
+| 10 | Low | "This device" is one browser's storage (home-screen app vs Safari, Safari's 7-day clearing). | Noted | In the plan, as "may see it once more". |
+| — | Questions | Does a real hold undone at once count? Does any completion reset the count? | Answered | Yes, and yes (as before); both written down, the first tested. |
+
+#### code-reviewer (diff review)
+Verdict: **Ship after fixes**. No correctness bugs in the hint or gesture changes.
+
+| # | Severity | Finding | Outcome | What changed |
+|---|----------|---------|---------|--------------|
+| 1 | Medium | The only copy screen readers could reach was a 1 px `sr-only` box: VoiceOver touch exploration on the date would find nothing (as History's slider once did). | Fixed | The spoken copy is invisible, the slot's size and on top; e2e checks it covers the slot. |
+| 2 | Low | Copying the date gave it twice (or text you can't see). | Fixed | The date line is `select-none`. |
+| 3 | Low | The layout is only tested in Chromium; iPhone is WebKit. | Checked | Playwright's WebKit on Windows doesn't keep the login cookie over http, so the built, signed-in page was captured in Chromium and laid out in WebKit: all 16 cases (4 widths × 2 text sizes × 2 dates) correct. Not added to the suite. |
+| 4 | Low | The 8b screenshot test didn't reset the demo. | Fixed | `freshDemo` first. |
+| 5 | Low | The plan's test wording didn't match the test; nothing checked there's exactly one date in the accessibility tree. | Fixed | Wording corrected; an aria snapshot of the date line. |
+| 6 | Low | No Reviews entry yet. | Fixed | This entry. |
+| — | Tests | Space-hold sets the flag; a hold undone at once still counts; a lone click doesn't set it; a hint shown, then a hold. | Added | All four (three e2e, one pure). |
+
+#### design-critic (Today at 390 and 430 px, real date and longest date, 200% text; light and dark)
+Verdict: **Ship**. Alignment, centring, rhythm and both themes fine; no trace of the cover.
+
+| # | Severity | Finding | Outcome | What changed |
+|---|----------|---------|---------|--------------|
+| 1 | Low | On a 390 px phone the form changes with the calendar (about once a week). | Kept | It's the user's rule ("when the full one doesn't fit"). A width threshold would make it steady; offered. |
+| 2 | Low | The skeleton's date bar (192 px) was wider than any date at 390 px. | Fixed | 160 px. |
+| 3 | Low | The cover only works on the page background. | Fixed | A comment ties them together. |
+| 4 | Low | The rule wasn't in DESIGN.md. | Fixed | One line under the 200% rule (and in `.impeccable/design-full.md`). |
+
+Checks: 379 unit and database tests, tsc, eslint, `next build`, and all **77 browser tests** on `next start` pass. One full run had a single failure in "tapping a done key undoes it" (Feature 3); it passed on its own and in a second full run, so it's noted as a possible flake, not fixed.
+
+#### Takeaways
+- Three checks found the same layout bug: a prototype, the logic-checker, and a mutation test that fails without the fix. A trick that hides things by wrapping needs a test that measures where things are, not whether they're "visible".
+- `sr-only` is the wrong tool whenever the visible thing is something people explore by touch; this is the second time.
 
 <!--
 Template — copy for each feature:

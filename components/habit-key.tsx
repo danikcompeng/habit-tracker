@@ -18,7 +18,8 @@ export type KeyHabit = { id: string; name: string; done: boolean; streak: number
 type Props = {
   habit: KeyHabit;
   mode: HoldMode;
-  onComplete: (habit: KeyHabit) => void;
+  /** `held`: completed by holding it to the end (not a tap in Tap to complete mode, not assistive tech). */
+  onComplete: (habit: KeyHabit, how: { held: boolean }) => void;
   onUndo: (habit: KeyHabit) => void;
   /** "Keep holding…": the parent announces it. */
   onHint: (habit: KeyHabit, release: { by: "pointer" | "key"; heldMs: number }) => void;
@@ -63,7 +64,7 @@ export function HabitKey({ habit, mode, onComplete, onUndo, onHint, onHoldingCha
     for (const effect of step.effects) {
       if (effect.type === "start-fill") startFill(effect.origin);
       else if (effect.type === "cancel-fill") shrinking = cancelFill();
-      else if (effect.type === "complete") complete();
+      else if (effect.type === "complete") complete(effect.held);
       else if (effect.type === "undo") latest.current.onUndo(latest.current.habit);
       else if (effect.type === "hint") showHint(effect);
     }
@@ -132,10 +133,10 @@ export function HabitKey({ habit, mode, onComplete, onUndo, onHint, onHoldingCha
     if (fillRef.current) Object.assign(fillRef.current.style, { width: "0px", height: "0px" });
   }
 
-  function complete() {
+  function complete(held: boolean) {
     const animation = fill.current;
     fill.current = null;
-    latest.current.onComplete(latest.current.habit);
+    latest.current.onComplete(latest.current.habit, { held });
     setJustDone(true);
     // The fill paints above the key's own background (a -z child of an
     // isolated button), so it goes a frame later, once the done colour has

@@ -14,7 +14,7 @@ import { HOLD_MODE_COOKIE, parseHoldMode } from "@/lib/preferences";
 import { userTimeZone, userToday } from "@/lib/server-helpers";
 import { createClient } from "@/lib/supabase/server";
 import { addDays } from "@/lib/dates";
-import { buildToday, dayLabel, type CheckinRow, type HabitRow, type StreakRow } from "@/lib/today";
+import { buildToday, dayLabel, shortDayLabel, type CheckinRow, type HabitRow, type StreakRow } from "@/lib/today";
 
 // "absolute": the layout's "%s · Ascend" template only reaches pages in
 // child segments, and this page shares the layout's segment.
@@ -66,7 +66,34 @@ async function Today() {
       {/* flex-wrap: with zoomed text the pills drop below the date instead
           of running off the screen. */}
       <header className="flex min-h-12 flex-wrap items-center justify-between gap-x-3 gap-y-2">
-        <p className="text-sm font-medium whitespace-nowrap text-ink-muted">{dayLabel(today)}</p>
+        {/* The full date, or "Wed, Nov 25" when it doesn't fit beside the
+            pills (Feature 8b). Layout decides, no JavaScript:
+            - The slot grows into the space left (flex-1) and keeps its
+              automatic minimum, the short date's width (nowrap). No min-w-0
+              or clipping here, or the pills would never drop below.
+            - The full date sits in a clipped layer the slot's size, after a
+              spacer one line tall: too wide, it wraps onto the hidden second
+              line and uncovers the short date; otherwise it covers it.
+            - The cover is the page background: if the header ever gets its
+              own surface, change bg-background with it.
+            - Screen readers get one copy of the full date, invisible but the
+              slot's size and on top, so a finger exploring the date finds it
+              (a 1 px sr-only box can't be found by touch). The visible copies
+              are aria-hidden. Nothing is selectable (no doubled date). */}
+        <p className="relative flex-1 text-sm font-medium whitespace-nowrap text-ink-muted select-none">
+          <span aria-hidden="true" data-day-label="short">
+            {shortDayLabel(today)}
+          </span>
+          <span aria-hidden="true" className="absolute inset-0 flex flex-wrap overflow-hidden">
+            <span className="h-full w-0" />
+            <span data-day-label="full" className="bg-background">
+              {dayLabel(today)}
+            </span>
+          </span>
+          <span data-day-label="spoken" className="absolute inset-0 overflow-hidden opacity-0">
+            {dayLabel(today)}
+          </span>
+        </p>
         <nav aria-label="Pages" className="flex shrink-0 items-center gap-2">
           <Link href="/history" className={buttonClass("secondary", { size: "sm", block: false })}>
             History
@@ -117,7 +144,8 @@ function TodaySkeleton() {
   return (
     <div aria-hidden="true">
       <div className="flex min-h-12 items-center justify-between">
-        <div className="h-4 w-48 rounded bg-surface-sunk" />
+        {/* Between the short date and the longest full one at 390 px. */}
+        <div className="h-4 w-40 rounded bg-surface-sunk" />
         <div className="flex gap-2">
           <div className="h-11 w-[92px] rounded-full bg-surface-sunk" />
           <div className="h-11 w-[70px] rounded-full bg-surface-sunk" />

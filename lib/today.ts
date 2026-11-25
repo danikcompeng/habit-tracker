@@ -55,11 +55,17 @@ export function buildToday(
 // everywhere. Formatting it in the browser's own zone would turn it into
 // Sunday the 22nd anywhere west of UTC.
 const longDay = new Intl.DateTimeFormat("en-US", { weekday: "long", month: "long", day: "numeric", timeZone: "UTC" });
+const shortDay = new Intl.DateTimeFormat("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: "UTC" });
 const weekday = new Intl.DateTimeFormat("en-US", { weekday: "long", timeZone: "UTC" });
 
 /** "Monday, November 23". */
 export function dayLabel(day: string): string {
   return longDay.format(new Date(`${day}T00:00:00Z`));
+}
+
+/** "Mon, Nov 23": Today's header when the long one doesn't fit, and History's day readout. */
+export function shortDayLabel(day: string): string {
+  return shortDay.format(new Date(`${day}T00:00:00Z`));
 }
 
 /** "Monday". */

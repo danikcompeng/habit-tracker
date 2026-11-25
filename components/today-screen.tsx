@@ -19,7 +19,7 @@ import { buttonClass } from "@/components/ui/button";
 import { ErrorText } from "@/components/ui/error-text";
 import { setCheckin, type CheckinResult } from "@/lib/checkin-actions";
 import type { HoldMode } from "@/lib/hold";
-import { NO_TAP_HINT, TAP_HINT_DAY_KEY, TAP_HINT_TEXT, nextTapHint, tapHintAnnouncement } from "@/lib/tap-hint";
+import { NO_TAP_HINT, TAP_HINT_HELD_KEY, TAP_HINT_TEXT, nextTapHint, tapHintAnnouncement } from "@/lib/tap-hint";
 import { applyDone, streakText, summaryLine, weekdayName, type HabitView } from "@/lib/today";
 
 type Props = { today: string; habits: HabitView[]; mode: HoldMode };
@@ -57,38 +57,38 @@ export function TodayScreen({ today, habits, mode }: Props) {
   const [announcement, setAnnouncement] = useState("");
   const [notice, setNotice] = useState<Notice | null>(null);
   const holds = useRef(0);
-  // The hint toward Tap to complete (lib/tap-hint.ts), and the day it
-  // belongs to: a new day starts from nothing (this screen isn't remounted
-  // on a new day, on purpose).
+  // The hint toward Tap to complete (lib/tap-hint.ts): after quick taps,
+  // until this device has completed a real hold.
   const [tapHint, setTapHint] = useState(NO_TAP_HINT);
-  const [tapHintDay, setTapHintDay] = useState(today);
-  if (tapHintDay !== today) {
-    setTapHintDay(today);
-    setTapHint(NO_TAP_HINT);
-  }
-  // Hidden routes stay alive (<Activity>): coming back starts from nothing.
-  useLayoutEffect(() => () => setTapHint(NO_TAP_HINT), []);
+  // Hidden routes stay alive (<Activity>): coming back starts from nothing
+  // (except knowing about a real hold).
+  useLayoutEffect(() => () => setTapHint((state) => nextTapHint(state, { type: "reset" }).state), []);
 
   /** "Keep holding…": maybe the second quick release, which brings the hint. */
   function released(habit: KeyHabit, heldMs: number) {
-    let shownOn: string | null = null;
+    let heldBefore = false;
     try {
-      shownOn = localStorage.getItem(TAP_HINT_DAY_KEY);
+      heldBefore = localStorage.getItem(TAP_HINT_HELD_KEY) === "1";
     } catch {
-      // Blocked storage (private mode, settings): it may show again. Fine.
+      // Blocked storage (private mode, settings): the hint's own state still
+      // knows about a hold on this page. Never an error.
     }
-    const step = nextTapHint(tapHint, { type: "release", habitId: habit.id, heldMs, mode, shownOn, today });
+    const step = nextTapHint(tapHint, { type: "release", habitId: habit.id, heldMs, mode, heldBefore });
     setTapHint(step.state);
-    if (step.shown) {
+    say(step.shown ? tapHintAnnouncement(habit.name) : `Keep holding to complete ${habit.name}.`);
+  }
+
+  /** A key completed: a real hold means this device can hold, saved now (whatever the save's fate). */
+  function completed(habit: KeyHabit, held: boolean) {
+    if (held) {
       try {
-        localStorage.setItem(TAP_HINT_DAY_KEY, today);
+        localStorage.setItem(TAP_HINT_HELD_KEY, "1");
       } catch {
         // As above.
       }
-      say(tapHintAnnouncement(habit.name));
-    } else {
-      say(`Keep holding to complete ${habit.name}.`);
     }
+    setTapHint((state) => nextTapHint(state, { type: "complete", held }).state);
+    save(habit, true);
   }
 
   function say(text: string) {
@@ -100,7 +100,6 @@ export function TodayScreen({ today, habits, mode }: Props) {
     const server = habits.find((h) => h.id === habit.id);
     if (!server) return;
     say(`${habit.name} ${nowDone ? "done" : "not done"}. ${streakText(applyDone(server, nowDone).streak)}.`);
-    if (nowDone) setTapHint((state) => nextTapHint(state, { type: "complete" }).state);
     setNotice(null);
     // The server works out "today" from this cookie: make sure it's there.
     saveTimezoneCookie();
@@ -162,7 +161,7 @@ export function TodayScreen({ today, habits, mode }: Props) {
               <HabitKey
                 habit={habit}
                 mode={mode}
-                onComplete={(h) => save(h, true)}
+                onComplete={(h, how) => completed(h, how.held)}
                 onUndo={(h) => save(h, false)}
                 onHint={(h, release) => released(h, release.heldMs)}
                 onHoldingChange={(holding) => {

@@ -214,3 +214,22 @@ test("settings screens", async ({ page }) => {
   await page.waitForLoadState("networkidle");
   await shoot(page, folder, "settings-on");
 });
+
+test("today's date screens", async ({ page }) => {
+  // Feature 8b: the short date when the full one doesn't fit beside the
+  // pills. The label is set to the longest date, so the shots don't depend
+  // on the day: short at 390 px, full at 430 px.
+  const folder = "feature-8b";
+  await freshDemo(page);
+  for (const width of [390, 430]) {
+    await page.setViewportSize({ width, height: 844 });
+    await page.goto("/");
+    await expect(page.getByRole("heading", { name: "Today" })).toBeVisible();
+    await page.waitForLoadState("networkidle");
+    await page.evaluate(() => {
+      document.querySelector('[data-day-label="full"]')!.textContent = "Wednesday, September 30";
+      document.querySelector('[data-day-label="short"]')!.textContent = "Wed, Sep 30";
+    });
+    await shoot(page, folder, `today-${width}`);
+  }
+});

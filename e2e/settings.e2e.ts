@@ -1,6 +1,7 @@
 // Settings, and the hint toward Tap to complete (plans/habit-tracker.md,
-// Feature 8), on the demo account. Each test has a fresh browser context,
-// so the "hold-mode" cookie and the hint's localStorage day start empty.
+// Features 8 and 8b), on the demo account. Each test has a fresh browser
+// context, so the "hold-mode" cookie and the hint's "has held" flag in
+// localStorage start empty.
 
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import { expectNoA11yViolations, freshDemo, habitKey, holdKey } from "./helpers/app";
@@ -115,7 +116,7 @@ test("slower releases (learning to hold) don't count", async ({ page }) => {
   await expect(page.getByText(HINT)).toHaveCount(0);
 });
 
-test("leaving Today clears the hint, and it doesn't come back the same day", async ({ page }) => {
+test("leaving Today clears the hint, and two quick taps bring it back on the next visit", async ({ page }) => {
   const read = habitKey(page, "Read 10 pages");
   await quickTap(page, read);
   await quickTap(page, read);
@@ -127,19 +128,75 @@ test("leaving Today clears the hint, and it doesn't come back the same day", asy
   await expect(page.getByText(HINT)).toHaveCount(0);
   await quickTap(page, read);
   await quickTap(page, read);
-  await expect(page.getByText(HINT)).toHaveCount(0);
-});
-
-test("at most once a day: after a reload, two more quick taps don't bring it back", async ({ page }) => {
-  const read = habitKey(page, "Read 10 pages");
+  await expect(page.getByText(HINT)).toBeVisible();
+  // And after a reload: no daily cap (Feature 8b).
+  await page.reload();
   await quickTap(page, read);
   await quickTap(page, read);
   await expect(page.getByText(HINT)).toBeVisible();
+});
+
+test("once this device has completed a real hold, quick taps only say Keep holding (this visit, and after a reload)", async ({ page }) => {
+  const read = habitKey(page, "Read 10 pages");
+  const stretch = habitKey(page, "Stretch for 5 minutes");
+  await holdKey(page, stretch, 800);
+  await expect(stretch).toHaveAttribute("aria-pressed", "true");
+  await quickTap(page, read);
+  await quickTap(page, read);
+  await expect(page.getByText(HINT)).toHaveCount(0);
   await page.reload();
   await quickTap(page, read);
   await quickTap(page, read);
   await expect(read.getByText("Keep holding…")).toBeVisible();
   await expect(page.getByText(HINT)).toHaveCount(0);
+});
+
+test("a real hold with Space counts, even if it's undone straight away", async ({ page }) => {
+  const stretch = habitKey(page, "Stretch for 5 minutes");
+  await stretch.focus();
+  await page.keyboard.down(" ");
+  await expect(stretch).toHaveAttribute("aria-pressed", "true");
+  await page.keyboard.up(" ");
+  await stretch.click(); // undo
+  await expect(stretch).toHaveAttribute("aria-pressed", "false");
+  await page.reload();
+  const read = habitKey(page, "Read 10 pages");
+  await quickTap(page, read);
+  await quickTap(page, read);
+  await expect(read.getByText("Keep holding…")).toBeVisible();
+  await expect(page.getByText(HINT)).toHaveCount(0);
+});
+
+test("a lone click (VoiceOver, Switch Control) completes but isn't a real hold", async ({ page }) => {
+  const stretch = habitKey(page, "Stretch for 5 minutes");
+  // A click with no press before it, as assistive tech sends.
+  await stretch.dispatchEvent("click");
+  await expect(stretch).toHaveAttribute("aria-pressed", "true");
+  await page.reload();
+  const read = habitKey(page, "Read 10 pages");
+  await quickTap(page, read);
+  await quickTap(page, read);
+  await expect(page.getByText(HINT)).toBeVisible();
+});
+
+test("a completion in Tap to complete mode isn't a real hold: the hint still comes back in hold mode", async ({ page }) => {
+  await openSettings(page);
+  const tapSwitch = page.getByRole("switch", { name: /Tap to complete/ });
+  await tapSwitch.click();
+  await page.getByRole("link", { name: /Done|Saving/ }).click();
+  const stretch = habitKey(page, "Stretch for 5 minutes");
+  await expect(stretch).toHaveAccessibleDescription(/Tap to complete/);
+  await stretch.click();
+  await expect(stretch).toHaveAttribute("aria-pressed", "true");
+  await openSettings(page);
+  await tapSwitch.click();
+  await expect(tapSwitch).toHaveAttribute("aria-checked", "false");
+  await page.getByRole("link", { name: /Done|Saving/ }).click();
+  const read = habitKey(page, "Read 10 pages");
+  await expect(read).toHaveAccessibleDescription(/Press and hold to complete/);
+  await quickTap(page, read);
+  await quickTap(page, read);
+  await expect(page.getByText(HINT)).toBeVisible();
 });
 
 test("never with Tap to complete on: a tap just completes", async ({ page }) => {

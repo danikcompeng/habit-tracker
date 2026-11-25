@@ -88,6 +88,87 @@ test("History's numbers are three columns or one, never 2 + 1", async ({ page })
   }
 });
 
+test("Today's date: the full one when it fits beside the pills, the short one otherwise, never cut off", async ({ page }) => {
+  // By geometry, and independent of the day the tests run: the labels are
+  // set in the page to the longest date there is and a short one. (The date
+  // layer clips by design, so the generic check above doesn't look at it.)
+  await page.goto("/");
+  await expect(page.getByRole("heading", { name: "Today" })).toBeVisible();
+  // Screen readers get exactly one date, the full one.
+  const real = await page.locator('[data-day-label="spoken"]').textContent();
+  expect(real).toMatch(/^[A-Z][a-z]+day, [A-Z][a-z]+ \d{1,2}$/);
+  await expect(page.locator("header p")).toMatchAriaSnapshot(`- paragraph: ${real}`);
+  const dates = [
+    { full: "Wednesday, September 30", short: "Wed, Sep 30" },
+    { full: "Friday, May 1", short: "Fri, May 1" },
+  ];
+  const seen = new Set<string>();
+  for (const width of [320, 360, 390, 430]) {
+    for (const textSize of [100, 200]) {
+      for (const date of dates) {
+        await page.setViewportSize({ width, height: 844 });
+        await page.goto("/");
+        await expect(page.getByRole("heading", { name: "Today" })).toBeVisible();
+        await page.addStyleTag({ content: `html { font-size: ${textSize}% !important; }` });
+        const r = await page.evaluate(async ({ full, short }) => {
+          await document.fonts.ready;
+          const fullEl = document.querySelector<HTMLElement>('[data-day-label="full"]')!;
+          const shortEl = document.querySelector<HTMLElement>('[data-day-label="short"]')!;
+          fullEl.textContent = full;
+          shortEl.textContent = short;
+          const slot = shortEl.parentElement!.getBoundingClientRect();
+          const f = fullEl.getBoundingClientRect();
+          const sh = shortEl.getBoundingClientRect();
+          const nav = document.querySelector("header nav")!.getBoundingClientRect();
+          const spoken = document.querySelector<HTMLElement>('[data-day-label="spoken"]')!.getBoundingClientRect();
+          // Painted order at the short date's centre: is the full date over it?
+          const stack = document.elementsFromPoint(sh.left + sh.width / 2, sh.top + sh.height / 2);
+          const fullIndex = stack.indexOf(fullEl);
+          return {
+            fits: f.width <= slot.width + 0.5,
+            fullOnFirstLine: f.top < slot.bottom - 1,
+            fullOnTop: fullIndex !== -1 && fullIndex < stack.indexOf(shortEl),
+            // The screen reader's copy covers the whole slot (found by touch).
+            spokenCoversSlot: Math.abs(spoken.width - slot.width) < 1 && Math.abs(spoken.height - slot.height) < 1,
+            visibleRight: Math.max(sh.right, f.top < slot.bottom - 1 ? f.right : 0),
+            slotRight: slot.right,
+            shortFits: sh.width <= slot.width + 0.5,
+            pillsBeside: Math.abs(nav.top + nav.height / 2 - (slot.top + slot.height / 2)) < 2,
+            viewport: document.documentElement.clientWidth,
+          };
+        }, date);
+        const where = `${date.full} at ${width} px, ${textSize}% text`;
+        expect(r.fullOnFirstLine, `${where}: full date shown exactly when it fits`).toBe(r.fits);
+        expect(r.fullOnTop, `${where}: the copy on top`).toBe(r.fits);
+        expect(r.shortFits, `${where}: short date fits`).toBe(true);
+        expect(r.spokenCoversSlot, `${where}: the spoken copy is the slot's size`).toBe(true);
+        expect(r.visibleRight, `${where}: nothing cut off`).toBeLessThanOrEqual(r.slotRight + 0.5);
+        expect(r.slotRight, `${where}: inside the screen`).toBeLessThanOrEqual(r.viewport);
+        if (textSize === 100) expect(r.pillsBeside, `${where}: pills beside the date`).toBe(true);
+        seen.add(r.fits ? "full" : "short");
+      }
+    }
+  }
+  // Both forms were really exercised.
+  expect([...seen].sort()).toEqual(["full", "short"]);
+});
+
+test("at 390 px the longest date is short, a short one is full", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/");
+  // Once streamed in (before that, the label is in a hidden template).
+  await expect(page.getByRole("heading", { name: "Today" })).toBeVisible();
+  const fits = async (full: string) =>
+    page.evaluate(async (text) => {
+      await document.fonts.ready;
+      const fullEl = document.querySelector<HTMLElement>('[data-day-label="full"]')!;
+      fullEl.textContent = text;
+      return fullEl.getBoundingClientRect().top < fullEl.parentElement!.parentElement!.getBoundingClientRect().bottom - 1;
+    }, full);
+  expect(await fits("Wednesday, September 30")).toBe(false);
+  expect(await fits("Friday, May 1")).toBe(true);
+});
+
 test.describe("signed out", () => {
   test.use({ storageState: { cookies: [], origins: [] } });
 

@@ -7,7 +7,7 @@
 
 import { addDays, daysBetween, todayIn } from "./dates";
 import { weekDots, type Dot } from "./streaks";
-import { dayLabel } from "./today";
+import { dayLabel, shortDayLabel } from "./today";
 
 export const RANGES = [7, 30, 90] as const;
 export type Range = (typeof RANGES)[number];
@@ -193,7 +193,6 @@ export function buildHistory(habits: HistoryHabit[], today: string, range: Range
 
 // Day strings are formatted in UTC: "2026-11-23" is that calendar day
 // everywhere (see lib/today.ts).
-const shortDay = new Intl.DateTimeFormat("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: "UTC" });
 const monthDay = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
 const weekdayLetter = new Intl.DateTimeFormat("en-US", { weekday: "narrow", timeZone: "UTC" });
 
@@ -203,7 +202,7 @@ const utc = (day: string) => new Date(`${day}T00:00:00Z`);
 export function dayReadout(day: string, today: string): string {
   if (day === today) return "Today";
   if (day === addDays(today, -1)) return "Yesterday";
-  return shortDay.format(utc(day));
+  return shortDayLabel(day);
 }
 
 /** "Nov 14". */

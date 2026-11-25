@@ -1,16 +1,17 @@
 import { describe, expect, it } from "vitest";
 import { NO_TAP_HINT, QUICK_RELEASE_MS, nextTapHint, tapHintAnnouncement, type TapHintEvent, type TapHintState } from "./tap-hint";
 
-const TODAY = "2026-11-25";
 const release = (habitId = "a", extra: Partial<Extract<TapHintEvent, { type: "release" }>> = {}): TapHintEvent => ({
   type: "release",
   habitId,
   heldMs: 120,
   mode: "hold",
-  shownOn: null,
-  today: TODAY,
+  heldBefore: false,
   ...extra,
 });
+const held: TapHintEvent = { type: "complete", held: true };
+const tapped: TapHintEvent = { type: "complete", held: false };
+const reset: TapHintEvent = { type: "reset" };
 
 function run(events: TapHintEvent[], start: TapHintState = NO_TAP_HINT) {
   let state = start;
@@ -27,11 +28,11 @@ describe("the Tap to complete hint", () => {
   it("shows on the second quick release, under the key released second (keys count together)", () => {
     const { state, shown } = run([release("a"), release("b")]);
     expect(shown).toEqual([false, true]);
-    expect(state).toEqual({ releases: 0, habitId: "b" });
+    expect(state).toEqual({ releases: 0, habitId: "b", held: false });
   });
 
   it("one quick release isn't enough", () => {
-    expect(run([release()]).state).toEqual({ releases: 1, habitId: null });
+    expect(run([release()]).state).toEqual({ releases: 1, habitId: null, held: false });
   });
 
   it("slow releases (someone learning to hold) don't count, and don't reset the count", () => {
@@ -40,24 +41,36 @@ describe("the Tap to complete hint", () => {
     expect(run([release(), slow, release()]).shown).toEqual([false, false, true]);
   });
 
-  it("a completion starts the count again", () => {
-    expect(run([release(), { type: "complete" }, release()]).shown).toEqual([false, false, false]);
+  it("any completion starts the count again", () => {
+    expect(run([release(), tapped, release()]).shown).toEqual([false, false, false]);
+    expect(run([release(), held, release()]).shown).toEqual([false, false, false]);
   });
 
-  it("a completion keeps a shown hint (removing it would move the keys under a finger)", () => {
-    const { state } = run([release(), release("b"), { type: "complete" }]);
-    expect(state.habitId).toBe("b");
+  it("a completion keeps a shown hint, even a real hold (removing it would move the keys under a finger)", () => {
+    expect(run([release(), release("b"), tapped]).state.habitId).toBe("b");
+    expect(run([release(), release("b"), held]).state.habitId).toBe("b");
   });
 
-  it("at most once per day: not if it was already shown today", () => {
-    const shownToday = { shownOn: TODAY };
-    expect(run([release("a", shownToday), release("a", shownToday)]).shown).toEqual([false, false]);
+  it("every visit can show it again until a real hold", () => {
+    expect(run([release(), release(), reset, release(), release()]).shown).toEqual([false, true, false, false, true]);
   });
 
-  it("a new day can show it again, and days are compared for equality only", () => {
-    expect(run([release("a", { shownOn: "2026-11-24" }), release("a", { shownOn: "2026-11-24" })]).shown).toEqual([false, true]);
-    // A time-zone change that makes "today" earlier than the saved day.
-    expect(run([release("a", { shownOn: "2026-11-26" }), release("a", { shownOn: "2026-11-26" })]).shown).toEqual([false, true]);
+  it("never once this device has held (the saved flag)", () => {
+    const before = { heldBefore: true };
+    expect(run([release("a", before), release("a", before), release("a", before)]).shown).toEqual([false, false, false]);
+  });
+
+  it("never after a real hold on this page, even without the saved flag (blocked storage), and through a reset", () => {
+    expect(run([held, release(), release()]).shown).toEqual([false, false, false]);
+    expect(run([held, reset, release(), release()]).shown).toEqual([false, false, false, false]);
+  });
+
+  it("shown, then a real hold while it shows: it stays this visit, and never comes back", () => {
+    expect(run([release(), release(), held, reset, release(), release()]).shown).toEqual([false, true, false, false, false, false]);
+  });
+
+  it("a completion that wasn't a hold (Tap to complete, VoiceOver) doesn't stop it", () => {
+    expect(run([tapped, release(), release()]).shown).toEqual([false, false, true]);
   });
 
   it("never with Tap to complete on", () => {
@@ -66,13 +79,13 @@ describe("the Tap to complete hint", () => {
   });
 
   it("while it's showing, more releases change nothing", () => {
-    const showing = { releases: 0, habitId: "b" };
+    const showing = { releases: 0, habitId: "b", held: false };
     expect(nextTapHint(showing, release("a"))).toEqual({ state: showing, shown: false });
   });
 
-  it("a reset (Today hidden, a new day) clears the count and the hint", () => {
-    expect(run([release(), { type: "reset" }, release()]).shown).toEqual([false, false, false]);
-    expect(run([release(), release(), { type: "reset" }]).state).toEqual(NO_TAP_HINT);
+  it("a reset (Today hidden) clears the count and the hint", () => {
+    expect(run([release(), reset, release()]).shown).toEqual([false, false, false]);
+    expect(run([release(), release(), reset]).state).toEqual(NO_TAP_HINT);
   });
 
   it("is announced once, in place of Keep holding", () => {

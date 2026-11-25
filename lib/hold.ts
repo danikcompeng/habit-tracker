@@ -55,7 +55,12 @@ export type HoldEvent =
 export type HoldEffect =
   | { type: "start-fill"; origin: Point | null }
   | { type: "cancel-fill" }
-  | { type: "complete" }
+  /**
+   * `held`: the hold itself finished (a finger, mouse, or Space / Enter
+   * held to the end), so this person can hold. False for a tap in "Tap to
+   * complete" mode and for a lone click from assistive tech.
+   */
+  | { type: "complete"; held: boolean }
   | { type: "undo" }
   /**
    * Let go before the hold finished: show "Keep holding…". `by`: a short
@@ -134,7 +139,7 @@ export function next(state: HoldState, event: HoldEvent, mode: HoldMode = "hold"
         if (mode === "hold" && event.time - state.startedAt >= HOLD_MS) return { state: IDLE, effects: [] };
         // A short tap: undo a key that was done, or complete one in "Tap to
         // complete" mode (the only way pointer-tap starts on a not-done key).
-        return { state: IDLE, effects: [{ type: state.wasDone ? "undo" : "complete" }] };
+        return { state: IDLE, effects: [state.wasDone ? { type: "undo" } : { type: "complete", held: false }] };
       }
       return { state: IDLE, effects: [] }; // pointer-spent: the press was already decided
     }
@@ -151,7 +156,7 @@ export function next(state: HoldState, event: HoldEvent, mode: HoldMode = "hold"
       if (event.repeat) return stay;
       if (state.kind !== "idle") return stay;
       if (event.done) return { state: { kind: "key-spent", key: event.key }, effects: [{ type: "undo" }] };
-      if (mode === "tap") return { state: { kind: "key-spent", key: event.key }, effects: [{ type: "complete" }] };
+      if (mode === "tap") return { state: { kind: "key-spent", key: event.key }, effects: [{ type: "complete", held: false }] };
       return { state: { kind: "key-hold", key: event.key, startedAt: event.time }, effects: [{ type: "start-fill", origin: null }] };
     }
 
@@ -168,9 +173,9 @@ export function next(state: HoldState, event: HoldEvent, mode: HoldMode = "hold"
       // Only a hold that's still going completes. A finish that arrives
       // after the finger lifted or the page was hidden is ignored.
       if (state.kind === "pointer-hold") {
-        return { state: { kind: "pointer-spent", pointerId: state.pointerId }, effects: [{ type: "complete" }] };
+        return { state: { kind: "pointer-spent", pointerId: state.pointerId }, effects: [{ type: "complete", held: true }] };
       }
-      if (state.kind === "key-hold") return { state: { kind: "key-spent", key: state.key }, effects: [{ type: "complete" }] };
+      if (state.kind === "key-hold") return { state: { kind: "key-spent", key: state.key }, effects: [{ type: "complete", held: true }] };
       return stay;
     }
 
@@ -180,7 +185,7 @@ export function next(state: HoldState, event: HoldEvent, mode: HoldMode = "hold"
       // before it, comes from assistive tech (VoiceOver double-tap, Switch
       // Control), which can't hold: it completes, or undoes a done key.
       if (state.kind !== "idle" || event.msSinceSequence < CLICK_AFTER_SEQUENCE_MS) return stay;
-      return { state, effects: [{ type: event.done ? "undo" : "complete" }] };
+      return { state, effects: [event.done ? { type: "undo" } : { type: "complete", held: false }] };
     }
 
     case "interrupt": {

@@ -41,6 +41,27 @@ describe("holding with a finger or mouse", () => {
     expect(state).toEqual(IDLE);
   });
 
+  it("says whether a completion was a real hold (for the Tap to complete hint)", () => {
+    const completions = (events: HoldEvent[], mode?: HoldMode) => {
+      let state = IDLE;
+      const out: HoldEffect[] = [];
+      for (const event of events) {
+        const step = next(state, event, mode);
+        state = step.state;
+        out.push(...step.effects.filter((e) => e.type === "complete"));
+      }
+      return out;
+    };
+    const held = [{ type: "complete", held: true }];
+    const notHeld = [{ type: "complete", held: false }];
+    expect(completions([down(), finish, up()])).toEqual(held);
+    expect(completions([keydown(" ", false), finish, keyup(" ")])).toEqual(held);
+    expect(completions([down(), up()], "tap")).toEqual(notHeld);
+    expect(completions([keydown("Enter", false), keyup("Enter")], "tap")).toEqual(notHeld);
+    // A lone click (VoiceOver double-tap, Switch Control): can't hold.
+    expect(completions([{ type: "click", msSinceSequence: Infinity, done: false }])).toEqual(notHeld);
+  });
+
   it("reports how an early release happened and how long it was held (for the Tap to complete hint)", () => {
     const pointer = next(next(IDLE, down(false, { time: 1000 })).state, up(P, 1180));
     expect(pointer.effects).toContainEqual({ type: "hint", by: "pointer", heldMs: 180 });

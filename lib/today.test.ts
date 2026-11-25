@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { applyDone, buildToday, dayLabel, dotsSummary, streakText, summaryLine, weekdayName } from "./today";
+import { applyDone, buildToday, dayLabel, dotsSummary, shortDayLabel, streakText, summaryLine, weekdayName } from "./today";
 
 const TODAY = "2026-11-23";
 
@@ -42,6 +42,11 @@ describe("labels", () => {
     expect(weekdayName("2026-11-23")).toBe("Monday");
     // Even if this test machine were in Los Angeles: the label is computed in UTC.
     expect(dayLabel("2027-01-01")).toBe("Friday, January 1");
+  });
+
+  it("has a short form for a narrow header, also in UTC", () => {
+    expect(shortDayLabel("2026-11-25")).toBe("Wed, Nov 25");
+    expect(shortDayLabel("2027-01-01")).toBe("Fri, Jan 1");
   });
 
   it("says the streak plainly", () => {
