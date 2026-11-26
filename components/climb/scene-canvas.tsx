@@ -1,7 +1,7 @@
 "use client";
 
 // Paints the Climb's pixel-art world (lib/climb-scene/scene.ts) on a canvas
-// (plans/habit-tracker.md, Features 10 to 10e). The scene is drawn at a low logical
+// (plans/habit-tracker.md, Features 10 to 10f). The scene is drawn at a low logical
 // resolution and scaled up by a whole number with image-rendering:
 // pixelated, so every pixel is a crisp square. Colours are the --scene-*
 // tokens, read from CSS (they follow the colour scheme). Decorative: the

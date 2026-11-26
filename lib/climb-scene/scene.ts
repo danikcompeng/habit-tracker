@@ -1,9 +1,10 @@
-// The Climb's pixel-art world (plans/habit-tracker.md, Features 10 to 10e).
+// The Climb's pixel-art world (plans/habit-tracker.md, Features 10 to 10f).
 //
 // The journey: a Fuji-like mountain seen close up, its base filling the
-// width at the bottom, its slopes narrowing as you climb until its flat
-// top and crater (the Summit, 8,848 m) come into view (10e: no cloud hides
-// it); you pass it; a band of cloud; the stratosphere darkening; then space,
+// width at the bottom (on Today's strip its slopes narrow as you climb; on
+// Climb it's one fixed, short and wide Fuji, 10f) until its flat top and
+// crater (the Summit, 8,848 m) come into view (10e: no cloud hides it); you
+// pass it; a band of cloud; the stratosphere darkening; then space,
 // which repeats every LOOP_M from LOOP_FROM_M up, so it looks the same
 // forever. Your marker is a small hot-air balloon.
 //
@@ -22,7 +23,7 @@
 // The still layer (drawWorldBase) is drawn once and cached by the caller;
 // each tick only draws the drifting clouds and you (drawWorldMoving).
 
-import { CM, SUMMIT_M, nextZone } from "../altitude";
+import { CM, SUMMIT_M, nextZone, zoneByIndex } from "../altitude";
 import { SCENE_PALETTE, contrast } from "../palette";
 
 /** Sky bands, highest (1) to lowest (12). */
@@ -375,7 +376,7 @@ export type WorldOptions = {
   bottom: number;
   /** The world's top. */
   top: number;
-  /** Your altitude, which shapes the mountain (how stretched its profile is drawn). */
+  /** Your altitude, which shapes the strip's mountain (how stretched its profile is drawn); Climb's is fixed. */
   you: number;
   theme: Theme;
   /** The moon, in logical pixels of this view (so it's in sight); dark always, light once the sky is deep (moonShows). Or null. */
@@ -394,7 +395,7 @@ export type WorldOptions = {
   view?: View;
 };
 
-/** Climb's window or Today's strip: each frames the stretched mountain its own way (coneDepth). */
+/** Climb's window (a fixed, wide Fuji) or Today's strip (the profile stretched for your height): coneDepth, coneHalfWidth. */
 export type View = "world" | "close";
 
 export type BaseOptions = Omit<WorldOptions, "time" | "altitude" | "driftMs" | "balloonMinX">;
@@ -402,20 +403,21 @@ export type BaseOptions = Omit<WorldOptions, "time" | "altitude" | "driftMs" | "
 const SEED = 20261125;
 
 /**
- * The mountain (Features 10c, 10e): one Fuji-like cone, its small flat top
- * and crater at the Summit (8,848 m), seen close up, with nothing hiding
- * it. Its profile (concave flanks, gentle low down, steeper near the top) is
- * drawn stretched upward while you're far below (coneDepth): the bottom of
- * Today's strip always sits on the broad lower flanks (past both edges at
- * Base camp), the flanks curve in more steeply above (so each frame shows a
- * Fuji's flaring base, its top cut off by the frame's top), and as you climb
- * the slopes narrow and sky comes in on both sides. From CONE_REAL_FROM_M up
- * it's the real cone; before that the top is simply above the frame.
+ * The mountain (Features 10c, 10e, 10f): one Fuji-like cone, its flat top
+ * and crater at the Summit (8,848 m), seen close up, with nothing hiding it.
+ * - On Today's strip its profile (concave flanks, gentle low down, steeper
+ *   near the top) is drawn stretched upward while you're far below
+ *   (coneDepth): the strip's bottom always sits on the broad lower flanks
+ *   (past both edges at Base camp), the flanks curve in above, and as you
+ *   climb the slopes narrow and sky comes in on both sides. From
+ *   CONE_REAL_FROM_M up it's the real cone.
+ * - On Climb it's one fixed, short and wide Fuji (WORLD_*): the slope fills
+ *   the window edge to edge below about 8,250 m, the flat top a third of it.
  */
 const CONE_CENTRE = 0.5;
 /** Half-width of the flat top, as a share of the width. */
 const CONE_TOP = 0.085;
-/** Near the top the flanks widen at least this much per metre down (share of the width): about 45° on Climb, so the summit is broad, not a plug. It fades out lower down. */
+/** Near the top the flanks widen at least this much per metre down (share of the width): so the strip's summit is broad, not a plug. It fades out lower down. */
 const CONE_SHOULDER = 0.00034;
 const CONE_SHOULDER_M = 400;
 /** How fast the flanks widen going down (share of the width, scaled by the curve below). */
@@ -433,12 +435,22 @@ export const CONE_REAL_FROM_M = SUMMIT_M + FRAME_BELOW_M - EDGE_DEPTH_REAL_M;
 /** Far below, the stretched profile's extra bend (its depth goes as a power 1 + this of the real one), easing to none at CONE_REAL_FROM_M. */
 const CONE_BEND = 0.8;
 
-/** Climb's window is framed for this tall a window (about 600 css px on a phone). */
+/** Climb's window as it opens on a phone (about 600 css px): its moon is placed for this. */
 const WORLD_WINDOW_M = 5_000;
-/** At Base camp, Climb's window's top cuts the profile this deep (about two thirds of the width)… */
-const WORLD_TOP_DEPTH_M = 1_300;
-/** …and below it the depth grows this fast per metre (so the flanks lean in, about 20° off vertical), up to 1 at the peak. */
-const WORLD_LEAN = 0.4;
+/**
+ * Climb's mountain (Feature 10f): one fixed Fuji, short and wide, drawn at
+ * Climb's true scale (25 m a row), the same for you at any height. Its
+ * half-width, as a share of the window's width, at a depth d below the Summit:
+ * WORLD_TOP + WORLD_STEEP·d + WORLD_FLARE·d².
+ * The flat top and crater a third of the window; the flanks about 0.7 px a
+ * row at the rim on a phone, flaring to about 2.6 px a row where they leave
+ * the frame (concave: the widening per metre only grows); 64% wide at
+ * 8,500 m, past both edges from about 8,250 m; the base about 88 windows
+ * across.
+ */
+const WORLD_TOP = 1 / 6;
+const WORLD_STEEP = 0.00024;
+const WORLD_FLARE = 5.6e-7;
 
 /**
  * How deep into the real cone's profile an altitude is drawn, for you at
@@ -448,25 +460,12 @@ const WORLD_LEAN = 0.4;
  *   below, the strip's bottom edge sits EDGE_DEPTH_M…EDGE_DEPTH_REAL_M deep
  *   and the depth above it shrinks faster than the real one (a power above
  *   1), so the flanks curve in within its ~1,880 m.
- * - Climb's window ("world", ~5,000 m tall): fitted to where the window
- *   opens (climbWindowTop): its top cuts the profile WORLD_TOP_DEPTH_M deep
- *   at Base camp, shrinking to 0 as the window's top nears the Summit, and
- *   below that the flanks lean in at WORLD_LEAN (up to 1); above the window
- *   (scrolled to) the depth runs straight down to 0 at the Summit. The real
- *   cone once the window's top passes the Summit (about 6,970 m). Shaped
- *   from the window's top, so while it's held (at the floor, or under the
- *   peak) the mountain stands still and only your balloon rises.
+ * - Climb's window ("world"): the real depth, always (its own wide profile
+ *   is in coneHalfWidth); `you` doesn't change it.
  */
 export function coneDepth(altitude: number, you: number, view: View = "world"): number {
   const d = Math.max(0, SUMMIT_M - altitude);
-  if (view === "world") {
-    const top = climbWindowTop(you, WORLD_WINDOW_M, Infinity);
-    if (top >= SUMMIT_M) return d;
-    const u = Math.max(0, top - WORLD_WINDOW_M) / (SUMMIT_M - WORLD_WINDOW_M);
-    const dTop = SUMMIT_M - top;
-    const atTop = WORLD_TOP_DEPTH_M * (1 - u);
-    return d >= dTop ? atTop + (WORLD_LEAN + (1 - WORLD_LEAN) * u) * (d - dTop) : (atTop * d) / dTop;
-  }
+  if (view === "world") return d;
   if (you >= CONE_REAL_FROM_M) return d;
   const t = Math.max(0, you) / CONE_REAL_FROM_M;
   const edge = SUMMIT_M - Math.max(you - FRAME_BELOW_M, STRIP_FLOOR_M);
@@ -478,6 +477,7 @@ export function coneDepth(altitude: number, you: number, view: View = "world"): 
 export function coneHalfWidth(altitude: number, width: number, you: number, view: View = "world"): number {
   if (altitude > SUMMIT_M) return 0;
   const d = coneDepth(altitude, you, view);
+  if (view === "world") return width * (WORLD_TOP + WORLD_STEEP * d + WORLD_FLARE * d * d);
   return width * (CONE_TOP + CONE_SPREAD * (Math.exp(d / CONE_FOLD_M) - 1) + CONE_SHOULDER * d * Math.exp(-d / CONE_SHOULDER_M));
 }
 
@@ -486,17 +486,45 @@ export function mountainSpan(altitude: number, width: number, you: number, view:
   if (altitude >= SUMMIT_M) return null;
   const half = coneHalfWidth(altitude, width, you, view);
   const centre = width * CONE_CENTRE;
-  // A little roughness on the edges, so the slopes step like rock, not a ruler.
-  const roughL = (noise1(altitude / 160, 11) - 0.5) * 3;
-  const roughR = (noise1(altitude / 190, 23) - 0.5) * 3;
+  // A little roughness on the edges, so the slopes step like rock, not a
+  // ruler; less on Climb's broad top, where the flanks' curve must read.
+  const rough = view === "world" ? 2 : 3;
+  const roughL = (noise1(altitude / 160, 11) - 0.5) * rough;
+  const roughR = (noise1(altitude / 190, 23) - 0.5) * rough;
   return { left: Math.floor(centre - half + roughL), right: Math.ceil(centre + half + roughR) };
 }
 
-/** The line between the lit face (left) and the shaded one (right): a little right of the centre, wandering and ragged like a real ridge (never a lane divider). */
+/**
+ * The line between the lit face (left) and the shaded one (right): a little
+ * right of the centre, running out from the summit with the slope, wandering
+ * and ragged like a real ridge (never a lane divider). On Climb, where the
+ * slope is many windows wide, it leans right from the rim and eases toward
+ * the right edge without leaving it (about 10 px short of it lower down), so
+ * every window keeps a leaning shaded face, through snow, rock and forest.
+ */
 function ridgeAt(altitude: number, width: number, you: number, view: View = "world"): number {
   const half = coneHalfWidth(altitude, width, you, view);
-  return width * CONE_CENTRE + half * 0.12 + (noise1(altitude / 110, 29) - 0.5) * 4 + (noise1(altitude / 900, 31) - 0.5) * Math.min(12, half * 0.3);
+  const out = half * (view === "world" ? 0.3 : 0.12);
+  const room = width * RIDGE_ROOM - RIDGE_KEEP_PX;
+  const shift = view === "world" ? room * (1 - Math.exp(-out / room)) : out;
+  return width * CONE_CENTRE + shift + (noise1(altitude / 110, 29) - 0.5) * 4 + (noise1(altitude / 900, 31) - 0.5) * Math.min(12, half * 0.3);
 }
+
+/** On Climb the shade line eases toward this share of the width right of the centre (the right edge)… */
+const RIDGE_ROOM = 0.5;
+/** …less this many px, so even near the valley the shaded face is about this wide. */
+const RIDGE_KEEP_PX = 10;
+
+/** On Climb the rock fingers fan with the half-width only up to this share of the window: past it the slope runs off both edges, and they keep a phone's scale. */
+const FACE_MAX = 0.75;
+/** On Climb's wide slope a level of streaks is born this many px apart (and ends 4 times as far apart); closer on a narrow window, at most a sixth of its width. */
+const STREAK_PX = 18;
+/** …and only this share of a level's slots has one, so they're uneven (never a ruled fan). */
+const STREAK_KEEP = 0.7;
+/** Two streaks in a row stay at least this far apart (closer, they read as ski tracks). */
+const STREAK_GAP = 7;
+/** …and none within this many px of the centre column (it would read as a road's centre line). */
+const STREAK_CENTRE_PX = 5;
 
 /** The balloon's half-width, in logical pixels (it's 7 wide). */
 const BALLOON_HALF = 3;
@@ -763,22 +791,45 @@ export function drawWorldBase(o: BaseOptions): Canvas {
 
   // 6. The mountain: a broad cone, lit on the left, shaded on the right;
   //    pines up to the treeline, rock, then snow from the snowline, up to
-  //    its small flat top at the Summit with a crater's dip in the middle.
+  //    its flat top at the Summit with a crater's dip in the middle.
   const apex = SUMMIT_M;
+  // Climb's wide Fuji (its flat top a third of the window): the crater and the face's details scale with it.
+  const wide = (o.view ?? "world") === "world";
+  const dip = coneHalfWidth(apex - 1, o.width, o.you, o.view) * 0.5;
   for (let y = 0; y < o.height; y++) {
     const a = alt(y);
     const span = mountainSpan(a, o.width, o.you, o.view);
     if (!span) continue;
     const ridgeX = ridgeAt(a, o.width, o.you, o.view);
-    // The crater: a bowl two rows deep, about 7 px across its rim, a shaded lip either side.
-    const rim = mountainSpan(a + o.metresPerRow, o.width, o.you, o.view) === null ? 1 : mountainSpan(a + 2 * o.metresPerRow, o.width, o.you, o.view) === null ? 2 : 0;
+    // The crater: on the strip a bowl two rows deep, about 7 px across, a
+    // shaded lip either side; on Climb a bowl about half its flat top across, three rows deep.
+    const rim = mountainSpan(a + o.metresPerRow, o.width, o.you, o.view) === null ? 1 : mountainSpan(a + 2 * o.metresPerRow, o.width, o.you, o.view) === null ? 2 : mountainSpan(a + 3 * o.metresPerRow, o.width, o.you, o.view) === null ? 3 : 0;
     const half = coneHalfWidth(a, o.width, o.you, o.view);
     const kRow = Math.round(a / o.metresPerRow);
     let ripple = -1;
     for (let x = Math.max(0, span.left); x <= Math.min(o.width - 1, span.right); x++) {
       if (x === ripple) continue;
       const fromCentre = Math.abs(x + 0.5 - o.width * CONE_CENTRE);
-      if (rim && a > apex - 3 * o.metresPerRow) {
+      if (wide && rim) {
+        // Climb's broad top: a bowl about half the flat top across, three rows deep, its floor uneven.
+        const floor = (noise1(x / 3, 68) - 0.5) * 2;
+        // The rim's outer corners rounded off: shoulders, not a table's edge.
+        if (rim === 1 && (x === span.left || x === span.right)) continue;
+        if (rim === 1 && fromCentre < dip) continue;
+        if (rim === 1 && fromCentre < dip + 1.5) {
+          c.set(x, y, R["snow-shade"]);
+          continue;
+        }
+        if (rim === 2 && fromCentre < dip - 3 + floor) continue;
+        if (rim === 2 && fromCentre < dip) {
+          c.set(x, y, R["snow-gully"]);
+          continue;
+        }
+        if (rim === 3 && fromCentre < dip - 3 + floor) {
+          c.set(x, y, R["snow-gully"]);
+          continue;
+        }
+      } else if (rim && rim < 3 && a > apex - 3 * o.metresPerRow) {
         // The top row: open sky in the dip, a shaded lip either side; the row below: the bowl in shadow.
         if (rim === 1 && fromCentre < 3.5) continue;
         if (fromCentre < 3.5) {
@@ -798,13 +849,19 @@ export function drawWorldBase(o: BaseOptions): Canvas {
       let role: number;
       // The snowcap's lower edge is ragged: tapering fingers of rock reach up
       // into the snow from the snowline, fanning with the slope (a few
-      // hundred metres to about 1,400 m long), so the white reads as a cap.
-      const share = (x + 0.5 - o.width * CONE_CENTRE) / Math.max(1, half);
-      const q = share * 14 + (noise1(a / 700, 64) - 0.5) * 0.6;
+      // hundred metres to about 1,400 m long on the strip; short teeth on
+      // Climb), so the white reads as a cap.
+      const share = (x + 0.5 - o.width * CONE_CENTRE) / Math.max(1, wide ? Math.min(half, o.width * FACE_MAX) : half);
+      const q = share * (wide ? 14 : 14) + (noise1(a / 700, 64) - 0.5) * 0.6;
       const rib = Math.floor(q);
-      const reach = 250 + hash01(SEED + 64, rib) * 1_150;
+      const reach = wide ? 50 + hash01(SEED + 64, rib) * 110 : 250 + hash01(SEED + 64, rib) * 1_150;
       const above = a - snowline;
-      const ribs = ground === "snow" && hash01(SEED + 63, rib) < 0.4 && above < reach && q - rib < 0.5 * (1 - above / reach);
+      // On Climb: short teeth (2–6 rows) of varied height, side by side, each
+      // a triangle centred in its slot (tall thin fingers read as a far range;
+      // blunt ones as a skyline).
+      const ribs = wide
+        ? ground === "snow" && hash01(SEED + 63, rib) < 0.85 && above < reach && Math.abs(q - rib - 0.5) < 0.42 * (1 - above / reach)
+        : ground === "snow" && hash01(SEED + 63, rib) < 0.4 && above < reach && q - rib < 0.5 * (1 - above / reach);
       if (ground === "snow" && !ribs) role = lit ? (dark || x > span.left ? R.snow : R["snow-shade"]) : R["snow-shade"];
       else if (ground === "rock" || ribs) {
         role = lit ? R.rock : R["rock-shade"];
@@ -814,7 +871,7 @@ export function drawWorldBase(o: BaseOptions): Canvas {
       else if (ground === "pine") role = lit ? R.pine : R["pine-dark"];
       else role = R.valley;
       // Wind ripples on the lit snow in light: now and then a 2 px dash of shade, so it reads as snow, not a blank card.
-      if (!dark && role === R.snow && x > span.left + 1 && x < ridgeX - 2 && hash01(SEED + 66 + kRow, x) < 0.006) {
+      if (!dark && role === R.snow && x > span.left + 1 && x < ridgeX - 2 && hash01(SEED + 66 + kRow, x) < (wide ? 0.0025 : 0.006)) {
         role = R["snow-shade"];
         c.set(x + 1, y, R["snow-shade"]);
         ripple = x + 1;
@@ -828,11 +885,36 @@ export function drawWorldBase(o: BaseOptions): Canvas {
   // fixed share of the cone's half-width, so they lean out with the slope
   // ("/" on the lit face, "\\" on the shaded one). Shade on the lit face,
   // rock on the shaded one. Only in the snow.
+  // Streak pixels drawn in each row (so no two run side by side), and each streak's last x (so a diagonal is continuous).
+  const streaked = new Map<number, number[]>();
+  const lastX = new Map<string, number>();
+  const streakAt = (id: string, x: number, y: number, wideEdge: boolean) => {
+    const row = streaked.get(y) ?? [];
+    if (wide && row.some((other) => Math.abs(other - x) < STREAK_GAP)) return;
+    // Never down the centre column on Climb: a streak there runs straight down and, under the flat top, reads as a road's centre line.
+    if (wide && Math.abs(x + 0.5 - o.width * CONE_CENTRE) < STREAK_CENTRE_PX) return;
+    const prev = lastX.get(id);
+    lastX.set(id, x);
+    const mark = (px: number) => {
+      const here = c.get(px, y);
+      if (here === R.snow) c.set(px, y, R["snow-shade"]);
+      else if (here === R["snow-shade"]) c.set(px, y, R["snow-gully"]);
+      else return;
+      row.push(px);
+    };
+    mark(x);
+    // A streak that moved more than a pixel since the row above fills the gap, so a diagonal never reads as stitching.
+    if (wide && prev !== undefined && Math.abs(x - prev) > 1 && Math.abs(x - prev) < 6) for (let px = Math.min(x, prev) + 1; px < Math.max(x, prev); px++) mark(px);
+    // The ones from the rim are 2 px wide for their first ~150 m (only where they're steep enough not to read as a double line).
+    else if (wideEdge) mark(x + (x >= o.width * CONE_CENTRE ? 1 : -1));
+    streaked.set(y, row);
+  };
   {
     const rnd = seeded(SEED + 60);
-    const shares = [-0.66, -0.24, 0.27, 0.64].map((f) => f + (rnd() - 0.5) * 0.08);
+    // On Climb, off-centre (two framing a lit band under the flat top read as a road), the inner two short.
+    const shares = (wide ? [-0.58, -0.36, 0.12, 0.6] : [-0.66, -0.24, 0.27, 0.64]).map((f) => f + (rnd() - 0.5) * 0.08);
     // On each face one long streak and one short one.
-    const runs = [1, 0.45, 0.5, 1];
+    const runs = wide ? [1, 0.225, 0.25, 1] : [1, 0.45, 0.5, 1];
     for (let y = 0; y < o.height; y++) {
       const a = alt(y);
       const top = SUMMIT_M;
@@ -850,15 +932,42 @@ export function drawWorldBase(o: BaseOptions): Canvas {
         const tail = (fromTop - length * 0.6) / (length * 0.4);
         if (tail > 0 && hash01(SEED + 67 + i, k) < tail) return;
         const x = Math.round(o.width * CONE_CENTRE + f * half);
-        const streak = (px: number) => {
-          const here = c.get(px, y);
-          if (here === R.snow) c.set(px, y, R["snow-shade"]);
-          else if (here === R["snow-shade"]) c.set(px, y, R["snow-gully"]);
-        };
-        streak(x);
-        // The ones from the rim are 2 px wide for their first ~150 m: they fan out from it.
-        if (startBelow < 150 && fromTop < 150) streak(x + Math.sign(f));
+        streakAt(`rim ${i}`, x, y, startBelow < 150 && fromTop < 150);
       });
+    }
+  }
+  // On Climb's wide slope, more streaks branch in lower down. Each level of
+  // streaks has slots at shares (j + ½ ± jitter)·½^level of the half-width
+  // (so they run up toward the summit), STREAK_KEEP of them filled, and
+  // lives while its spacing on screen is born…4·born (STREAK_PX): two
+  // interleaved levels are always in view, so a window anywhere on the snow
+  // shows a few. Each thins out into scattered pixels as it's born and as it
+  // dies. Only in the snow (in rock, long seams read as planks).
+  if (wide) {
+    const centre = o.width * CONE_CENTRE;
+    const born = Math.min(STREAK_PX, o.width / 6);
+    for (let y = 0; y < o.height; y++) {
+      const a = alt(y);
+      if (a >= SUMMIT_M - 400 || a < 2_700) continue;
+      const half = coneHalfWidth(a, o.width, o.you, o.view);
+      for (let level = 1; level < 14; level++) {
+        const step = Math.pow(0.5, level);
+        const spacing = half * step;
+        if (spacing >= 4 * born) continue;
+        if (spacing < born) break;
+        // 0 at its birth, 1 at its end.
+        const life = Math.log2(spacing / born) / 2;
+        const k = Math.round(a / 25);
+        for (let j = Math.floor(-centre / spacing) - 1; j <= Math.ceil((o.width - centre) / spacing); j++) {
+          if (hash01(SEED + 94 + level, j + 8_192) >= STREAK_KEEP) continue;
+          const r = hash01(SEED + 90 + level, j + 8_192);
+          const thin = life < 0.08 ? 1 - life / 0.08 : life > 0.8 ? (life - 0.8) / 0.2 : 0;
+          if (thin > 0 && hash01(SEED + 92 + level, k * 31 + j) < thin) continue;
+          // Shifted by a share of a slot that differs per level: no level has a pair mirrored about the centre.
+          const x = Math.round(centre + (j + 0.5 + 0.2 + 0.15 * (level % 3) + (r - 0.5) * 0.4) * spacing + (noise1(a / 300, 93 + j) - 0.5) * 2);
+          streakAt(`${level} ${j}`, x, y, false);
+        }
+      }
     }
   }
 
@@ -993,7 +1102,25 @@ export function drawWorldMoving(c: Canvas, o: WorldOptions) {
       for (let px = x + from; px < x + to; px++) if (isSky(c.get(px, y + dy))) c.set(px, y + dy, r);
     }
   }
-  if (o.altitude !== null) drawBalloon(c, balloonX(o.altitude, o.width, o.you, o.balloonMinX, o.view), balloonRow(rowOf(o.altitude), o.height), o.theme, bob(o));
+  if (o.altitude !== null) {
+    const bx = balloonX(o.altitude, o.width, o.you, o.balloonMinX, o.view);
+    const by = balloonRow(rowOf(o.altitude), o.height);
+    if ((o.view ?? "world") === "world") unstreak(c, bx, by);
+    drawBalloon(c, bx, by, o.theme, bob(o));
+  }
+}
+
+/** Around Climb's balloon (basket at x, y), lift any streak back into the snow: a line running to it reads as a string. */
+function unstreak(c: Canvas, x: number, y: number) {
+  for (let py = y - 16; py <= y + 4; py++) {
+    for (let px = x - 6; px <= x + 6; px++) {
+      const here = c.get(px, py);
+      const left = c.get(px - 1, py);
+      const right = c.get(px + 1, py);
+      if (here === R["snow-shade"] && left === R.snow && right === R.snow) c.set(px, py, R.snow);
+      else if (here === R["snow-gully"] && left === R["snow-shade"] && right === R["snow-shade"]) c.set(px, py, R["snow-shade"]);
+    }
+  }
 }
 
 /** The band of cloud above the Summit that you rise through ("Into the clouds"), in metres. */
@@ -1072,7 +1199,8 @@ function keepClear(o: { width: number; you: number; view?: View }, rowOf: (a: nu
   // In the cloud band, clouds may brush the balloon (you're in cloud): only its envelope stays clear.
   if (balloon) boxes.push(balloon.inBand ? { x0: balloon.x - 4, x1: balloon.x + 5, y0: balloon.y - 13, y1: balloon.y - 4 } : { x0: balloon.x - 7, x1: balloon.x + 7, y0: balloon.y - 16, y1: balloon.y + 3 });
   {
-    const half = coneHalfWidth(SUMMIT_M - 500, o.width, o.you, o.view) + 3;
+    // On Climb the slope 500 m down is most of the window (and past both edges a little lower): size the box from just under its broad top instead.
+    const half = coneHalfWidth(SUMMIT_M - ((o.view ?? "world") === "world" ? 100 : 500), o.width, o.you, o.view) + 3;
     boxes.push({ x0: o.width * CONE_CENTRE - half, x1: o.width * CONE_CENTRE + half, y0: rowOf(SUMMIT_M + 350), y1: rowOf(SUMMIT_M - 500) });
   }
   return boxes;
@@ -1388,21 +1516,43 @@ export function drawCloseMoving(c: Canvas, o: CloseOptions) {
   drawBalloon(c, stripX, Math.min(o.height - 3, rowOf(o.altitude)), o.theme, bob(o));
 }
 
-/** Dark mode's moon on the Climb screen: at the left, at least 1,600 m above you, where its disc and glow clear the cone and no cloud, so it's in the window when the screen opens. */
+/**
+ * Above the Summit by at least this much, Climb's moon clears the mountain
+ * and the "Summit" zone chip just above 8,848 m: the chip is about 24 css px
+ * tall (about 200 m) at normal text, 48 px (400 m) at 200%; the moon's glow
+ * reaches about 175 m below its centre.
+ */
+const WORLD_MOON_FLOOR_M = SUMMIT_M + 700;
+
+/**
+ * Would Climb's moon, centred at this altitude at the left, touch a zone's
+ * chip? Each chip sits just above where its zone starts, at the left, up to
+ * about 400 m tall at 200% text; the glow reaches about 175 m each way.
+ */
+function underChip(a: number): boolean {
+  for (let i = 0; ; i++) {
+    const from = zoneByIndex(i).from;
+    if (from > a + 300) return false;
+    if (a > from - 300 && a < from + 400 + 175) return true;
+  }
+}
+
+/** Dark mode's moon on the Climb screen: at the left, at least 1,600 m above you and above WORLD_MOON_FLOOR_M (below the Summit Climb's window is slope edge to edge), clear of the zones' chips, and of cloud where it can be. */
 export function worldMoon(width: number, height: number, metresPerRow: number, altitude: number, top: number): { x: number; y: number } {
   const x = Math.round(width * 0.1);
-  // The lowest height where the cone's left edge, 250 m below (the disc and glow), is clear of it.
-  let clear = 2_600;
-  while (clear < SUMMIT_M + 250 && width * CONE_CENTRE - coneHalfWidth(clear - 250, width, altitude) < x + 9) clear += 50;
-  const start = Math.min(top - 400, Math.max(altitude + 1_600, clear));
+  const floor = WORLD_MOON_FLOOR_M;
+  const start = Math.min(top - 400, Math.max(altitude + 1_600, floor));
   // Clear of banks, the cloud sea and the band above the Summit if there's a
   // spot in the window as it opens; else where it was, behind the cloud.
   const highest = Math.min(top - 400, climbWindowTop(altitude, WORLD_WINDOW_M, top) - 300);
+  const lowest = Math.max(floor, altitude + 600);
+  const bad = (h: number) => cloudyAt(h, x, width, 200) || underChip(h);
   let a = start;
-  while (a <= highest && cloudyAt(a, x, width, 200)) a += 50;
-  // None above: try below (down to where it clears the cone, and at least 600 m above you).
-  if (a > highest) for (a = start; a >= Math.max(clear, altitude + 600) && cloudyAt(a, x, width, 200); a -= 50);
-  if (a < Math.max(clear, altitude + 600) || a > highest) a = start;
+  while (a <= highest && bad(a)) a += 50;
+  // None above: try below (down to the floor, and at least 600 m above you).
+  if (a > highest) for (a = start; a >= lowest && bad(a); a -= 50);
+  // None in the window: where it was (behind a cloud if need be), but never under a zone's chip.
+  if (a < lowest || a > highest) for (a = start; underChip(a) && a < top - 400; a += 50);
   return { x, y: Math.round(height - 1 - a / metresPerRow) };
 }
 

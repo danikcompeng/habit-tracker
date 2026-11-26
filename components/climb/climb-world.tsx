@@ -1,6 +1,6 @@
 "use client";
 
-// The Climb screen's scene (plans/habit-tracker.md, Features 10, 10c, 10e): the
+// The Climb screen's scene (plans/habit-tracker.md, Features 10, 10c, 10e, 10f): the
 // world from the valley up past the Summit into space, in a scrolling window
 // that opens on your balloon. The ruler (every 2,500 m, your height highlighted) and the zone
 // labels are text over the art, in token chips; the zones are a list for

@@ -1024,6 +1024,104 @@ The logic-checker said "Ready after fixes". What changed:
 
 - **Renderer previews** at 0, 1,500, 3,000, 5,000, 7,500, 8,763, 9,500, 12,000 and 40,000 m, light and dark, in `docs/screenshots/feature-10/heights/`. Climb's window in them opens as the app does. The app's own screenshots in `docs/screenshots/feature-10/` refreshed.
 
+### Feature 10f: a short, wide Fuji on Climb (2026-11-26)
+
+_The user's round 5 (pasted), after 10e._
+
+The user's report: on the Climb screen (real account at 150 m, dark mode, iPhone), scrolling up shows the mountain as a tall, narrow spire. From 5,000 to 8,848 m it's a column a few hundred px wide with sky on both sides. Fuji is short and **wide**: gentle concave slopes and a broad flat top.
+
+Visuals only: **no change to the altitude maths, `habit_altitude()`, zones, the demo or where Climb's window opens (`climbWindowTop`); no migration.**
+
+What they asked for:
+1. The mountain's base many screen-widths wide, running far past both edges, so the slopes stay wide all the way up. Near the top the mountain still fills most of the window's width, narrowing to a broad flat-topped crater (about a third of the window) with concave Fuji slopes.
+2. If true vertical scale makes that impossible: compress the mountain's vertical scale on Climb, or draw a wider silhouette. My call, logged. It has to read as Fuji at every scroll position.
+3. Today's strip should match; it already looks broad near the demo's 8,763 m: keep that.
+4. A renderer test: in Climb's view the mountain is at least 60% of the window's width at 7,500 m and at 8,500 m, and the crater at least 25%.
+5. Previews of Climb scrolled to 3,000, 5,000, 7,500 and 8,848 m, light and dark.
+
+**The call: a wider silhouette at Climb's true scale (25 m a row), not a compressed one.**
+- Compressing the mountain's rows would break the one mapping Climb is built on: the ruler's ticks, the zone labels and your balloon all sit at 25 m a row.
+- And the asks already fix the shape. A crater a third wide, at least 60% wide 348 m lower, and concave flanks (widening faster going down) put the flanks past both edges within about 860 m of the top. That *is* a short, wide Fuji: the silhouette is the top ~24 rows (about 72 css px) and 117 px wide on a phone, about 5 : 1, its flanks curving out from the rim.
+
+**1. Climb's mountain: one fixed, wide Fuji.**
+- It no longer depends on your height (10e shaped it from where the window opens: the source of the spire when you scroll up). The mountain stands still; only your balloon moves.
+- Its half-width, as a share of the window's width, d metres below the Summit:
+  `1/6 + 0.00024·d + 5.6·10⁻⁷·d²`.
+  - It was first drafted with an exponential term. That gave 72% at 8,500 m, then 66% after the logic-checker.
+  - The design-critic found those flanks nearly straight: a table.
+  - This one is about 0.7 px a row at the rim on a phone, flaring to about 2.6 px a row where the flanks leave the frame (concave: the widening per metre only grows).
+
+  | Altitude | Mountain's width (share of the window) |
+  |---|---|
+  | 8,848 m (the flat top) | 33% |
+  | 8,598 m | 52% |
+  | 8,500 m | 64% |
+  | about 8,250 m | past both edges |
+  | 7,500 m | 3.0 windows |
+  | 5,000 m | about 19 windows |
+  | 0 m | about 92 windows |
+
+- **What Climb shows, scrolled anywhere.** Below about 8,250 m the slope fills the window edge to edge (forest, rock, then snow, by altitude). From there up, the flat top and its flanks with sky beside them. No spire anywhere.
+- **As it opens** (`climbWindowTop`, unchanged):
+  - below about 5,150 m (for a 5,000 m window; lower for a taller window, higher for a shorter one) the opened window is all mountain;
+  - from there sky comes into its top corners;
+  - the peak comes into view from about 6,970 m, as in 10e.
+- **Details made for a slope many windows wide** (on Climb; the strip draws as before):
+  - **The shade line** (the ridge between the lit and shaded faces) runs out from the summit with the slope, not straight down the middle. It leans right from the rim and eases toward the right edge without leaving it (about 10 px short of it lower down), so every window keeps a leaning shaded face.
+  - **Streaks.** The snowcap's streaks fan down from the crater, off-centre on Climb. Lower down, more streaks branch in, so a window anywhere on the snow shows a few running up toward the summit, never a blank card (the rule is below).
+  - **The snowline** on Climb is short triangular teeth of rock (2–6 rows, varied) across the face, which keeps a phone's scale (the strip keeps its long fingers).
+  - **The crater** scales with the flat top: a bowl about 20 px across on a phone, 3 rows deep, with an uneven floor; the rim's outer corners rounded off.
+- **The moon (dark).** It sits at the left, at least 700 m above the Summit (about 9,550 m for anyone below 7,950 m), clear of the slope and of every zone's chip at the left (the "Summit" chip just above 8,848 m included), even at 200% text. It's in the opened window from about 7,300 m; lower down it's above the window, so scroll up to see it. This changes 10e's "in the opened window from about 2,000 m": below about 8,250 m there is no sky in Climb's window to put it in.
+- **Clouds.** Banks and drifting clouds stay behind the mountain (10e). A window full of slope therefore has none; they show in the sky around the top.
+
+**2. Today's strip: unchanged.**
+- Its far view (40 m a row, about 1,880 m tall, you two thirds down) keeps its 10e profile: broad near the demo's 8,763 m (about 46% wide at its bottom edge), the peak out of frame below about 7,600 m.
+- Its flat top stays about 17% of the strip's width, against Climb's 33%. The two are different frames of the same mountain (a far view and a close one), and the user asked to keep the strip as it is.
+
+**Tests.**
+- **The user's test:** in Climb's view the mountain is at least 60% of the window's width at 7,500 m and 8,500 m, and the flat top (the crater, rim to rim) at least 25%, on 88, 117, 130 and 156 px windows; and as drawn on the canvas.
+- **Wide all the way down:** Climb's whole canvas, every row from 0 to 8,100 m, is mountain (or the valley floor and lake) edge to edge.
+- **No spire:** from the valley to the crater the mountain is never narrower than a quarter of the window, on 88, 117 and 156 px.
+- **The crater as drawn:** sky in the dip with shaded lips on the rim row, sky in the middle of the next row, the bowl's floor below with no sky across it.
+- **Concave:** the widening per 25 m row never shrinks going down, from the top to 2,000 m below it.
+- **The base:** the half-width at 0 m is at least 10 windows.
+- **Fixed:** Climb's mountain is the same for you at 0, 3,000, 7,000, 8,763 and 30,000 m.
+- **Kept:**
+  - the strip's tests (its profile, the narrowing, the peak out of frame below 7,000 m, its flat top 14–25%);
+  - `climbWindowTop`'s tests;
+  - the balloon, clouds and moon tests.
+- **Rewritten:** the 10e tests that asked for sky beside Climb's window's top from Base camp, and for its flanks to lean in.
+
+**After logic-checker (decided):**
+
+The logic-checker said "Ready after fixes". What changed:
+- **Streaks, a rule.**
+  - Each level of streaks has slots at shares (j + ½ ± jitter)·½^level of the half-width, so they run up toward the summit.
+  - A level lives while its spacing on screen is 18–72 px (closer on a window narrower than 108 px, at most a sixth of its width). So two interleaved levels are always in view.
+  - Each streak thins into scattered pixels as it's born and as it dies.
+  - Settled with the design-critic: 70% of the slots are filled, no two streaks run within 4 px in a row, a diagonal is drawn continuous, and there are none in rock.
+  - Tested: on the full-width slope (3,300–7,300 m), the median row of every 800 m band crosses at least 3 streaks, light and dark, on 88, 117 and 156 px windows. Above 7,300 m the crater's streaks fan out diagonally beside the silhouette.
+- **The shade line is radial.** First uncapped; the design-critic then found the low windows had lost the shaded face, so on Climb it now eases toward the right edge (see 1). The 0.75 cap is only for Climb's rock fingers. The strip draws exactly as before.
+- **The moon** clears the "Summit" chip: first at least 400 m above the Summit; the code-reviewer found the chip covers its glow at larger text, so now 700 m (tested at every height to 9,000 m, and in the opened window from 7,300 m).
+- **Clouds near the top.** The peak's clear box is sized from 100 m under Climb's flat top (it had grown to the whole width, so there were no clouds near the top).
+- **A taller silhouette:** 66% at 8,500 m (from 72%; 64% after the design-critic), and less edge roughness on Climb (±1 px), so the flanks' curve reads.
+- **The strip is pinned:** checksums of the strip (both layers) at 0, 3,000, 7,000, 8,763 and 9,500 m, light and dark, plus shaped from the day's start mid-drift and at 88 and 130 px, taken from the 10e commit. The strip's tests pass its own view, and the day-to-day test is measured on its own frame (9% at most, at 3,000 m).
+- **Accepted (forced by the asks):**
+  - Climb opens with no sky below about 5,150 m (a 5,000 m window). This replaces 10e's "sky comes in on both sides" on Climb; the strip still does it.
+  - The cloud sea at 5,000 m ("Above the clouds") and the banks below the Summit stay behind the slope (10e), so they don't show on Climb.
+  - The strip's flat top is about 17% of its width, Climb's 33%: a far view and a close one.
+- **Widths:** the user's test also runs at 156 px (the widest window). There the silhouette is squatter (about 7 : 1); on 88 px about 4 : 1.
+- **After the design-critic's rounds 2 and 3 (decided):**
+  - The snowline on Climb is short triangular teeth (2–6 rows), not fingers.
+  - Branch streaks are off-centre per level, at least 7 px apart, and never within 5 px of the centre column (a streak there reads as a road's centre line).
+  - The shade line leans right from the rim and keeps a shaded face about 10 px wide to the valley.
+  - The moon keeps clear of every zone's chip, not just the Summit's.
+
+**Previews.**
+- Climb scrolled to 3,000, 5,000, 7,500 and 8,848 m (you at 150 m, the window centred there), light and dark.
+- The standard set (0 m to 100 km, Today's strip and Climb's window as it opens) refreshed in `docs/screenshots/feature-10/heights/`.
+- The app's own screenshots refreshed.
+
 ## Reviews
 
 _One entry per feature. Every agent finding is logged with its severity and what was done about it, so the log shows what each reviewer caught and what changed as a result._
@@ -2121,6 +2219,87 @@ Verdict: **Ship**. All four round-2 Medium items fixed; nothing new above Low.
 - **Left as they are (Low):** stars against the balloon's outline in dark at 9,500 and 12,000 m; a lone coral pixel on a cloud at 8,763 m in dark (as in 10d); a possible star on a rock edge at 3,000 m in dark; the four streaks nearly parallel for their first ~15 rows on the strip at 8,763 m.
 
 Checks (final): 592 unit and database tests, tsc, eslint, `next build`; the full browser suite on `next start`: **92 passed, 0 failed**. Renders in `docs/screenshots/feature-10/heights/` (23 heights, 0 m to 100 km, light and dark, including the asked-for 0, 1,500, 3,000, 5,000, 7,500, 8,763, 9,500, 12,000 and 40,000 m); the app's own screenshots in `docs/screenshots/feature-10/` refreshed by the suite.
+
+### Feature 10f: a short, wide Fuji on Climb (2026-11-26)
+
+The user's round 5: on Climb, scrolling up from 150 m showed a tall, narrow spire from 5,000 to 8,848 m.
+- **The fix:** one fixed, short and wide Fuji on Climb, its base many windows wide, its flat top a third of the window, concave flanks.
+- **The call:** a wider silhouette at true scale, not a compressed one.
+- **The strip:** unchanged (pinned by checksums).
+
+Visuals only; no SQL.
+
+#### logic-checker (plan review)
+Verdict: **Ready after fixes**. The profile's maths and table checked out; the strip was really unchanged.
+
+| # | Severity | Finding | Outcome | What changed |
+|---|----------|---------|---------|--------------|
+| 1 | High | Mid-slope windows were a full-screen snow field: the crater's four streaks leave the frame by about 7,460 m, and the planned branching had no rule or test. | Fixed | A level rule for branching streaks (see the plan); tested on 88, 117 and 156 px, light and dark. |
+| 2 | High | Climb opens with no sky for nearly every real user (below about 5,200 m), reversing 10e's ask #2 on Climb. | Accepted | Forced by the asks at true scale (crater ≥ 25%, ≥ 60% at 8,500 m, concave). Logged in the plan, said to the user; a leaning shaded face and streaks carry those windows. |
+| 3 | Medium-High | The dark moon (at about 8,850 m, left) sat behind the "Summit" zone chip. | Fixed | At least 400 m above the Summit, later 700 m (code-reviewer #1). |
+| 4 | Medium | `keepClear`'s peak box spanned the whole width on Climb: no clouds near the top. | Fixed | Sized from 100 m under the flat top. |
+| 5 | Medium | Plan and prototype disagreed on the shade line; capped, it was a 320-row lane divider. | Fixed | Radial; the cap only for the rock fingers (then eased toward the right edge, design-critic #3). |
+| 6 | Medium | One test would fail (the world view's flat top is now 33%), and the "strip" tests used the world view, so the strip was unpinned. | Fixed | Strip tests pass `"close"`; golden checksums of the strip from the 10e commit. |
+| 7 | Medium | The crater test could fail depending on how it measured (the dip is open sky). | Fixed | Rim to rim (span), plus a drawn-crater test (code-reviewer #4). |
+| 8 | Low-Medium | The silhouette was only about 21 rows; the asks allow more; edge roughness hid the curve. | Fixed | 64–66% at 8,500 m; ±1 px roughness on Climb. |
+| 9 | Low | Plan numbers (8,310 m, 4,900 m, 8,800 m). | Fixed | Corrected (and again after the profile changed). |
+| 10 | Low | The shape scales with width; test the widest window. | Fixed | 156 px added to the tests. |
+| 11 | Low | "No spire" duplicated "edge to edge"; `FACE_MAX` reached the strip; stale comments. | Fixed | The cap is Climb-only; comments rewritten; no-spire kept as a span test (code-reviewer #4). |
+
+#### code-reviewer (diff review)
+Verdict: **Ship after fixes**. No correctness or security risk; the strip pinned byte for byte; every strip path passes `"close"` explicitly.
+
+| # | Severity | Finding | Outcome | What changed |
+|---|----------|---------|---------|--------------|
+| 1 | Medium | At SUMMIT + 400 the moon's glow only just cleared the Summit chip; at 150–200% text the chip covers it. | Fixed | 700 m above the Summit; tested: its glow clears the chip's height at 200% text, at every height to 9,000 m. |
+| 2 | Low | `ridgeAt`'s doc gave a wrong height (6,300 m) after the constants changed. | Fixed | Rewritten with the new behaviour. |
+| 3 | Low | Stale comments: the file header, `CONE_SHOULDER`, "small flat top", the crater's size, `keepClear`'s "whole window". | Fixed | |
+| 4 | Medium | Climb's crater had no pixel test; "no spire" promised but missing. | Fixed | A drawn-crater test (88, 117, 156 px, light and dark); a span-based no-spire test. |
+| 5 | Low | Weak tests: the world half of "smooth as you climb" couldn't fail; the streak test skipped 7,300–8,100 m and counted only near-vertical streaks; a stale comment; the goldens covered only `you === altitude`, time 0 and 117 px. | Fixed | Strip-only smoothness; the streak test counts streaks crossing each row (on the full-width slope, 3,300–7,300 m; above, the crater's streaks fan out diagonally); goldens added for the day's start, drift, 88 and 130 px. |
+| 6 | Low | The crater's third row showed lit snow under the open sky above it. | Fixed | The bowl's floor spans under all of it. |
+| 7 | Low | Plan numbers out of date. | Fixed | |
+
+#### design-critic, round 1 (Climb scrolled to 3,000, 5,000, 7,500 and 8,848 m for you at 150 m; Climb as it opens at 0–9,500 m; light and dark)
+Verdict: **Ship after fixes**. The spire is gone, over 60% at 7,500 and 8,500 m, the flat top about 35%, the strip unchanged; but several views read as a road or flat stripes.
+
+| # | Severity | Finding | Outcome | What changed |
+|---|----------|---------|---------|--------------|
+| 1 | High | The streaks made the snow under the summit read as a road: two framing a lit band, the flat top as the horizon; even fans; ski-track pairs. | Fixed | Off-centre crater streaks on Climb (inner two short); 70% of branch slots; no two within 4 px in a row. |
+| 2 | Medium | Near the top, a straight-sided trapezoid (a table), not concave. | Fixed | A quadratic profile: about 0.7 px a row at the rim, 2.6 where it leaves the frame; the rim's corners rounded off. |
+| 3 | Medium | The opened window at 0–4,900 m: three horizontal bands, no sign of a mountain (the shade line had left the frame). | Fixed | On Climb the shade line eases toward the right edge: every window keeps a leaning shaded face. |
+| 4 | Medium | The rock band like a fence (streak seams), the fingers like a far range of spikes. | Fixed | No streaks in rock; fingers shorter, more of them, blunt 2 px tips. |
+| 5 | Medium | Streaks touching the balloon look like a string. | Fixed | Streaks lifted around the balloon on Climb. |
+| 6 | Medium | Light: wind ripples as confetti across full-snow windows. | Fixed | 0.25% on Climb (was 0.6%). |
+| 7 | Low-Medium | Diagonal streaks as dashed double lines. | Fixed | A diagonal fills its step; 2 px rim streaks only where not filling. |
+| 8 | Low | The crater reads only as a notch. | Fixed in part | The bowl's third row under all of its open sky (code-reviewer #6). |
+| 9 | Low | Slivers where the flanks leave the frame (a sky band's step; a bank behind the slope). | Accepted | Real sky bands and a bank behind the mountain. |
+| 10 | Low | Cloud arcs above the summit; a lone coral pixel. | Accepted | Carried over from 10c/10e (already logged). |
+| 11 | Low | Plan and code disagreed. | Fixed | |
+| 12 | Low | Dark: a full window of lit snow is a bright panel at night. | Accepted | The snow token is shared with the strip and the summit; noted for later. |
+
+#### design-critic, round 2
+Verdict: **Ship after fixes**. It reads as a short, wide Fuji wherever its top is in view; five of round 1's fixes held, two half-worked, and one made a new problem.
+
+| # | Severity | Finding | Outcome | What changed |
+|---|----------|---------|---------|--------------|
+| 1 | Medium | New: the blunt rock fingers came out as straight-sided towers: the snowline read as a city skyline. | Fixed | On Climb, short triangular teeth (2–6 rows, varied), centred in 14 slots across the face, 85% filled: short flats between them. |
+| 2 | Medium | A road under the crater still: each level of branch streaks had a pair mirrored about the centre; the shade line dropped nearly straight from the rim. | Fixed | Each level's slots shifted off-centre by a per-level share; the shade line leans right from the rim (0.3·half on Climb). |
+| 3 | Low-Medium | Low windows still mostly three flat bands: the shaded face left the frame before the rock. | Fixed | The shade line eases toward the right edge but stops about 10 px short of it: a shaded face through snow, rock and forest. |
+| 4 | Low | Pairs of parallel lines on the shoulders (tram lines). | Fixed | Streaks at least 7 px apart in a row (was 4). |
+| 5 | Low | Dark: the moon's glow under the "Into the clouds" chip. | Fixed | The moon keeps clear of every zone's chip band (300 m below to 575 m above a zone's start); tested to 60 km. |
+| 6 | Low | Light: ripples read as scattered dashes. | Not changed | "None needed." |
+
+#### design-critic, round 3 (verification)
+Verdict: **Ship after fixes**. Above about 8,250 m it reads clearly as a short, wide Fuji (flat top about 35%, flanks curving out, a shaded right face); round 2's items 1, 3, 4 and 5 fixed, 2 partly.
+
+| # | Severity | Finding | Outcome | What changed |
+|---|----------|---------|---------|--------------|
+| 1 | Medium | A painted centre line: the streak nearest the centre runs straight down at every height, and under the flat top that reads as a road's centre line. | Fixed | No streak within 5 px of the centre column on Climb (pushing it out by a share of the half-width, as suggested, would push it off the window low down, where the half-width is many windows); tested from 3,000 m to the rim on 88, 117 and 156 px. |
+| 2 | Low | Dark: the rock teeth echo the treeline's tips, so the rock band reads as a second forest. | Accepted | The rock token is shared with the strip and the summit; noted. |
+| 3 | Low | Low windows: the shaded face is a nearly straight strip at the right edge from 0 to 4,000 m. | Accepted | It's there and leans a little; a slower ease would make it a wide band low down. |
+| 4 | Low | The moon for you at 8,763 m (centre about 9,690 m) looked close to the "Into the clouds" chip. | No change needed | The chip sits above 10,000 m; the glow's top is about 9,865 m, 135 m (about 16 css px) below it; the test pins the band. |
+
+Checks (final): 600 unit and database tests, tsc, eslint, `next build`; the full browser suite on `next start`: **92 passed, 0 failed**. Renders: Climb scrolled to 3,000, 5,000, 7,500 and 8,848 m (you at 150 m) in `docs/screenshots/feature-10/climb-scrolled/`; the 23 heights (0 m to 100 km, Today's strip and Climb as it opens) refreshed in `docs/screenshots/feature-10/heights/`; the app's own screenshots refreshed by the suite. All light and dark.
 
 <!--
 Template — copy for each feature:
