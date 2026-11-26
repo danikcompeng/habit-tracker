@@ -921,6 +921,17 @@ The user's round 3 (pasted, after seeing e00cd03): it **replaces "the peak is ne
 - Accepted: for one day around the cap's thinning, Today (shaped from the day's start) may show a thin cap while Climb shows none.
 - Heights renders: the app can't reach 40 km on a real account (100 days of check-ins is at most 15 km), so `docs/screenshots/feature-10/heights/` are the pure renderer at phone size with the real tokens; the app's own screenshots are at the demo's height.
 
+### Feature 10d: a broad mountain low down, life in the stratosphere (2026-11-25)
+
+The user's polish on 10c: (1) at 0–3,000 m the mountain reads as a narrow, pointy green triangle: make it the same broad Fuji silhouette as higher up, slopes running past both edges; (2) 13,000–20,000 m in light looks empty (flat bands): a little life, thin high pixel clouds or the moon, without clutter. Visuals only; no SQL.
+
+1. **The cone far below is shaped from the cap, not from you.** Its hidden top is 1,520 m above the cloud cap (was 1,200 m above you, which put it only 500 m above the cap, so the cone had narrowed to ~40% of the width where it met the cloud: a point). Now where it meets the cap it's ~76% of the width (edges ~12% in from each side), and where you stand it runs past both edges, at every altitude below the real cone (which takes over from 6,628 m, before the cap thins at 7,748 m, so the top still never pops). The cap's floor stays at 2,000 m, so Base camp shows a broad forested mountain rising into it.
+2. **The stratosphere**: (a) sparse thin high clouds, small far-tier pixel clouds drifting between 12,000 and 16,500 m (about one every 500 m, some bands empty); (b) the cirrus wisps taller (three tapered rows) and two shades paler than their sky, 2–3 per 500 m from 12,500 to 18,000 m; (c) the moon in light mode from about 14,750 m (where the sky is deep enough), still never on clouds' account: whether it shows is decided by the sky's band at its height, not by what's drawn under it. Above 16,500 m there are still no clouds, so the loop from 45 km is untouched.
+
+**After logic-checker (decided):** the width is judged where the cloud is drawn (its underside sits 260 m below the mist line), so the hidden top is 1,200 m above the cap, not 1,520 m: ~75% of the width at the drawn underside (60–88% tested on Climb's pixels), past both edges where you stand, and the real cone takes over at 6,948 m (still before the cap thins at 7,748 m). (Today's strip at Base camp: see the design-critic's round below; the strip's view now stops 160 m under the valley floor and looks up to the cap.) The strip's dark moon counts a solid cap's cloud as clear (it was refusing every spot below ~6,900 m because the mountain hidden in the cloud counted). The strip's far layer keeps its high clouds clear of the balloon (tested over a minute of drift). Overlapping wisps pale a pixel once. Accepted: in light the moon appears from about 13,150 m on Climb and 13,910 m on the strip (it can appear mid-lift there), and on Climb it sits in the zone-label column as dark mode's always has.
+
+Tests: the cone where it meets the drawn cloud is 60–88% of the width with sky beside it, and runs past both edges where you stand, at 0, 1,500, 3,000 and 6,000 m; no mountain above the cap still holds; the light moon at 15,000 m and none at 12,000 m; clouds only below 16,500 m above the band. Renders at 0, 1,500, 3,000 and 15,000 m, light and dark, in `docs/screenshots/feature-10/heights/`.
+
 ## Reviews
 
 _One entry per feature. Every agent finding is logged with its severity and what was done about it, so the log shows what each reviewer caught and what changed as a result._
@@ -1894,6 +1905,53 @@ Checks (final): 576 unit and database tests, tsc, eslint, `next build`; the full
 #### Takeaways
 - A journey needs its key frames rendered before review, at every stage (the cap's thinning, the band, the Summit moment): the reviewers found the problems exactly in the heights nobody had rendered.
 - Positions that must clear page text can't be a share of the canvas: measure the text.
+
+
+### Feature 10d: a broad mountain low down, life in the stratosphere (2026-11-25)
+
+The user's polish on 10c: (1) 0–3,000 m read as a narrow, pointy green triangle; (2) 13,000–20,000 m in light looked empty. The cause of (1): far below, the cone's hidden top sat only 500 m above the cap, so it had narrowed to ~40% of the width where it met the cloud. Now its hidden top is 1,200 m above the cap: past both edges where you stand, ~75% wide where it meets the drawn cloud, with a gentler snowline (wide waves, not teeth).
+
+#### logic-checker (plan review)
+Verdict: **Ready after fixes**.
+
+| # | Severity | Finding | Outcome | What changed |
+|---|----------|---------|---------|--------------|
+| 1 | High | "~76% at the cap" was measured under the cloud; at the drawn underside it was ~95% (a wall under a ceiling). | Fixed | Hidden top 1,200 m above the cap; tested on Climb's pixels where the mountain meets the drawn cloud (60–88%, sky beside it). |
+| 2 | High | The strip's dark moon vanished below ~6,900 m (mountain hidden in the cap counted). | Fixed | A solid cap's cloud counts as clear; see the reviews below for the rest. |
+| 3 | Medium | Today's strip at Base camp a wall of forest. | Fixed | See design-critic #1. |
+| 4 | Low–Medium | High clouds behind the balloon on the strip, against navy. | Fixed | The strip's high clouds keep clear of its balloon. |
+| 5 | Low | The cloud test's edge, cirrus paled twice where wisps overlap, the light moon's start heights. | Fixed / noted | Paled once; tests on cloud tops; the light moon's start written in the plan. |
+
+#### code-reviewer (diff review)
+Verdict: **Ship after fixes**.
+
+| # | Severity | Finding | Outcome | What changed |
+|---|----------|---------|---------|--------------|
+| 1 | High | No dark moon on the strip from 0 to ~1,256 m. | Fixed in part | The moon sits higher on the strip, judged on its disc with a margin for the cap's ragged underside, and lights a gap in the cap: it shows from ~1,200 m. At Base camp the strip's top is mountain under the cap, so no moon there (accepted, tested). Never on the mountain: swept 0–9,500 m every 37 m, and mid-day. |
+| 2 | Medium | At 0–120 m the strip all mountain, no sky. | Fixed | Design-critic #1. |
+| 3 | Medium | The strip's clear-of-the-balloon box applied to every far cloud (and ignored the cloud band). | Fixed | Only the high clouds; lower far clouds pass behind the strip's balloon as before. |
+| 4 | Low | The clear-box test could pass without the box. | Fixed | It also draws without the box and requires a hit there. |
+| 5 | Low | Stale comments (the moon "dark mode's", "light mode has no moon"). | Fixed | |
+| — | Tests | Light moon boundary on the strip, decided by the day's start; no high clouds above 16,700 m on Climb; high clouds the same whichever row a view starts on. | Added | |
+
+#### design-critic, round 1 (renders at 0 m to 100 km, light and dark)
+Verdict: **Ship after fixes**. Ask 1 met on Climb at every low height; ask 2 the right kinds of life, but too bright.
+
+| # | Severity | Finding | Outcome | What changed |
+|---|----------|---------|---------|--------------|
+| 1 | High | Today's strip at Base camp still a forest wall. | Fixed | Near the ground the strip's view stops 160 m under the valley floor (the balloon is drawn lower, at its true height), so at 0 m it looks up to ~1,680 m: the broad shoulder with ridges and sky beside it, the cap along the top. |
+| 2 | Medium | The moon drawn in front of clouds (a sticker; clouds sliding behind it). | Fixed | Drawn before the drifting clouds; on a solid cap its glow lights the cloud around it (a gap); drifting clouds keep clear of it (tested: the whole disc always shows). |
+| 3 | Medium | Light high clouds bright, puffy, bunched left. | Fixed | Thin three-row streaks in new quiet tokens (`cloud-high` #6680B2 / `cloud-high-shade` #5A73A4; dark #3A4772 / #2D3961), golden-ratio spaced. |
+| 4 | Medium | The shaded flank disappeared (light snow-shade, dark rock-shade). | Fixed | Light `snow-shade` #BCC9DC (gully #9FAFC8), dark `rock-shade` #1E2646; ring tests still 3:1. |
+| 5 | Medium-Low | At 0–500 m clouds covered where the cone meets the cap. | Fixed | Near clouds keep clear of the 9 rows under the cap at Base camp. |
+| 6 | Low | Light stratosphere still stripes. | Fixed | Each band seam stepped a little, column by column. |
+| 7 | Low | The light moon popping in mid-lift. | Fixed | Decided by the day's start. |
+| 8 | Low | Coral rims as loose bars. | Fixed | Rims only against the sky. |
+
+#### design-critic, round 2
+Verdict: **Ship**. "Both asks are now met at every height you asked about, in light and dark"; no regressions at 5,000, 6,500, 8,700 m. Of its remaining items: the Climb moon hidden behind drifting clouds (Medium, and its Low twin at 8,700 m) fixed as above; left as they are (Low): lone coral rim pixels, the cap's lobes cut by the strip's top edge at 0 m, stars drawn over the high streaks, a star touching the light moon at 20 km.
+
+Checks (final): 588 unit and database tests, tsc, eslint, `next build`; the full browser suite on `next start`: **92 passed, 0 failed**. Renders in `docs/screenshots/feature-10/heights/` (22 heights, 0 m to 100 km, light and dark).
 
 <!--
 Template — copy for each feature:

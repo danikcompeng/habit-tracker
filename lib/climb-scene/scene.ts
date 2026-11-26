@@ -72,6 +72,8 @@ export const ROLES = [
   "cloud-far",
   "cloud-far-shade",
   "cirrus",
+  "cloud-high",
+  "cloud-high-shade",
   "rim",
   "planet",
   "planet-shade",
@@ -175,7 +177,7 @@ function inCircle(px: number, py: number, cx: number, cy: number, r: number): bo
  * bottom. No outlines. `ox`, `oy` place it; `base` is its bottom row.
  */
 export function drawCloud(
-  c: Pick<Canvas, "set">,
+  c: Pick<Canvas, "set" | "get">,
   ox: number,
   oy: number,
   bumps: readonly Bump[],
@@ -240,7 +242,8 @@ export function drawCloud(
       const y = Math.floor(k / 100_000) - 50_000;
       const x = (k % 100_000) - 50_000;
       if (y > mid || x > reach) continue;
-      if (!drawn.has(key(x, y - 1))) c.set(ox + x, oy + y, shades.rim);
+      // Only against the sky (a rim against snow or another cloud reads as a loose bar).
+      if (!drawn.has(key(x, y - 1)) && isSky(c.get(ox + x, oy + y - 1))) c.set(ox + x, oy + y, shades.rim);
     }
   }
 }
@@ -321,6 +324,9 @@ export function groundAt(altitude: number, snowline: number, treeline: number): 
 /** Where each sky band starts (above the lowest), in metres: stepped, gently. */
 export const SKY_BANDS = [700, 1_500, 2_400, 3_400, 4_500, 5_700, 7_000, 8_400, 9_900, 11_500, 12_500] as const;
 
+/** Cirrus wisps up to here (the stratosphere). */
+const CIRRUS_END_M = 18_000;
+
 /** Where each of space's colours starts (space-9 … space-1, deepest last): the sky darkens gently through the stratosphere into space. */
 export const SPACE_BANDS = [13_250, 14_000, 14_750, 15_500, 16_250, 17_000, 17_750, 18_750, 20_000] as const;
 /** From here the sky is dark enough for stars in light mode too (and a dark box before the scene paints). */
@@ -368,7 +374,7 @@ export type WorldOptions = {
   /** Your altitude, which shapes the mountain (its cone and its cloud cap). */
   you: number;
   theme: Theme;
-  /** Dark mode's moon, in logical pixels of this view (so it's always in sight), or null. */
+  /** The moon, in logical pixels of this view (so it's in sight); dark always, light once the sky is deep (moonShows). Or null. */
   moon: { x: number; y: number } | null;
   /** ms, for drift; 0 for a still scene. */
   time: number;
@@ -378,6 +384,8 @@ export type WorldOptions = {
   driftMs: number;
   /** Keep the balloon's centre at least this far right (logical px): clear of the page's chips beside it. */
   balloonMinX?: number;
+  /** With no balloon of its own (the strip's far layer), keep clouds clear of this one (logical px, its basket's row). */
+  clearOf?: { x: number; y: number } | null;
 };
 
 export type BaseOptions = Omit<WorldOptions, "time" | "altitude" | "driftMs" | "balloonMinX">;
@@ -390,9 +398,11 @@ const SEED = 20261125;
  * its small flat top. Its top is the Summit (8,848 m).
  *
  * While you're far below, the top hides in a cloud cap MIST_ABOVE_M above
- * you, and the cone is drawn as if its top were APEX_ABOVE_M above you (in
- * the cloud), so the slopes where you are always look broad, never a wall.
- * From APEX_ABOVE_M below the Summit the cone is the real one. In the last
+ * you (never below CAP_MIN_M), and the cone is drawn as if its top were
+ * APEX_ABOVE_CAP_M above that cap (in the cloud), so the slopes run past
+ * both edges where you are and are still broad (~75% of the width) where
+ * they meet the cloud's drawn underside: never a point (Feature 10d). From APEX_ABOVE_CAP_M +
+ * MIST_ABOVE_M below the Summit the cone is the real one. In the last
  * stretch the cap thins (CAP_THINS_FROM_M to CAP_GONE_M below the Summit)
  * and you see the peak; then you pass it and the mountain falls away below.
  */
@@ -408,10 +418,10 @@ const CONE_SPREAD = 0.168;
 const CONE_FOLD_M = 1_500;
 /** The cloud cap's underside: this far above you. */
 export const MIST_ABOVE_M = 700;
-/** While far below, the (hidden) top of the cone is this far above you. */
-const APEX_ABOVE_M = 1_200;
-/** Below this the cone keeps its shape (as if you were here), so even at Base camp its flanks are in view. */
-const CONE_ANCHOR_MIN_M = 1_000;
+/** While far below, the (hidden) top of the cone is this far above the cloud cap. */
+const APEX_ABOVE_CAP_M = 1_200;
+/** The cap's drawn underside sits this far below the mist line (its body overlaps the slope). */
+export const CAP_UNDERSIDE_M = 260;
 /** The cloud cap is never lower than this: at Base camp you see the mountain rise out of the forest into it. */
 const CAP_MIN_M = 2_000;
 /** The cap thins from this far below the Summit… */
@@ -421,7 +431,7 @@ export const CAP_GONE_M = 700;
 
 /** The top of the cone drawn for you at `you`: the Summit, or (far below) a hidden top in the cloud above you. */
 export function apexFor(you: number): number {
-  return Math.min(SUMMIT_M, Math.max(you, CONE_ANCHOR_MIN_M) + APEX_ABOVE_M);
+  return Math.min(SUMMIT_M, mistLine(you) + APEX_ABOVE_CAP_M);
 }
 
 /** How solid the cloud cap is, for you at `you`: 1 far below the Summit, thinning to 0 near it, 0 above. */
@@ -514,10 +524,10 @@ export function drawWorldBase(o: BaseOptions): Canvas {
   const lowest = alt(o.height - 1);
   const highest = alt(0);
 
-  // 1. Sky, in gentle steps.
+  // 1. Sky, in gentle steps, each seam a little stepped (column by column), never a ruler line.
   for (let y = 0; y < o.height; y++) {
-    const role = skyBand(alt(y));
-    for (let x = 0; x < o.width; x++) c.set(x, y, role);
+    const a = alt(y);
+    for (let x = 0; x < o.width; x++) c.set(x, y, skyBand(a + (noise1(x / 4, 99) - 0.5) * 50));
   }
 
   // 2. Stars: dark, above the valley haze; light, once the sky turns to
@@ -709,7 +719,8 @@ export function drawWorldBase(o: BaseOptions): Canvas {
     for (let x = Math.max(0, span.left); x <= Math.min(o.width - 1, span.right); x++) {
       if (crater && Math.abs(x + 0.5 - o.width * CONE_CENTRE) < 2.5 && a > apex - 2 * o.metresPerRow) continue;
       const lit = x + 0.5 < ridgeX;
-      const snowline = 3_000 + (noise1(x / 7, 41) - 0.5) * 500;
+      // A gentle, wide wave (sharp teeth here read as a row of little peaks).
+      const snowline = 3_000 + (noise1(x / 16, 41) - 0.5) * 260 + (noise1(x / 5, 42) - 0.5) * 60;
       const treeline = 1_500 + (noise1(x / 5, 43) - 0.5) * 300;
       const ground = groundAt(a, snowline, treeline);
       let role: number;
@@ -822,8 +833,8 @@ export function drawWorldBase(o: BaseOptions): Canvas {
   const strength = capStrength(o.you);
   if (strength > 0) {
     const mist = mistLine(o.you);
-    const baseRow = rowOf(mist - 260);
-    const topRow = rowOf(mist - 260 + 1_160 * strength);
+    const baseRow = rowOf(mist - CAP_UNDERSIDE_M);
+    const topRow = rowOf(mist - CAP_UNDERSIDE_M + 1_160 * strength);
     if (baseRow >= -10 && topRow <= o.height + 10) {
       // The same lobes at every strength (drawn from the same rolls), so it thins without jumping.
       const rnd = seeded(SEED + 90 + Math.round(o.you / 100));
@@ -871,20 +882,27 @@ export function drawWorldBase(o: BaseOptions): Canvas {
     }
   }
 
-  // 8. The stratosphere's own touch: wisps of cirrus, a shade paler than the
-  //    sky they're in, a long core row and a shorter one above (until night).
-  for (let k = Math.max(25, Math.floor(lowest / 500) - 1); k * 500 <= Math.min(highest, NIGHT_M - 500); k++) {
+  // 8. The stratosphere's own touch: wisps of cirrus, two shades paler than
+  //    the sky they're in, three tapered rows, 2–3 every 500 m (until 18 km).
+  const moonUp = o.moon !== null && moonShows(o.theme, alt(o.moon.y));
+  const paled = new Set<number>();
+  for (let k = Math.max(25, Math.floor(lowest / 500) - 1); k * 500 <= Math.min(highest, CIRRUS_END_M - 500); k++) {
     const rnd = seeded(SEED + 4_000 + k);
-    for (let i = 0; i < 2; i++) {
+    const n = rnd() < 0.5 ? 3 : 2;
+    for (let i = 0; i < n; i++) {
       const y = rowOf(k * 500 + rnd() * 500);
       const x0 = Math.floor(rnd() * o.width);
-      const length = 8 + Math.floor(rnd() * 10);
+      const length = 12 + Math.floor(rnd() * 12);
       // Not across the moon and its glow.
-      if (o.moon && dark && Math.abs(y - o.moon.y) < 10 && x0 < o.moon.x + 10 && x0 + length > o.moon.x - 10) continue;
-      for (const [dy, from, to] of [[0, 0, length], [-1, 2, length - 4]] as const) {
+      if (o.moon && moonUp && Math.abs(y - o.moon.y) < 11 && x0 < o.moon.x + 10 && x0 + length > o.moon.x - 10) continue;
+      for (const [dy, from, to] of [[0, 0, length], [-1, 3, length - 5], [1, 6, length - 2]] as const) {
         for (let x = x0 + from; x < x0 + to; x++) {
           const here = c.get(x % o.width, y + dy);
-          if (isSky(here)) c.set(x % o.width, y + dy, paler(here));
+          const key = (y + dy) * o.width + (x % o.width);
+          if (isSky(here) && !paled.has(key)) {
+            c.set(x % o.width, y + dy, paler(paler(here)));
+            paled.add(key);
+          }
         }
       }
     }
@@ -904,16 +922,44 @@ export function drawWorldMoving(c: Canvas, o: WorldOptions) {
   const dark = o.theme === "dark";
   // Clouds seeded per 500 m band (fixed in metres), two tiers: small far
   // ones tinted toward the sky, nearer white ones (some medium) in front.
-  const around = {
-    clear: keepClear(o, rowOf, o.altitude !== null ? { x: balloonX(o.altitude, o.width, o.you, o.balloonMinX), y: balloonRow(rowOf(o.altitude), o.height), inBand: inCloudBand(o.altitude) } : null),
+  const around: { clear: Box[] } = {
+    // Only its own balloon (the strip's far layer has none: its clouds pass behind the strip's balloon, as before).
+    clear: keepClear(
+      o,
+      rowOf,
+      o.altitude !== null ? { x: balloonX(o.altitude, o.width, o.you, o.balloonMinX), y: balloonRow(rowOf(o.altitude), o.height), inBand: inCloudBand(o.altitude) } : null,
+    ),
   };
+  // The moon first, with its glow; drifting clouds keep clear of it (one passing
+  // in front would leave a stray gold speck, not a moon).
+  const moonUp = o.moon !== null && moonShows(o.theme, alt(o.moon.y));
+  drawMoon(c, o, moonUp);
+  if (o.moon && moonUp) around.clear.push({ x0: o.moon.x - 8, x1: o.moon.x + 9, y0: o.moon.y - 8, y1: o.moon.y + 9 });
   for (let k = Math.max(1, Math.floor(alt(o.height - 1) / 500) - 1); k * 500 <= Math.min(alt(0) + 500, CLOUDS_END_M - 500); k++) {
     const band = inCloudBand(k * 500);
     drawDriftingClouds(c, o, rowOf, SEED + 3_000 + k, k * 500, (k + 1) * 500, band ? 3 : 2, "far", dark, 0.25, around);
     const near = band ? 3 : 1 + (hash01(SEED + 1, k) < 0.5 ? 1 : 0);
     drawDriftingClouds(c, o, rowOf, SEED + 5_000 + k, k * 500, (k + 1) * 500, near, "near", dark, band ? 0.5 : 0.25, around);
   }
-  drawMoon(c, o);
+  // Thin high clouds in the stratosphere: long low streaks in quiet tones,
+  // now and then, spread across the width; up to HIGH_CLOUDS_END_M. On the
+  // strip (no balloon of its own) they keep clear of the strip's balloon.
+  const highClear = o.altitude === null && o.clearOf ? keepClear(o, rowOf, { ...o.clearOf, inBand: false }) : around.clear;
+  for (let k = Math.max(CLOUDS_END_M / 500, Math.floor(alt(o.height - 1) / 500) - 1); k * 500 <= Math.min(alt(0) + 500, HIGH_CLOUDS_END_M - 500); k++) {
+    if (hash01(SEED + 2, k) >= 0.6) continue;
+    const rnd = seeded(SEED + 6_000 + k);
+    const length = 14 + Math.floor(rnd() * 14);
+    const y = rowOf(k * 500 + 100 + rnd() * 300);
+    // Golden-ratio spacing by band, so a still frame never stacks them in one column.
+    const x0 = (((k * 0.618) % 1) * 0.8 + rnd() * 0.2) * (c.width + length);
+    const speed = 0.3 + rnd() * 0.3;
+    const shift = o.time > 0 && o.driftMs > 0 ? Math.floor((o.time * speed) / o.driftMs) : 0;
+    const x = Math.round(((x0 + shift) % (c.width + length)) - length);
+    if (highClear.some((b) => x < b.x1 && x + length > b.x0 && y - 1 < b.y1 && y + 2 > b.y0)) continue;
+    for (const [dy, from, to, r] of [[-1, 4, length - 6, R["cloud-high"]], [0, 1, length - 1, R["cloud-high"]], [1, 3, length - 2, R["cloud-high-shade"]]] as const) {
+      for (let px = x + from; px < x + to; px++) if (isSky(c.get(px, y + dy))) c.set(px, y + dy, r);
+    }
+  }
   if (o.altitude !== null) drawBalloon(c, balloonX(o.altitude, o.width, o.you, o.balloonMinX), balloonRow(rowOf(o.altitude), o.height), o.theme, bob(o));
 }
 
@@ -921,6 +967,8 @@ export function drawWorldMoving(c: Canvas, o: WorldOptions) {
 export const CLOUD_BAND = [10_000, 11_500] as const;
 /** No clouds above this: the stratosphere, then space. */
 export const CLOUDS_END_M = 12_000;
+/** Thin high clouds go on to here (the stratosphere); none above, in space. */
+export const HIGH_CLOUDS_END_M = 16_500;
 
 /** In the band of cloud above the Summit? */
 function inCloudBand(altitude: number): boolean {
@@ -939,12 +987,11 @@ function bob(o: { time: number; driftMs: number }): number {
 
 /**
  * The moon: gold, shaded at the lower right. In dark, always (in two stepped
- * rings of moonlit navy); in light, once it's against night-blue space (from
- * Moonlight up). Drawn over the clouds, so it's always seen.
+ * rings of moonlit navy); in light, once the sky is deep enough (moonShows).
+ * Drawn over the clouds, so it's always seen.
  */
-function drawMoon(c: Canvas, o: Pick<WorldOptions, "theme" | "moon">) {
-  const night = o.moon !== null && SPACE_NIGHT.has(c.get(o.moon.x, o.moon.y));
-  if (o.moon && (o.theme === "dark" || night)) {
+function drawMoon(c: Canvas, o: Pick<WorldOptions, "theme" | "moon">, shows: boolean) {
+  if (o.moon && shows) {
     const glow = o.theme === "dark";
     const { x: mx, y: my } = o.moon;
     for (let y = my - 9; y <= my + 9; y++) {
@@ -953,9 +1000,9 @@ function drawMoon(c: Canvas, o: Pick<WorldOptions, "theme" | "moon">) {
           c.set(x, y, inCircle(x, y, mx - 0.6, my - 0.6, 3.6) ? R.moon : R["moon-shade"]);
           continue;
         }
-        // The glow only lifts the sky (never paints over a cloud or a star).
+        // The glow lifts the sky, and the cap's cloud around it (moonlight through a gap); never a star or the mountain.
         const here = c.get(x, y);
-        if (!glow || !isSky(here)) continue;
+        if (!glow || !(isSky(here) || GLOWS_ON.has(here))) continue;
         if (inCircle(x, y, mx + 0.5, my + 0.5, 5.5)) c.set(x, y, R["moon-glow"]);
         else if (inCircle(x, y, mx + 0.5, my + 0.5, 7.5)) c.set(x, y, R["moon-glow-2"]);
       }
@@ -977,8 +1024,16 @@ const MIST: Record<number, number> = {
   [R.rim]: R["cloud-light"],
 };
 
-/** Space's deepest colours: light mode's moon shows against these. */
-const SPACE_NIGHT = new Set<number>([R["space-1"], R["space-2"]]);
+/** Cloud the dark moon's glow lights up (so on the cap it reads as a gap in the cloud). */
+const GLOWS_ON = new Set<number>([R.cloud, R["cloud-light"], R["cloud-shade"], R["cloud-deep"]]);
+
+/** In light, the moon shows once the sky at its height is this deep (about 14,750 m up). */
+export const LIGHT_MOON_FROM_M = SPACE_BANDS[2];
+
+/** Does the moon show at this height? Always in dark; in light once the sky is deep enough (the stratosphere and space). */
+export function moonShows(theme: Theme, moonAltitude: number): boolean {
+  return theme === "dark" || moonAltitude >= LIGHT_MOON_FROM_M;
+}
 
 /** A box of logical pixels: x0 ≤ x < x1, y0 ≤ y < y1. */
 type Box = { x0: number; x1: number; y0: number; y1: number };
@@ -988,6 +1043,10 @@ function keepClear(o: { width: number; you: number }, rowOf: (a: number) => numb
   const boxes: Box[] = [];
   // In the cloud band, clouds may brush the balloon (you're in cloud): only its envelope stays clear.
   if (balloon) boxes.push(balloon.inBand ? { x0: balloon.x - 4, x1: balloon.x + 5, y0: balloon.y - 13, y1: balloon.y - 4 } : { x0: balloon.x - 7, x1: balloon.x + 7, y0: balloon.y - 16, y1: balloon.y + 3 });
+  if (capStrength(o.you) >= 1 && mistLine(o.you) <= CAP_MIN_M) {
+    const under = rowOf(mistLine(o.you) - CAP_UNDERSIDE_M);
+    boxes.push({ x0: -100, x1: o.width + 100, y0: under - 1, y1: under + 9 });
+  }
   if (capStrength(o.you) < 1) {
     const half = coneHalfWidth(SUMMIT_M - 500, o.width, o.you) + 3;
     boxes.push({ x0: o.width * CONE_CENTRE - half, x1: o.width * CONE_CENTRE + half, y0: rowOf(SUMMIT_M + 350), y1: rowOf(SUMMIT_M - 500) });
@@ -1037,6 +1096,7 @@ function drawDriftingClouds(
     // a near one is mist, in tones never darker than the shaded snow (a
     // darker cloud on a pale slope reads as a hole), its shape kept.
     const misty = {
+      get: (px: number, py: number) => c.get(px, py),
       set: (px: number, py: number, r: number) => {
         const under = c.get(px, py);
         if (tier === "far" && MOUNTAIN_ROLES.has(under)) return;
@@ -1167,7 +1227,17 @@ export function drawClose(o: CloseOptions): Canvas {
 
 /** Where the strip draws your balloon (its centre, and its basket's bottom row, at rest): for tests that keep labels off it. */
 export function closeBalloonAt(o: { width: number; height: number; altitude: number; you: number; balloonMinX?: number }): { x: number; y: number } {
-  return { x: balloonX(o.altitude, o.width, o.you, o.balloonMinX), y: Math.round(o.height - 1 - o.height * (1 - YOU_FROM_TOP)) };
+  return { x: balloonX(o.altitude, o.width, o.you, o.balloonMinX), y: Math.min(o.height - 3, Math.round(o.height - 1 - o.height * (1 - YOU_FROM_TOP)) + closeFrame(o).shift) };
+}
+
+/** The strip never shows more than this below the valley floor: near the ground it looks up instead (at Base camp, up to the cap). */
+const STRIP_FLOOR_M = -4 * FAR_M;
+
+/** The strip's far view: its bottom (whole rows, so the cached base is reused between small lifts), and how many rows lower you are drawn because of the floor. */
+function closeFrame(o: { height: number; altitude: number }): { bottom: number; shift: number } {
+  const raw = Math.round((o.altitude - o.height * (1 - YOU_FROM_TOP) * FAR_M) / FAR_M) * FAR_M;
+  const bottom = Math.max(raw, STRIP_FLOOR_M);
+  return { bottom, shift: Math.round((bottom - raw) / FAR_M) };
 }
 
 /** Where Climb's world draws your balloon (as closeBalloonAt). */
@@ -1181,8 +1251,7 @@ export function closeFarOptions(o: Omit<CloseOptions, "time" | "driftMs" | "ball
     width: o.width,
     height: o.height,
     metresPerRow: FAR_M,
-    // Whole rows, so the cached base is reused between small lifts.
-    bottom: Math.round((o.altitude - o.height * (1 - YOU_FROM_TOP) * FAR_M) / FAR_M) * FAR_M,
+    bottom: closeFrame(o).bottom,
     top: worldTop(o.altitude),
     you: o.you,
     theme: o.theme,
@@ -1190,13 +1259,17 @@ export function closeFarOptions(o: Omit<CloseOptions, "time" | "driftMs" | "ball
   };
 }
 
-/** The strip's moon: high up, in clear sky over or beside the cone (right, else left), never on the mountain; none if there's no room. */
+/** The strip's moon: high up, over or beside the cone (right, else left), never on the mountain; on a solid cap its glow makes a gap in the cloud; none if there's no room (at Base camp the top of the strip is all mountain under the cap). */
 function closeMoon(o: Omit<CloseOptions, "time" | "driftMs">): { x: number; y: number } | null {
-  const y = 10;
-  const a = o.altitude + (o.height * YOU_FROM_TOP - y) * FAR_M;
-  // No mountain up there (in the cap, or above the top): high on the right.
-  if (mountainSpan(a, o.width, o.you) === null && mountainSpan(a - 9 * FAR_M, o.width, o.you) === null) return { x: Math.round(o.width * 0.82), y };
-  const half = coneHalfWidth(Math.min(a - 9 * FAR_M, apexFor(o.you)), o.width, o.you);
+  const y = 7;
+  const a = closeFrame(o).bottom + (o.height - 1 - y + 0.5) * FAR_M;
+  // In light, decided by the day's start (the shape's height), so it never appears mid-lift.
+  if (!moonShows(o.theme, a - (o.altitude - o.you))) return null;
+  // No mountain in sight at its disc's rows (above the top, or hidden in a solid cap's cloud): high on the right.
+  const hidden = (h: number) => mountainSpan(h, o.width, o.you) === null || (capStrength(o.you) >= 1 && h >= mistLine(o.you) - CAP_UNDERSIDE_M);
+  // (Five rows below its disc too: the cap's underside is ragged, a few rows up and down.)
+  if (hidden(a + 4 * FAR_M) && hidden(a - 9 * FAR_M)) return { x: Math.round(o.width * 0.82), y };
+  const half = coneHalfWidth(Math.min(a - 4 * FAR_M, apexFor(o.you)), o.width, o.you);
   const right = Math.round(o.width * CONE_CENTRE + half + 11);
   if (right <= o.width - 5) return { x: right, y };
   const left = Math.round(o.width * CONE_CENTRE - half - 11);
@@ -1205,9 +1278,10 @@ function closeMoon(o: Omit<CloseOptions, "time" | "driftMs">): { x: number; y: n
 
 /** The strip's moving layer over its far base: the far world's clouds, the near clouds, and you. */
 export function drawCloseMoving(c: Canvas, o: CloseOptions) {
-  drawWorldMoving(c, { ...closeFarOptions(o), time: o.time, altitude: null, driftMs: o.driftMs * 2 });
+  drawWorldMoving(c, { ...closeFarOptions(o), time: o.time, altitude: null, driftMs: o.driftMs * 2, clearOf: closeBalloonAt(o) });
   const dark = o.theme === "dark";
-  const bottom = o.altitude - o.height * (1 - YOU_FROM_TOP) * NEAR_M;
+  // Near the ground you're drawn lower (the far view stops at its floor): the near layer moves with you.
+  const bottom = o.altitude - o.height * (1 - YOU_FROM_TOP) * NEAR_M + closeFrame(o).shift * NEAR_M;
   const rowOf = (a: number) => Math.round(o.height - 1 - (a - bottom) / NEAR_M);
   // Near clouds: about one every 200 m (2–3 in view), seeded by altitude so
   // they're always in the same places on the climb; mostly small.
@@ -1238,8 +1312,8 @@ export function drawCloseMoving(c: Canvas, o: CloseOptions) {
     if (rnd() < 0.3 && isSky(c.get(x + 1, y))) c.set(x + 1, y, role);
   }
   // The moon over the near clouds too, then you, just off the slope of the far world.
-  drawMoon(c, closeFarOptions(o));
-  drawBalloon(c, balloonX(o.altitude, o.width, o.you, o.balloonMinX), rowOf(o.altitude), o.theme, bob(o));
+  // (The moon is drawn with the far layer, behind the clouds.)
+  drawBalloon(c, balloonX(o.altitude, o.width, o.you, o.balloonMinX), Math.min(o.height - 3, rowOf(o.altitude)), o.theme, bob(o));
 }
 
 /** Dark mode's moon on the Climb screen: high on the left, around the top of the cloud cap, so it's in view when the screen opens. */

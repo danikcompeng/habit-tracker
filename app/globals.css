@@ -103,8 +103,8 @@
   --scene-rock: #8F9DB3;
   --scene-rock-shade: #6F7F99;
   --scene-snow: #F7F9FC;
-  --scene-snow-shade: #CFDAE8;
-  --scene-snow-gully: #AFBDD3;
+  --scene-snow-shade: #BCC9DC;
+  --scene-snow-gully: #9FAFC8;
   --scene-pine: #4F8B5E;
   --scene-pine-dark: #3C6F4B;
   --scene-valley: #93C26F;
@@ -118,6 +118,8 @@
   --scene-cloud-far: #CFDCEB;
   --scene-cloud-far-shade: #BCCBE0;
   --scene-cirrus: #E9EFF6;
+  --scene-cloud-high: #6680B2;
+  --scene-cloud-high-shade: #5A73A4;
   --scene-rim: #FFFFFF;
   --scene-marker: #B8420E;
   --scene-marker-ring: #FFFFFF;
@@ -172,7 +174,7 @@
     --scene-ridge-far: #1A2650;
     --scene-ridge-near: #22305E;
     --scene-rock: #39466F;
-    --scene-rock-shade: #2A355A;
+    --scene-rock-shade: #1E2646;
     --scene-snow: #9AA7CF;
     --scene-snow-shade: #6A79A6;
     --scene-snow-gully: #56648F;
@@ -189,6 +191,8 @@
     --scene-cloud-far: #3A4772;
     --scene-cloud-far-shade: #2D3961;
     --scene-cirrus: #2E3D6E;
+    --scene-cloud-high: #3A4772;
+    --scene-cloud-high-shade: #2D3961;
     --scene-rim: #FF9F7C;
     --scene-marker: #FF8F57;
     --scene-marker-ring: #050A1C;

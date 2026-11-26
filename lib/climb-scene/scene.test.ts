@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { SUMMIT_M, nextZone } from "../altitude";
 import {
   BALLOON_MIN_X,
+  CAP_UNDERSIDE_M,
   YOU_FROM_TOP,
   CAP_GONE_M,
   CAP_THINS_FROM_M,
@@ -12,12 +13,16 @@ import {
   SKY_BANDS,
   SMALL_CLOUDS,
   apexFor,
+  closeBalloonAt,
+  closeFarOptions,
+  drawWorldMoving,
   balloonX,
   capStrength,
   drawClose,
   drawWorld,
   drawWorldBase,
   looped,
+  moonShows,
   mistLine,
   mountainSpan,
   seeded,
@@ -137,10 +142,40 @@ describe("the Climb's scene", () => {
       expect(lower.right - lower.left - (upper.right - upper.left), `${a} m`).toBeGreaterThanOrEqual(0);
     }
     expect(mistLine(0)).toBeGreaterThanOrEqual(2_000);
-    // At Base camp, both flanks are in view below the cap.
-    const low = mountainSpan(1_200, 117, 0)!;
-    expect(low.left).toBeGreaterThan(0);
-    expect(low.right).toBeLessThan(117);
+  });
+
+  it("far below, the mountain is the same broad shape at any height (Base camp too): past both edges where you are, broad where it meets the cloud", () => {
+    for (const you of [0, 1_500, 3_000, 6_000]) {
+      const at = mountainSpan(you, 117, you)!;
+      expect(at.left, `${you} m: past the left edge where you are`).toBeLessThan(0);
+      expect(at.right, `${you} m: past the right edge`).toBeGreaterThan(116);
+      // Where it meets the cloud as drawn: the first row of mountain under the cap, on Climb's view.
+      const { height, w } = climbView(you, "light", null);
+      const underside = height - 1 - Math.round((mistLine(you) - CAP_UNDERSIDE_M) / 25);
+      let row = -1;
+      for (let y = underside - 6; y < height && row < 0; y++) {
+        if ([...w.px.slice(y * 117, y * 117 + 117)].some((v) => MOUNTAIN.has(v))) row = y;
+      }
+      // The cone's width there, from its own edges (clouds may cover parts of the row).
+      const a = (height - 1 - row + 0.5) * 25;
+      const span = mountainSpan(a, 117, you)!;
+      expect(span.right - span.left, `${you} m: broad where it meets the cloud (${a} m)`).toBeGreaterThan(117 * 0.6);
+      expect(span.right - span.left, `${you} m: but not a wall (${a} m)`).toBeLessThan(117 * 0.88);
+      expect(span.left, `${you} m: sky beside it`).toBeGreaterThan(0);
+      expect(span.right).toBeLessThan(117);
+    }
+    // On Today's strip at Base camp the view looks up from just under the valley floor
+    // to the cap: its top rows are the broad shoulder with sky beside it.
+    for (const you of [0, 300]) {
+      const close = strip(you);
+      const topRows = [1, 2, 3, 4, 5, 6].map((y) => [...close.px.slice(y * 117, y * 117 + 117)].map((v) => ROLES[v]));
+      expect(topRows.some((row) => row.some((r) => MOUNTAIN.has(role(r as (typeof ROLES)[number])))), `${you} m: mountain near the strip's top`).toBe(true);
+      // Beside it (sky, far ridges or cloud), not the cone itself: its flanks are inside the edges up there.
+      const cone = new Set(["rock", "rock-shade", "snow", "snow-shade", "snow-gully", "pine", "pine-dark"]);
+      expect(topRows.some((row) => !cone.has(row[1]) && !cone.has(row[115])), `${you} m: the flanks inside the edges`).toBe(true);
+      // And the balloon is drawn, on the strip, at its true height (lower down near the ground).
+      expect(count(close.px, role("marker")), `${you} m: the balloon`).toBeGreaterThanOrEqual(20);
+    }
   });
 
   it("the cloud cap is solid far below the Summit, thins in the last stretch, and is gone from 700 m below it", () => {
@@ -290,14 +325,96 @@ describe("the Climb's scene", () => {
     expect(Buffer.from(tall.px.slice(0, 100 * 117)).equals(Buffer.from(short.px))).toBe(true);
   });
 
-  it("above the clouds there are no clouds; in space light mode has stars too", () => {
-    for (const you of [15_000, 25_000, 50_000]) {
+  it("the stratosphere has thin high clouds (to 16,500 m); none in space; in space light mode has stars too", () => {
+    const high = drawWorld({ width: 117, height: 200, metresPerRow: 25, bottom: 12_000, top: 17_000, you: 14_000, theme: "light", time: 0, altitude: null, driftMs: 700, moon: null });
+    expect(count(high.px, role("cloud-high")), "thin high clouds between 12,000 and 17,000 m").toBeGreaterThan(10);
+    for (const you of [18_000, 25_000, 50_000]) {
       for (const theme of ["light", "dark"] as const) {
         const close = strip(you, theme, 5_000);
         expect([...close.px].filter((v) => CLOUDS.has(v)).length, `${you} m ${theme}: clouds`).toBe(0);
       }
     }
     expect(count(strip(25_000).px, role("star")) + count(strip(25_000).px, role("star-dim"))).toBeGreaterThan(10);
+  });
+
+  it("dark: the strip has its moon from about 1,200 m up (lighting a gap in the cap, or in clear sky); not at Base camp, where the mountain fills the strip's top", () => {
+    for (const you of [1_200, 1_500, 3_000, 6_000, 9_500, 15_000]) expect(count(strip(you, "dark").px, role("moon")), `${you} m`).toBeGreaterThan(10);
+    expect(count(strip(0, "dark").px, role("moon")), "0 m: no room (accepted)").toBe(0);
+  });
+
+  it("the strip's moon is never on the mountain, swept 0–9,500 m, and in the middle of a day (shaped from its start)", () => {
+    const ground = new Set((["rock", "rock-shade", "snow", "snow-shade", "snow-gully", "pine", "pine-dark"] as const).map(role));
+    for (let you = 0; you <= 9_500; you += 37) {
+      for (const altitude of [you, you + 150]) {
+        const dark = drawClose({ width: 117, height: 47, theme: "dark", time: 0, altitude, you, driftMs: 700 });
+        const light = drawClose({ width: 117, height: 47, theme: "light", time: 0, altitude, you, driftMs: 700 });
+        dark.px.forEach((v, i) => {
+          if (v === role("moon") || v === role("moon-shade")) expect(ground.has(light.px[i]), `${you} m (+${altitude - you}): moon over the mountain`).toBe(false);
+        });
+      }
+    }
+  });
+
+  it("drifting clouds never cover the moon (its disc always shows whole)", () => {
+    for (const you of [3_000, 8_700, 15_000]) {
+      for (let time = 0; time < 120_000; time += 4_100) {
+        const top = worldTop(you);
+        const height = Math.ceil(top / 25);
+        const w = drawWorld({ width: 117, height, metresPerRow: 25, bottom: 0, top, you, theme: "dark", time, altitude: you, driftMs: 700, moon: worldMoon(117, height, 25, you, top) });
+        expect(count(w.px, role("moon")) + count(w.px, role("moon-shade")), `${you} m, time ${time}: the whole disc (37 px)`).toBe(37);
+      }
+    }
+  });
+
+  it("the light moon on the strip is decided by the day's start: none below about 13,750 m, then there all day", () => {
+    expect(count(strip(13_600).px, role("moon"))).toBe(0);
+    expect(count(strip(13_900).px, role("moon"))).toBeGreaterThan(10);
+    // A lift during the day doesn't make it appear.
+    const lifted = drawClose({ width: 117, height: 47, theme: "light", time: 0, altitude: 13_740, you: 13_600, driftMs: 700 });
+    expect(count(lifted.px, role("moon"))).toBe(0);
+  });
+
+  it("high clouds end at 16,500 m (none above, on Climb's view) and are the same whichever row the view starts on", () => {
+    const highRoles = new Set((["cloud-high", "cloud-high-shade"] as const).map(role));
+    const w = drawWorld({ width: 117, height: 200, metresPerRow: 25, bottom: 15_000, top: 20_000, you: 15_000, theme: "light", time: 0, altitude: null, driftMs: 700, moon: null });
+    const row16700 = 199 - Math.round((16_700 - 15_000) / 25);
+    for (let y = 0; y < row16700; y++) for (let x = 0; x < 117; x++) expect(highRoles.has(w.px[y * 117 + x]), `row ${y}`).toBe(false);
+    const view = (bottom: number, height: number) => drawWorld({ width: 117, height, metresPerRow: 25, bottom, top: 20_000, you: 14_000, theme: "light", time: 3_000, altitude: null, driftMs: 700, moon: null });
+    const a = view(13_000, 100);
+    const b = view(12_000, 140);
+    expect(Buffer.from(b.px.slice(0, 100 * 117)).equals(Buffer.from(a.px))).toBe(true);
+  });
+
+  it("on the strip the high clouds never drift behind the balloon (and would, without its clear box)", () => {
+    const highRoles = new Set((["cloud-high", "cloud-high-shade"] as const).map(role));
+    let without = 0;
+    for (const you of [12_600, 13_400, 14_200, 15_000, 15_800]) {
+      const o = { width: 117, height: 47, theme: "light" as const, altitude: you, you };
+      const at = closeBalloonAt(o);
+      const inBox = (i: number) => {
+        const x = i % 117;
+        const y = Math.floor(i / 117);
+        return Math.abs(x - at.x) <= 6 && y >= at.y - 15 && y <= at.y + 2;
+      };
+      for (let time = 0; time < 240_000; time += 2_100) {
+        const base = drawWorldBase(closeFarOptions(o));
+        drawWorldMoving(base, { ...closeFarOptions(o), time, altitude: null, driftMs: 1_400, clearOf: at });
+        base.px.forEach((v, i) => inBox(i) && expect(highRoles.has(v), `${you} m, time ${time}`).toBe(false));
+        const bare = drawWorldBase(closeFarOptions(o));
+        drawWorldMoving(bare, { ...closeFarOptions(o), time, altitude: null, driftMs: 1_400, clearOf: null });
+        bare.px.forEach((v, i) => inBox(i) && highRoles.has(v) && without++);
+      }
+    }
+    expect(without, "without the box, some frame has a high cloud there (so the test can fail)").toBeGreaterThan(0);
+  });
+
+  it("the moon: always in dark; in light once the sky is deep (the stratosphere and space), never lower", () => {
+    expect(moonShows("dark", 3_000)).toBe(true);
+    expect(moonShows("light", 12_000)).toBe(false);
+    expect(moonShows("light", 15_000)).toBe(true);
+    const moon = (you: number) => count(strip(you).px, role("moon"));
+    expect(moon(9_000), "light, 9,000 m").toBe(0);
+    expect(moon(15_000), "light, 15,000 m").toBeGreaterThan(10);
   });
 
   it("a lift in space still shows things passing you (the strip's near layer)", () => {
@@ -313,7 +430,7 @@ describe("the Climb's scene", () => {
     const ground = new Set((["rock", "rock-shade", "snow", "snow-shade", "snow-gully", "pine", "pine-dark", "valley", "valley-dark"] as const).map(role));
     for (const you of [0, 3_000, 7_113, 8_200, 8_763, 9_500, 12_000, 30_000]) {
       const close = drawClose({ width: 117, height: 47, theme: "dark", time: 0, altitude: you, you, driftMs: 700 });
-      // Mark where the moon is, then check what the same view has under it without the moon (light mode has no moon).
+      // Mark where the moon is, then check what the same view has under it in light (no moon below the stratosphere).
       const light = drawClose({ width: 117, height: 47, theme: "light", time: 0, altitude: you, you, driftMs: 700 });
       close.px.forEach((v, i) => {
         if (v === role("moon") || v === role("moon-shade")) expect(ground.has(light.px[i]), `${you} m: moon over the mountain`).toBe(false);
