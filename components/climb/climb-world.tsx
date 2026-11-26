@@ -1,6 +1,6 @@
 "use client";
 
-// The Climb screen's scene (plans/habit-tracker.md, Features 10, 10c): the
+// The Climb screen's scene (plans/habit-tracker.md, Features 10, 10c, 10e): the
 // world from the valley up past the Summit into space, in a scrolling window
 // that opens on your balloon. The ruler (every 2,500 m, your height highlighted) and the zone
 // labels are text over the art, in token chips; the zones are a list for
@@ -9,7 +9,7 @@
 import { useLayoutEffect, useRef } from "react";
 import { SCENE_SCALE, SceneCanvas, WORLD_METRES_PER_ROW } from "@/components/climb/scene-canvas";
 import { CM, metres, metresText, wholeMetres, zonesBelow } from "@/lib/altitude";
-import { NIGHT_M, worldTop } from "@/lib/climb-scene/scene";
+import { NIGHT_M, climbWindowTop, worldTop } from "@/lib/climb-scene/scene";
 
 /** CSS px from the world's top to an altitude. */
 function yOf(altitudeM: number, top: number): number {
@@ -25,19 +25,22 @@ export function ClimbWorld({ altitudeCm }: { altitudeCm: number }) {
   /** A ruler chip at or near this height (yours, or a tick's that's shown)? */
   const rulerNear = (m: number) => Math.abs(m - altitudeM) < 700 || ticks.some((t) => Math.abs(t - altitudeM) >= 700 && Math.abs(t - m) < 700);
 
-  // Open on your marker, a little below the middle of the window, so the
-  // next zone up (and its label) is in view (no animation).
+  // Open on your marker, a little below the middle of the window, so what's
+  // ahead is in view (no animation); below about 7,000 m the window stops
+  // short of the peak, so it isn't in view yet (climbWindowTop, Feature 10e).
   useLayoutEffect(() => {
     const el = box.current;
     if (!el) return;
-    el.scrollTop = Math.max(0, yOf(altitudeM, top) - el.clientHeight * 0.63);
+    const windowMetres = (el.clientHeight / SCENE_SCALE) * WORLD_METRES_PER_ROW;
+    el.scrollTop = Math.max(0, yOf(climbWindowTop(altitudeM, windowMetres, top), top));
   }, [altitudeM, top]);
 
   return (
     <div
       ref={box}
-      // A window onto the climb, down to the bottom of the screen, scrolling inside.
-      className={`relative mt-5 min-h-[24rem] flex-1 basis-0 overflow-x-hidden overflow-y-auto overscroll-contain rounded-key border border-line ${altitudeM >= NIGHT_M ? "bg-(--scene-space-1)" : "bg-(--scene-sky-6)"}`}
+      // A window onto the climb, down to the bottom of the screen, scrolling
+      // inside; never taller than 900 px (7,500 m), so a tablet doesn't open on the peak.
+      className={`relative mt-5 max-h-[900px] min-h-[min(24rem,900px)] flex-1 basis-0 overflow-x-hidden overflow-y-auto overscroll-contain rounded-key border border-line ${altitudeM >= NIGHT_M ? "bg-(--scene-space-1)" : "bg-(--scene-sky-6)"}`}
       tabIndex={0}
       aria-label={`The climb, from the valley to ${metresText(top)}`}
       role="region"

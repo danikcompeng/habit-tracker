@@ -932,6 +932,98 @@ The user's polish on 10c: (1) at 0–3,000 m the mountain reads as a narrow, poi
 
 Tests: the cone where it meets the drawn cloud is 60–88% of the width with sky beside it, and runs past both edges where you stand, at 0, 1,500, 3,000 and 6,000 m; no mountain above the cap still holds; the light moon at 15,000 m and none at 12,000 m; clouds only below 16,500 m above the band. Renders at 0, 1,500, 3,000 and 15,000 m, light and dark, in `docs/screenshots/feature-10/heights/`.
 
+### Feature 10e: a close-up climb, no cloud cap (2026-11-25)
+
+_Replaces the cloud cap of 10b–10d. The user's round 4 (pasted), after 10d._
+
+The user's round 4: a close-up climb, not a cloud hiding the top. Visuals only: **no change to the altitude maths, `habit_altitude()`, zones or the demo; no migration.**
+
+What they asked for:
+1. At 0 m the mountain's base fills the whole width of Today's strip and of Climb's window: broad, forested lower slopes, the top simply off the top of the frame. No wall of forest with clouds in front of it, no cloud layer hiding the mountain low down.
+2. Climbing, the view moves up the mountain and the slopes narrow, so sky appears on both sides, gradually: Treeline, then Snowline (rock, then snow).
+3. Near the top the classic Fuji silhouette comes into view: broad concave slopes, a snowcap with streaks running down, a small flat crater at 8,848 m. Before that the peak just isn't in the frame yet; it isn't hidden by cloud.
+4. Above the Summit, as now: the mountain falls away below, a layer of clouds (Into the clouds), the stratosphere, space that loops.
+5. Kept: the balloon at every height, the zones, the moon and space from 10c, the demo at 8,763 m with the peak in view and the Summit card.
+
+**1. One mountain, its top always at 8,848 m, seen close up.**
+- The cloud cap is gone, with everything that hung on it: the cap's thinning, the mist row, the far ridges cut at the cap, and the cone's hidden top shaped from the cap.
+- The mountain drawn for you is the real Fuji profile (the 10c cone: its flat top and crater at 8,848 m, its concave flanks), stretched upward by a factor that depends on your height.
+  - Its depth below the Summit is scaled by `k(you) ≤ 1`. Far below, `k` is about 0.23, so the flanks around you are the broad lower flanks of a much taller-looking cone.
+  - `k` grows smoothly to 1 (the real Fuji) by 7,848 m.
+  - Its definition: the bottom of Today's strip sits at a depth that shrinks steadily as you climb, from about 2,050 m to 1,640 m into the profile.
+  - That way the frame's bottom edge and its top edge both narrow as you climb (never widen). This was checked in a table, 0–8,848 m.
+- What you see on Today's strip (its far view shows about 1,880 m, you two thirds down):
+
+  | Your height | Strip's bottom edge | Where you are | Strip's top edge |
+  |---|---|---|---|
+  | 0 m | past both edges | about 113% | about 84% |
+  | 1,500 m | past both edges | about 97% | about 78% |
+  | 3,000 m | past both edges | about 90% | about 69% |
+  | 5,000 m | about 95% | about 79% | about 56% |
+  | 7,000 m | about 88% | about 64% | about 38% |
+
+  - The peak first enters the strip's frame at about 7,600 m.
+  - At the demo's 8,763 m it's a broad Fuji in the strip's lower third: about 46% wide at the bottom edge, the 20 px flat top and crater on it. That's the same frame 10c had.
+  - From 8,000 m on, it's the real cone.
+- **Climb's window.**
+  - At 0 m it opens on 0 m with the base past both edges, narrowing to about half the width at the window's top.
+  - The window is a map you can scroll, so the mountain's real top is always at 8,848 m above you: stretched (steep) while you're far below, the real Fuji near it.
+  - **It opens with the peak out of view below about 7,000 m.**
+    - The window's top stays at least 250 m below the Summit until 6,900 m. From there it is allowed up 3.5 m per metre you climb, so the peak comes into the opened window from the top between 6,900 m and about 7,030–8,110 m, depending on the window's height (7,480 m for a 5,000 m window). After that the window opens as now, you 63% of the way down.
+    - You always stay at least 20% below the window's top.
+    - A pure function, `climbWindowTop(altitude, windowMetres)`, with tests. Scrolling up still shows what's ahead.
+- **Snow.** The pixel style and tokens stay. Forest to the treeline (1,500 m), rock, then snow from the snowline (3,000 m).
+  - The streaks (gullies) now run down from the crater itself, and further: up to about 3,600 m down.
+  - They lean out with the slope, as before.
+- **Clouds sit behind the mountain below the Summit.**
+  - Drifting clouds, both tiers, on Today's strip and on Climb: they're drawn only over sky (and banks and far ridges), never over the mountain, the valley, the lake or the trees.
+  - The cloud sea at about 5,000 m ("Above the clouds") is drawn behind the mountain too: it shows beside the slopes, not across them.
+  - The banks were already behind.
+  - That removes the "mist over the snow" tones and the clear box under the cap at Base camp.
+  - Above the Summit nothing changes: the band you rise through is in front, as before.
+- **The moon.**
+  - The strip: high on the right beside the cone, else on the left, else none; never on the mountain. Below about 3,000 m there's no room (the strip's top is about 84% slope).
+  - Climb's dark moon: at the left, at least 1,600 m above you, and at the lowest height where its disc and glow clear the cone. That puts it in the opened window.
+  - In light it still starts at about 14,750 m.
+
+**Tests.**
+- **The base fills the width at 0 m:** every row of the bottom of the strip and of Climb's window has mountain or valley edge to edge. Past both edges where you are at 0 m, and at the strip's bottom edge up to 1,000 m.
+- **Sky appears gradually:** the mountain's width at the strip's top edge never grows as you climb, swept 0–7,600 m every 50 m. There is sky on both sides at the top edge from 1,500 m, and beside your height from 5,000 m.
+- **The peak is not in frame below 7,000 m:**
+  - Today's strip: no crater row and no mountain row within 300 m of the Summit in the frame, swept 0–7,000 m.
+  - Climb's opened window: its top under 8,600 m, swept 0–6,900 m, for windows of 3,200, 5,000 and 7,500 m.
+  - The peak is in view at 7,500 m (Climb) and 7,750 m (the strip), and at the demo's 8,763 m in both.
+- **The top:** always at 8,848 m (no mountain above it, the flat top and crater at it) at every height.
+- **No cloud over the mountain** below the Summit: a minute of drift at 0, 1,500, 5,000 and 8,763 m, both views.
+- **Kept:** the balloon tests, the moon never on the mountain (swept), the demo's crossing.
+
+**After logic-checker (decided):**
+
+The logic-checker said "Ready after fixes". What changed:
+
+- **`k` past the Summit.** It's exactly 1 from 7,848 m up: the formula's denominator turns negative above 9,488 m, which would have erased the mountain. Tested: `k` is in (0, 1] at every height up to 100 km.
+- **A completion still shows something passing you.** Low down, near clouds would show only in the strip's sky corners. So below 6,000 m the strip's near layer also has small flocks of pixel birds (1–3 birds, a flock every ~120 m):
+  - drawn in front: they're near, and they never read as a cloud layer;
+  - flapping a pixel and drifting slowly, still under Reduce Motion;
+  - in two new tokens, `bird` and `bird-light`, each bird taking whichever stands out more from what's behind it.
+  - Tested: a 20 m lift changes the picture at 0, 1,500 and 3,000 m.
+- **Clouds behind the mountain.** It's an allow-list: a drifting cloud is drawn only over sky, stars, banks, far ridges and other clouds.
+- **Tall screens.** Climb's window is capped at 900 css px (300 rows, 7,500 m), so a tablet or desktop doesn't open on the peak. `climbWindowTop` is `max(you + 0.2W, min(you + 0.63W, 8,598 + 3.5·max(0, you − 6,900)))` at every height, clamped to [W, the world's top].
+- **The strip's dark moon** now starts higher (was 1,200 m): below that the strip's top is slope nearly edge to edge. Accepted and tested at its real start (see the reviews: about 2,700 m, or 3,700 m on a narrow phone); the dead left-hand branch is gone.
+- **Accepted:**
+  - **200% text.** The strip grows taller, so it shows the peak from about 6,400 m.
+  - **Overnight on Today.** The strip is still shaped from the day's start (the slope stays still during a lift, and the light moon never pops in). So from one evening to the next morning its bottom edge can widen by 3–4 px at 5,000–7,800 m. Morning to morning it always narrows.
+  - **On Climb** the "never widens" rule is the strip's: the window's top is held at the floor (0–1.7 km) or at 8,598 m, so its top edge can widen by a few px while the frame stands still.
+  - **Climb's first view of the peak** (about 6,970 m) is a slightly stretched one; it settles into the real Fuji by 7,848 m.
+  - **Scrolling up on Climb** far below shows a tall, narrow stretched top.
+- **`keepClear`'s peak box** is kept at every height (clouds never sit right around the crater).
+- **Tests:**
+  - the cap tests are rewritten;
+  - the "slope stays still during the day" test is kept, renamed;
+  - the frame's nominal 640 m below you is one named constant (`FRAME_BELOW_M`), tested to equal the strip's 47 rows × (1 − 0.66) × 40 m; `closeFrame` computes the same from its real height.
+
+- **Renderer previews** at 0, 1,500, 3,000, 5,000, 7,500, 8,763, 9,500, 12,000 and 40,000 m, light and dark, in `docs/screenshots/feature-10/heights/`. Climb's window in them opens as the app does. The app's own screenshots in `docs/screenshots/feature-10/` refreshed.
+
 ## Reviews
 
 _One entry per feature. Every agent finding is logged with its severity and what was done about it, so the log shows what each reviewer caught and what changed as a result._
@@ -1952,6 +2044,83 @@ Verdict: **Ship after fixes**. Ask 1 met on Climb at every low height; ask 2 the
 Verdict: **Ship**. "Both asks are now met at every height you asked about, in light and dark"; no regressions at 5,000, 6,500, 8,700 m. Of its remaining items: the Climb moon hidden behind drifting clouds (Medium, and its Low twin at 8,700 m) fixed as above; left as they are (Low): lone coral rim pixels, the cap's lobes cut by the strip's top edge at 0 m, stars drawn over the high streaks, a star touching the light moon at 20 km.
 
 Checks (final): 588 unit and database tests, tsc, eslint, `next build`; the full browser suite on `next start`: **92 passed, 0 failed**. Renders in `docs/screenshots/feature-10/heights/` (22 heights, 0 m to 100 km, light and dark).
+
+### Feature 10e: a close-up climb, no cloud cap (2026-11-25)
+
+The user's round 4: a close-up climb, not a cloud hiding the top.
+- **At 0 m** the base fills the width of Today's strip and of Climb's window, its top off the frame.
+- **Climbing**, the slopes narrow and sky comes in on both sides.
+- **Near the top** the Fuji silhouette comes into view: snowcap, streaks, a small flat crater at 8,848 m.
+- **Above the Summit**, nothing changes.
+- **The peak is not in frame below about 7,000 m.**
+
+Visuals only; no SQL. (Logged as 10e: 10d was already the polish round.)
+
+#### logic-checker (plan review)
+Verdict: **Ready after fixes**.
+
+| # | Severity | Finding | Outcome | What changed |
+|---|----------|---------|---------|--------------|
+| 1 | High | The profile's scale went negative from 9,488 m to about 39 km (the mountain vanished past the Summit). | Fixed | The real cone from 7,848 m up, exactly; tested to 100 km (finite, never negative). |
+| 2 | High | With clouds behind the mountain, a completion low down showed nothing moving. | Fixed | Small flocks of pixel birds in the strip's near layer below 6,000 m (tokens `bird`, `bird-light`); tested: a 20 m lift changes the picture at 0, 1,500, 3,000 m. |
+| 3 | Medium | On tall screens Climb opened on the peak at any height. | Fixed | Climb's window at most 900 px tall; `climbWindowTop` clamped to the world and tested for 3,200, 5,000 and 7,500 m windows. |
+| 4 | Medium | The strip's dark moon would start around 3,500 m; its left fallback was dead code. | Accepted / fixed | The left branch removed; the real start tested (see the reviews below). |
+| 5 | Medium | At 200% text the strip shows the peak from about 6,400 m. | Accepted | Written in the plan. |
+| 6 | Medium-Low | The strip, shaped from the day's start, can widen 3–4 px overnight at 5,000–7,800 m. | Accepted | Written in the plan (morning to morning it narrows; tested). |
+| 7 | Low-Medium | Climb widened in place while its window was held. | Fixed | See design-critic round 1, #8. |
+| 8 | Low | The peak's clear box tied to the cap; plan numbers; test definitions. | Fixed | The box always; numbers corrected; clouds tested with an allow-list, the cone apart from ridges. |
+
+#### code-reviewer (diff review)
+Verdict: **Ship after fixes**. Nothing about security, data or crashes; the findings were Low and Medium.
+
+| # | Severity | Finding | Outcome | What changed |
+|---|----------|---------|---------|--------------|
+| 1 | Medium | Birds half off an edge took the dark shade (the sample was off the canvas). | Fixed | Birds stay at least 6 px inside the strip (its rounded corners) and sample what's behind them; their shade is tested 3:1 against every backdrop, light and dark. |
+| 2 | Medium | Near clouds on the strip could cover the moon's glow and leave a bare disc. | Fixed | The strip's near layer keeps clear of the moon; tested: disc and glow unchanged through a minute of drift at 1,500, 3,000, 6,000, 9,500 m. |
+| 3 | Low | The strip moon's start height stated three ways, at the limit at 117 px. | Fixed | One number in the plan and the docstring; tested at heights with margin on 105, 117 and 130 px wide strips. |
+| 4 | Low | `min-h-[24rem]` beats the 900 px cap above about 235% text. | Fixed | `min-h-[min(24rem,900px)]`. |
+| 5 | Low | Birds could land on the valley floor (a test passed by seed). | Fixed | Never over the valley or the lake, and not in the strip's bottom 4 rows; tested at 0, 300, 500 m through a minute. |
+| 6 | Low | A misplaced doc comment; stale feature headers; plan wording (500 m, 7,480 m, `FRAME_BELOW_M`). | Fixed | |
+| 7 | Low, pre-existing | Decorative motion has no in-app pause (only the system's Reduce Motion). | Not changed | Unchanged since Feature 10; noted. |
+| — | Tests | Bird contrast, edges, ground and stillness; the strip's moon through drift; `climbWindowTop` (you always in the window, the peak in view at 8,763 m, never moving down); the strip's bottom edge never widening; `rim` in the clouds-behind test; a weak assertion. | Added | |
+
+#### design-critic, round 1 (renders at 0 m to 100 km, light and dark)
+Verdict: **Ship after fixes**. The strip from 1,500 to 5,000 m and the light Summit sequence "the best part of the scene"; Climb's window below 7,000 m did not meet the brief.
+
+| # | Severity | Finding | Outcome | What changed |
+|---|----------|---------|---------|--------------|
+| 1 | High | Climb's window from 0 to 7,000 m: a chimney, then a road. | Fixed | Climb has its own framing, fitted to where its window opens: its top cuts the profile at about two thirds of the width at Base camp, narrowing as you climb, the flanks leaning in about 1 px a side every 3 rows over its top 30 rows (tested); the ridge seam wanders. |
+| 2 | High | Light: the lit snow face lost against cream banks and pale sky. | Fixed | A 1 px `snow-shade` edge on the lit snow in light. |
+| 3 | Medium | Gullies as dashed lines. | Fixed | Four continuous streaks from the crater, dashes only at their tails, the two from the rim 2 px wide at first. |
+| 4 | Medium | Dark banks as scribbles and a navy blob. | Fixed | Below the Summit, banks in the drifting clouds' quiet pair, no arcs or rims. |
+| 5 | Medium | The strip at 0–500 m a flat green wall. | Fixed | Trees on the shaded face in a darker pair (new token `pine-shade`, in the balloon's backdrops). |
+| 6 | Medium | No snowcap, no visible crater, a dome on the strip. | Fixed in part | A crater bowl 2 rows deep with a shaded lip; tapering rock fingers up from the snowline. The strip's shoulder kept. |
+| 7 | Medium | The moon on clouds again; clipped by the strip's corner. | Fixed | It prefers a spot clear of cloud, else sits behind it (only its open part drawn); inside the corners; Climb's dark moon in the opened window from about 2,000 m (just above it lower down). |
+| 8 | Low-Medium | Climb widened from 0 to 1,500 m. | Fixed | Shaped from the window's top: still while the window is held (tested: never widens, 0–6,900 m). |
+| 9 | Low-Medium | Birds read as chevrons or ticks. | Fixed | A gull shape, inside the corners, off the grass. |
+| 10 | Low | Flat rock faces. | Fixed | A sparse speckle. |
+| 11 | Low, carried over | Coral rims beside the balloon. | Fixed | No rim on a cloud within about 9 px of the balloon. |
+
+#### design-critic, round 2
+Verdict: **Ship after fixes**. "Every part of the brief is met at every height I checked"; no High left. Resolved from round 1: the chimney (0 m and 1,500 m windows identical while held), lit snow edge, dark banks, shaded forest, the moon, Climb's widening, coral rims.
+
+| # | Severity | Finding | Outcome | What changed |
+|---|----------|---------|---------|--------------|
+| 1 | Medium | Dark: the shaded rock flank vanishes against the night sky on the strip (about 1.1–1.3:1). | Fixed | In dark, a 1 px moonlit edge (`snow-shade`) on the rock and forest silhouette. |
+| 2 | Medium | Light: the lit snow a blank white card for most of the climb. | Fixed | Light `snow` a touch cooler (#EEF2F9); sparse 2 px wind ripples in `snow-shade` (light only, about 0.6%, never on the seam). |
+| 3 | Medium | Gullies on the stretched slopes like a road with lane markings. | Fixed | One long and one short streak per face, starts further apart; the last 40% thins into scattered pixels with growing, jittered gaps. |
+| 4 | Medium-Low | Light cream banks match the page and dissolve the frame's corners. | Fixed | Light `bank-far` #E3E9F2, `bank-near` #ECF0F6 (toward the sky). |
+| 5 | Low-Medium | Birds compete with the balloon. | Fixed | At most one flock in view, a 5 px gull, at least 12 px clear of the balloon. |
+| 6 | Low | The crater hard to make out. | Fixed | The dip with a shaded lip, and the bowl below in `snow-gully`. |
+| 7 | Low | Dark banks' straight inner seams; light specks at 12,000 m; stars touching shapes. | Not changed | The specks are the strip's near layer above the clouds (so a lift shows something passing); the rest accepted as in 10d. |
+| — | Accepted | The stretched peak at 7,000–7,500 m on Climb (closer to a Matterhorn), settling into Fuji by 8,000 m. | As planned | |
+
+#### design-critic, round 3
+Verdict: **Ship**. All four round-2 Medium items fixed; nothing new above Low.
+- **Fixed:** the ripples, which it counted at about 2–2.5% (and also drawn in dark). Now half as dense, in light only.
+- **Left as they are (Low):** stars against the balloon's outline in dark at 9,500 and 12,000 m; a lone coral pixel on a cloud at 8,763 m in dark (as in 10d); a possible star on a rock edge at 3,000 m in dark; the four streaks nearly parallel for their first ~15 rows on the strip at 8,763 m.
+
+Checks (final): 592 unit and database tests, tsc, eslint, `next build`; the full browser suite on `next start`: **92 passed, 0 failed**. Renders in `docs/screenshots/feature-10/heights/` (23 heights, 0 m to 100 km, light and dark, including the asked-for 0, 1,500, 3,000, 5,000, 7,500, 8,763, 9,500, 12,000 and 40,000 m); the app's own screenshots in `docs/screenshots/feature-10/` refreshed by the suite.
 
 <!--
 Template — copy for each feature:

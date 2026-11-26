@@ -92,9 +92,9 @@
   --scene-moon-shade: #D9A940;
   --scene-moon-glow: #E8D9A8;
   --scene-moon-glow-2: #F0E6C8;
-  --scene-bank-far: #EFEDE6;
+  --scene-bank-far: #E3E9F2;
   --scene-bank-far-light: #FBFAF6;
-  --scene-bank-near: #F7F5EF;
+  --scene-bank-near: #ECF0F6;
   --scene-bank-near-light: #FFFFFF;
   --scene-bank-edge: #FFFFFF;
   --scene-bank-shade: #D9E2EE;
@@ -102,11 +102,12 @@
   --scene-ridge-near: #93A9C4;
   --scene-rock: #8F9DB3;
   --scene-rock-shade: #6F7F99;
-  --scene-snow: #F7F9FC;
+  --scene-snow: #EEF2F9;
   --scene-snow-shade: #BCC9DC;
   --scene-snow-gully: #9FAFC8;
   --scene-pine: #4F8B5E;
   --scene-pine-dark: #3C6F4B;
+  --scene-pine-shade: #2F5A3D;
   --scene-valley: #93C26F;
   --scene-valley-dark: #7BAA5C;
   --scene-lake: #5D9ED3;
@@ -120,6 +121,8 @@
   --scene-cirrus: #E9EFF6;
   --scene-cloud-high: #6680B2;
   --scene-cloud-high-shade: #5A73A4;
+  --scene-bird: #33405A;
+  --scene-bird-light: #FBF8F1;
   --scene-rim: #FFFFFF;
   --scene-marker: #B8420E;
   --scene-marker-ring: #FFFFFF;
@@ -180,6 +183,7 @@
     --scene-snow-gully: #56648F;
     --scene-pine: #2C5262;
     --scene-pine-dark: #204050;
+    --scene-pine-shade: #173341;
     --scene-valley: #1F3647;
     --scene-valley-dark: #192D3B;
     --scene-lake: #2C4C7E;
@@ -193,6 +197,8 @@
     --scene-cirrus: #2E3D6E;
     --scene-cloud-high: #3A4772;
     --scene-cloud-high-shade: #2D3961;
+    --scene-bird: #070B1C;
+    --scene-bird-light: #DCE2F4;
     --scene-rim: #FF9F7C;
     --scene-marker: #FF8F57;
     --scene-marker-ring: #050A1C;
