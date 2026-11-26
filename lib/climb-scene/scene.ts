@@ -104,6 +104,44 @@ export function worldTop(altitude: number): number {
   return Math.max(12_000, Math.ceil(Math.max(altitude + 1_500, next + 1_000) / 2_500) * 2_500) + 600;
 }
 
+/** On Climb, stars and rocks keep out of this many columns at the right: the ruler (4 px in) and its ticks (3 px wide), and a column of air. */
+const RULER_CLEAR_PX = 8;
+
+/** On Climb, the sky above the highest zone and ruler mark: their chips (and sky above them) are whole at the scroll limit. */
+export const TOP_SKY_M = 1_000;
+
+/**
+ * Climb's world top (Feature 10g): TOP_SKY_M above a 2,500 m step that is
+ * at least the space loop's start (so everyone can scroll on into space, to
+ * 45,000 m), at least 1,500 m above you and at least 1,000 m above the next
+ * zone. Zones from 42,500 m are 2,500 m apart, so the highest zone and ruler
+ * mark are always exactly TOP_SKY_M under the top. Today's strip keeps worldTop.
+ */
+export function climbTop(altitude: number): number {
+  const next = nextZone(Math.max(0, Math.round(altitude * CM))).zone.from;
+  return Math.max(LOOP_FROM_M, Math.ceil(Math.max(altitude + 1_500, next + 1_000) / 2_500) * 2_500) + TOP_SKY_M;
+}
+
+/**
+ * The rows to repaint between two frames of roles: runs [from, to] (inclusive)
+ * of rows with any changed pixel, runs closer than `gap` rows merged (one
+ * rectangle each). Everything when there's no last frame.
+ */
+export function dirtyRuns(last: Uint8Array | null, px: Uint8Array, width: number, gap = 8): [number, number][] {
+  const height = Math.floor(px.length / width);
+  if (!last || last.length !== px.length) return height > 0 ? [[0, height - 1]] : [];
+  const runs: [number, number][] = [];
+  for (let y = 0; y < height; y++) {
+    let changed = false;
+    for (let i = y * width; i < (y + 1) * width && !changed; i++) changed = px[i] !== last[i];
+    if (!changed) continue;
+    const run = runs[runs.length - 1];
+    if (run && y - run[1] <= gap) run[1] = y;
+    else runs.push([y, y]);
+  }
+  return runs;
+}
+
 /** A small, fast, seeded random number generator (mulberry32). */
 export function seeded(seed: number): () => number {
   let a = seed >>> 0;
@@ -190,6 +228,8 @@ export function drawCloud(
   shades: CloudShades,
   /** Banks and the cloud sea: a seed for a stepped, uneven underside instead of a straight one. */
   ragged?: number,
+  /** Collects the rim's pixels as [x, y, the role under it, …] (so a rim left in fragments can be put back: tidyRims). */
+  rims?: number[],
 ) {
   const undersides = new Map<number, number>();
   const bottom = (x: number) => {
@@ -248,7 +288,10 @@ export function drawCloud(
       const x = (k % 100_000) - 50_000;
       if (y > mid || x > reach) continue;
       // Only against the sky (a rim against snow or another cloud reads as a loose bar).
-      if (!drawn.has(key(x, y - 1)) && isSky(c.get(ox + x, oy + y - 1))) c.set(ox + x, oy + y, shades.rim);
+      if (!drawn.has(key(x, y - 1)) && isSky(c.get(ox + x, oy + y - 1))) {
+        rims?.push(ox + x, oy + y, c.get(ox + x, oy + y));
+        c.set(ox + x, oy + y, shades.rim);
+      }
     }
   }
 }
@@ -393,6 +436,8 @@ export type WorldOptions = {
   clearOf?: { x: number; y: number } | null;
   /** Whose frame shapes the mountain: Climb's window ("world", the default) or Today's strip ("close", its far layer). */
   view?: View;
+  /** Tests only: leave coral rim fragments as Feature 10e drew them (to compare with its checksums). */
+  keepRimFragments?: boolean;
 };
 
 /** Climb's window (a fixed, wide Fuji) or Today's strip (the profile stretched for your height): coneDepth, coneHalfWidth. */
@@ -614,20 +659,24 @@ export function drawWorldBase(o: BaseOptions): Canvas {
     const placed = new Set<string>();
     for (let k = Math.max(Math.floor(from / 1_000), Math.floor(lowest / 1_000) - 1); k * 1_000 <= highest + 1_000; k++) {
       const rnd = seeded(SEED + 1_000 + looped(k * 1_000) / 1_000);
-      const count = Math.round(o.width / (k * 1_000 >= SPACE_M ? 6 : 8));
+      // Starfield (25,000 m) twice as many, Deep space (42,500 m) half (Feature 10g).
+      const zone = k * 1_000 >= 25_000 && k * 1_000 < 27_500 ? 2 : k * 1_000 >= 42_500 && k * 1_000 < LOOP_FROM_M ? 0.5 : 1;
+      const count = Math.round((o.width / (k * 1_000 >= SPACE_M ? 6 : 8)) * zone);
       for (let i = 0; i < count; i++) {
         const x = Math.floor(rnd() * o.width);
         const a = k * 1_000 + rnd() * 1_000;
         const kind = rnd();
         const y = rowOf(a);
         if (a < from) continue;
+        // On Climb, none on the window's edge, on the ruler's ticks or right of them (it'd read as a broken tick).
+        if ((o.view ?? "world") === "world" && (x < 2 || x >= o.width - RULER_CLEAR_PX - 1)) continue; // (a cross-star reaches a pixel each way)
         let crowded = false;
         for (let dy = -2; dy <= 2 && !crowded; dy++) {
           for (let dx = -2; dx <= 2; dx++) if (placed.has(`${x + dx},${y + dy}`)) crowded = true;
         }
         if (crowded) continue;
         placed.add(`${x},${y}`);
-        if (kind < 0.06) {
+        if (kind < (zone === 2 ? 0.12 : 0.06)) {
           c.set(x, y, R.star);
           for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) c.set(x + dx, y + dy, R["star-dim"]);
         } else c.set(x, y, kind < 0.4 ? R["star-dim"] : R.star);
@@ -639,21 +688,37 @@ export function drawWorldBase(o: BaseOptions): Canvas {
   //    satellite, one per 2,500 m at most, seeded by the looped altitude.
   for (let j = Math.max(Math.floor(SPACE_M / 2_500), Math.floor(lowest / 2_500) - 1); j * 2_500 <= highest + 2_500; j++) {
     const rnd = seeded(SEED + 9_000 + looped(j * 2_500) / 2_500);
-    // Some named zones get what they're named for (Moonlight's moon is drawn with the moon).
+    // Some named zones get what they're named for.
     const zoneM = j * 2_500;
+    // Moonlight: its slot is the moon's (drawn with the moon, Feature 10g), with nothing beside it.
+    if (zoneM === 22_500) continue;
     if (zoneM === 32_500) {
-      // Asteroid belt: a loose diagonal band of small rocks.
-      for (let i = 0; i < 14; i++) {
+      // Asteroid belt: a clear diagonal band of rocks, some small, some lumps, lit from the upper left.
+      for (let i = 0; i < 38; i++) {
         const rx = Math.round(rnd() * o.width);
-        const ry = rowOf(zoneM + 600 + (rx / o.width) * 900 + (rnd() - 0.5) * 300);
-        const big = rnd() < 0.4;
-        c.set(rx, ry, R.planet);
-        c.set(rx + 1, ry, R["planet-shade"]);
-        c.set(rx, ry + 1, R["planet-shade"]);
-        if (big) {
-          c.set(rx + 1, ry + 1, R["planet-shade"]);
-          c.set(rx + 2, ry + 1, R["planet-shade"]);
+        const ry = rowOf(zoneM + 600 + (rx / o.width) * 900 + (rnd() - 0.5) * 150);
+        const size = rnd();
+        // On Climb, clear of the ruler's ticks.
+        if ((o.view ?? "world") === "world" && rx + 2 >= o.width - RULER_CLEAR_PX) continue;
+        if (size < 0.35) {
+          // A lump, 3 by 3 with a corner off.
+          for (let dy = 0; dy < 3; dy++) for (let dx = 0; dx < 3; dx++) if (dx + dy < 4) c.set(rx + dx, ry + dy, dx + dy < 2 ? R.planet : R["planet-shade"]);
+        } else {
+          c.set(rx, ry, R.planet);
+          c.set(rx + 1, ry, R["planet-shade"]);
+          c.set(rx, ry + 1, R["planet-shade"]);
+          if (size < 0.6) c.set(rx + 1, ry + 1, R["planet-shade"]);
         }
+      }
+      continue;
+    }
+    if (zoneM === 27_500) {
+      // Satellites: three, at different heights, spread across the width.
+      for (const [i, share] of [0.12, 0.74, 0.28].entries()) {
+        let sx = Math.round(o.width * (share + rnd() * 0.08));
+        // Never behind the balloon (it floats at the centre up here), as with the planets.
+        if (Math.abs(sx - o.width * CONE_CENTRE) < 20) sx = Math.round(o.width * CONE_CENTRE + (sx < o.width * CONE_CENTRE ? -20 : 20));
+        satellite(c, sx, rowOf(zoneM + 400 + i * 650 + rnd() * 300));
       }
       continue;
     }
@@ -671,7 +736,7 @@ export function drawWorldBase(o: BaseOptions): Canvas {
       }
       continue;
     }
-    const named = zoneM === 27_500 ? 0.6 : zoneM === 35_000 ? 0.1 : null;
+    const named = zoneM === 35_000 ? 0.1 : null;
     const roll = rnd();
     const kind = named ?? roll;
     const a = j * 2_500 + 500 + rnd() * 1_500;
@@ -702,19 +767,7 @@ export function drawWorldBase(o: BaseOptions): Canvas {
           if (front || !inCircle(x, y, cx + 0.5, cy + 0.5, r)) c.set(x, y, R.satellite);
         }
       }
-    } else if (kind < 0.8) {
-      // A satellite: a small body between two gold panels.
-      for (let dx = -4; dx <= 4; dx++) {
-        if (Math.abs(dx) <= 1) {
-          c.set(cx + dx, cy, R.satellite);
-          c.set(cx + dx, cy + 1, R.satellite);
-        } else if (Math.abs(dx) >= 2) {
-          c.set(cx + dx, cy, R["moon-shade"]);
-          c.set(cx + dx, cy + 1, Math.abs(dx) === 2 ? R.satellite : R["moon-shade"]);
-        }
-      }
-      c.set(cx, cy - 1, R.satellite);
-    }
+    } else if (kind < 0.8) satellite(c, cx, cy);
     // Else: nothing here (space is mostly empty).
   }
 
@@ -1056,15 +1109,65 @@ function cloudShades(far: boolean, dark: boolean, rimmed = false): CloudShades {
     : { base: R.cloud, light: R["cloud-light"], shade: R["cloud-shade"], deep: R["cloud-deep"], rim: dark && rimmed ? R.rim : undefined };
 }
 
-/** The moving layer, over a copy of the base: the drifting clouds, then you. */
-export function drawWorldMoving(c: Canvas, o: WorldOptions) {
+/** A cloud's coral rim with fewer pixels than this left showing (other clouds over it, the sky's edge) is put back: a fragment reads as a stray pixel, not light (Feature 10g). */
+export const RIM_MIN_PX = 5;
+
+/**
+ * Put back the pieces of each cloud's rim that are left as fragments: its
+ * pixels still showing rim, in pieces (touching, diagonals included: what
+ * the eye sees as one line), and any piece under RIM_MIN_PX goes back to
+ * the cloud under it. Whole arcs stay.
+ */
+function tidyRims(c: Canvas, rims: readonly number[][]) {
+  for (const cloud of rims) {
+    const left: number[] = [];
+    for (let i = 0; i < cloud.length; i += 3) if (c.get(cloud[i], cloud[i + 1]) === R.rim) left.push(i);
+    const piece = left.map((_, k) => k);
+    const find = (k: number): number => (piece[k] === k ? k : (piece[k] = find(piece[k])));
+    for (let a = 0; a < left.length; a++) {
+      for (let b = a + 1; b < left.length; b++) {
+        const near = Math.abs(cloud[left[a]] - cloud[left[b]]) <= 1 && Math.abs(cloud[left[a] + 1] - cloud[left[b] + 1]) <= 1;
+        if (near) piece[find(a)] = find(b);
+      }
+    }
+    const size = new Map<number, number>();
+    left.forEach((_, k) => size.set(find(k), (size.get(find(k)) ?? 0) + 1));
+    left.forEach((i, k) => {
+      if ((size.get(find(k)) ?? 0) < RIM_MIN_PX) c.set(cloud[i], cloud[i + 1], cloud[i + 2]);
+    });
+  }
+}
+
+/** Moonlight's own moon on Climb (Feature 10g): its zone (22,500 m) has a moon whoever scrolls there. */
+export const MOONLIGHT_MOON_M = 23_600;
+/** …left out when your own moon shows this close to it, so two moons are never in one window (at most 900 px, 7,500 m). */
+const MOONLIGHT_APART_M = 8_000;
+
+/** Where Moonlight's moon is drawn in this view of the world (right of centre, clear of the zone chips at the left), or null. Climb only. */
+export function moonlightMoon(o: Pick<WorldOptions, "width" | "height" | "metresPerRow" | "bottom" | "theme" | "moon" | "view">): { x: number; y: number } | null {
+  if ((o.view ?? "world") !== "world") return null;
+  const { alt, rowOf } = rows(o);
+  const y = rowOf(MOONLIGHT_MOON_M);
+  if (y < -10 || y > o.height + 10) return null;
+  if (o.moon && moonShows(o.theme, alt(o.moon.y)) && Math.abs(alt(o.moon.y) - MOONLIGHT_MOON_M) < MOONLIGHT_APART_M) return null;
+  return { x: Math.round(o.width * 0.62), y };
+}
+
+/**
+ * The moving layer, over a copy of the base: the drifting clouds, then you.
+ * `rims`: a caller drawing more clouds after this (the strip) collects the
+ * coral rims and tidies them itself; otherwise they're tidied here.
+ */
+export function drawWorldMoving(c: Canvas, o: WorldOptions, rims?: number[][]) {
   const { alt, rowOf } = rows(o);
   const dark = o.theme === "dark";
   // Clouds seeded per 500 m band (fixed in metres), two tiers: small far
   // ones tinted toward the sky, nearer white ones (some medium) in front.
   const ownX = o.altitude !== null ? balloonX(o.altitude, o.width, o.you, o.balloonMinX, o.view) : o.clearOf?.x;
-  const around: { clear: Box[]; balloon?: number } = {
+  const ownRims = rims ?? [];
+  const around: { clear: Box[]; balloon?: number; rims?: number[][] } = {
     balloon: ownX,
+    rims: o.keepRimFragments ? undefined : ownRims,
     // Only its own balloon (the strip's far layer has none: its clouds pass behind the strip's balloon, as before).
     clear: keepClear(
       o,
@@ -1077,6 +1180,9 @@ export function drawWorldMoving(c: Canvas, o: WorldOptions) {
   const moonUp = o.moon !== null && moonShows(o.theme, alt(o.moon.y));
   drawMoon(c, o, moonUp);
   if (o.moon && moonUp) around.clear.push({ x0: o.moon.x - 8, x1: o.moon.x + 9, y0: o.moon.y - 8, y1: o.moon.y + 9 });
+  // Moonlight's moon (no cloud reaches that high).
+  const moonlight = moonlightMoon(o);
+  if (moonlight) drawMoon(c, { theme: o.theme, moon: moonlight }, true, MOONLIGHT_MOON_R);
   for (let k = Math.max(1, Math.floor(alt(o.height - 1) / 500) - 1); k * 500 <= Math.min(alt(0) + 500, CLOUDS_END_M - 500); k++) {
     const band = inCloudBand(k * 500);
     drawDriftingClouds(c, o, rowOf, SEED + 3_000 + k, k * 500, (k + 1) * 500, band ? 3 : 2, "far", dark, 0.25, around);
@@ -1102,6 +1208,7 @@ export function drawWorldMoving(c: Canvas, o: WorldOptions) {
       for (let px = x + from; px < x + to; px++) if (isSky(c.get(px, y + dy))) c.set(px, y + dy, r);
     }
   }
+  if (!rims) tidyRims(c, ownRims);
   if (o.altitude !== null) {
     const bx = balloonX(o.altitude, o.width, o.you, o.balloonMinX, o.view);
     const by = balloonRow(rowOf(o.altitude), o.height);
@@ -1150,26 +1257,57 @@ function bob(o: { time: number; driftMs: number }): number {
  * rings of moonlit navy); in light, once the sky is deep enough (moonShows).
  * Drawn over the clouds, so it's always seen.
  */
-function drawMoon(c: Canvas, o: Pick<WorldOptions, "theme" | "moon">, shows: boolean) {
+function drawMoon(c: Canvas, o: Pick<WorldOptions, "theme" | "moon">, shows: boolean, r = 3.6) {
   if (o.moon && shows) {
     const glow = o.theme === "dark";
     const { x: mx, y: my } = o.moon;
-    for (let y = my - 9; y <= my + 9; y++) {
-      for (let x = mx - 9; x <= mx + 9; x++) {
-        if (inCircle(x, y, mx + 0.5, my + 0.5, 3.6)) {
+    const reach = Math.ceil(r + 6);
+    for (let y = my - reach; y <= my + reach; y++) {
+      for (let x = mx - reach; x <= mx + reach; x++) {
+        if (inCircle(x, y, mx + 0.5, my + 0.5, r)) {
           // Behind anything that isn't sky (a bank, the mountain): only its open part shows.
           const back = c.get(x, y);
-          if (isSky(back) || back === R.star || back === R["star-dim"] || back === R.cirrus) c.set(x, y, inCircle(x, y, mx - 0.6, my - 0.6, 3.6) ? R.moon : R["moon-shade"]);
+          if (isSky(back) || back === R.star || back === R["star-dim"] || back === R.cirrus) c.set(x, y, inCircle(x, y, mx - 0.6, my - 0.6, r) ? R.moon : R["moon-shade"]);
           continue;
         }
         // The glow lifts the sky, and cloud around it (moonlight through a gap); never a star or the mountain.
         const here = c.get(x, y);
         if (!glow || !(isSky(here) || GLOWS_ON.has(here))) continue;
-        if (inCircle(x, y, mx + 0.5, my + 0.5, 5.5)) c.set(x, y, R["moon-glow"]);
-        else if (inCircle(x, y, mx + 0.5, my + 0.5, 7.5)) c.set(x, y, R["moon-glow-2"]);
+        if (inCircle(x, y, mx + 0.5, my + 0.5, r + 1.9)) c.set(x, y, R["moon-glow"]);
+        else if (inCircle(x, y, mx + 0.5, my + 0.5, r + 3.9)) c.set(x, y, R["moon-glow-2"]);
+      }
+    }
+    // A large moon gets craters on its lit face, so it reads as a moon, not a
+    // sun, and no star touching its rim (it reads as a nick): those become
+    // glow in dark, the sky of its height in light.
+    if (r > 4) {
+      for (const [dx, dy] of [[-2, -1], [1, 1], [2, 1]]) if (c.get(mx + dx, my + dy) === R.moon) c.set(mx + dx, my + dy, R["moon-shade"]);
+      const sky = skyBand(MOONLIGHT_MOON_M);
+      for (let y = my - reach; y <= my + reach; y++) {
+        for (let x = mx - reach; x <= mx + reach; x++) {
+          const here = c.get(x, y);
+          if ((here === R.star || here === R["star-dim"]) && inCircle(x, y, mx + 0.5, my + 0.5, r + 2.5)) c.set(x, y, glow ? R["moon-glow"] : sky);
+        }
       }
     }
   }
+}
+
+/** Moonlight's moon is larger than the one you pass: its zone is named for it. */
+export const MOONLIGHT_MOON_R = 5.2;
+
+/** A satellite: a small body between two gold panels, centred on x, y. */
+function satellite(c: Canvas, cx: number, cy: number) {
+  for (let dx = -4; dx <= 4; dx++) {
+    if (Math.abs(dx) <= 1) {
+      c.set(cx + dx, cy, R.satellite);
+      c.set(cx + dx, cy + 1, R.satellite);
+    } else {
+      c.set(cx + dx, cy, R["moon-shade"]);
+      c.set(cx + dx, cy + 1, Math.abs(dx) === 2 ? R.satellite : R["moon-shade"]);
+    }
+  }
+  c.set(cx, cy - 1, R.satellite);
 }
 
 /** What a drifting cloud may be drawn over: the sky and what's in it (never the mountain, the valley, the lake or the trees). */
@@ -1219,7 +1357,7 @@ function drawDriftingClouds(
   dark: boolean,
   mediumShare = 0.25,
   /** Keep clear of these boxes (the balloon, the peak in view), and no coral rim within a few px of the balloon's x. */
-  around?: { clear: readonly Box[]; balloon?: number },
+  around?: { clear: readonly Box[]; balloon?: number; rims?: number[][] },
 ) {
   const rnd = seeded(seed);
   for (let i = 0; i < count; i++) {
@@ -1251,7 +1389,10 @@ function drawDriftingClouds(
         if (CLOUDS_OVER.has(c.get(px, py))) c.set(px, py, r);
       },
     };
-    drawCloud(behind, x, top, bumps, base, cloudShades(tier === "far", dark, medium && inFrame));
+    const rimmed = medium && inFrame;
+    const rims: number[] | undefined = rimmed && around?.rims ? [] : undefined;
+    drawCloud(behind, x, top, bumps, base, cloudShades(tier === "far", dark, rimmed), undefined, rims);
+    if (rims?.length) around?.rims?.push(rims);
   }
 }
 
@@ -1366,6 +1507,8 @@ export type CloseOptions = {
   driftMs: number;
   /** As WorldOptions.balloonMinX. */
   balloonMinX?: number;
+  /** As WorldOptions.keepRimFragments. */
+  keepRimFragments?: boolean;
 };
 
 const NEAR_M = 5;
@@ -1438,7 +1581,8 @@ function closeMoon(o: Omit<CloseOptions, "time" | "driftMs">): { x: number; y: n
 
 /** The strip's moving layer over its far base: the far world's clouds, the near clouds, and you. */
 export function drawCloseMoving(c: Canvas, o: CloseOptions) {
-  drawWorldMoving(c, { ...closeFarOptions(o), time: o.time, altitude: null, driftMs: o.driftMs * 2, clearOf: closeBalloonAt(o) });
+  const rims: number[][] = [];
+  drawWorldMoving(c, { ...closeFarOptions(o), time: o.time, altitude: null, driftMs: o.driftMs * 2, clearOf: closeBalloonAt(o), keepRimFragments: o.keepRimFragments }, rims);
   const dark = o.theme === "dark";
   // Near the ground you're drawn lower (the far view stops at its floor): the near layer moves with you.
   const bottom = o.altitude - o.height * (1 - YOU_FROM_TOP) * NEAR_M + closeFrame(o).shift * NEAR_M;
@@ -1453,6 +1597,7 @@ export function drawCloseMoving(c: Canvas, o: CloseOptions) {
     // The peak is in the far world: its box in the far world's rows.
     clear: keepClear({ ...o, view: "close" }, farRows.rowOf, { x: stripX, y: rowOf(o.altitude), inBand: inCloudBand(o.altitude) }),
     balloon: stripX,
+    rims: o.keepRimFragments ? undefined : rims,
   };
   if (far.moon && moonShows(o.theme, farRows.alt(far.moon.y))) around.clear.push({ x0: far.moon.x - 8, x1: far.moon.x + 9, y0: far.moon.y - 8, y1: far.moon.y + 9 });
   for (let k = Math.floor(bottom / band) - 3; k <= Math.ceil((bottom + o.height * NEAR_M) / band) + 1; k++) {
@@ -1461,6 +1606,8 @@ export function drawCloseMoving(c: Canvas, o: CloseOptions) {
     const inBand = k * band >= CLOUD_BAND[0] && k * band < CLOUD_BAND[1];
     drawDriftingClouds(c, o, rowOf, 777_000 + k, k * band, (k + 1) * band, inBand ? 2 : 1, "near", dark, inBand ? 0.4 : 0.15, around);
   }
+  // Both layers' coral rims, now that every cloud is drawn.
+  tidyRims(c, rims);
   // Low down, small flocks of birds in the near layer: in front (they're
   // near, and never read as a cloud layer), so a lift still shows something
   // passing you where the mountain fills the strip. Seeded per BIRD_BAND_M;
@@ -1527,13 +1674,19 @@ const WORLD_MOON_FLOOR_M = SUMMIT_M + 700;
 /**
  * Would Climb's moon, centred at this altitude at the left, touch a zone's
  * chip? Each chip sits just above where its zone starts, at the left, up to
- * about 400 m tall at 200% text; the glow reaches about 175 m each way.
+ * about 400 m tall at 200% text; one on a ruler mark (every 2,500 m) sits
+ * above the mark's chip too and may wrap at 200% text on a narrow phone,
+ * reaching about 1,000 m (Feature 10g). The glow reaches about 175 m each way.
  */
+export function chipReach(from: number): number {
+  return from % 2_500 === 0 ? 925 : 400;
+}
+
 function underChip(a: number): boolean {
   for (let i = 0; ; i++) {
     const from = zoneByIndex(i).from;
     if (from > a + 300) return false;
-    if (a > from - 300 && a < from + 400 + 175) return true;
+    if (a > from - 300 && a < from + chipReach(from) + 175) return true;
   }
 }
 

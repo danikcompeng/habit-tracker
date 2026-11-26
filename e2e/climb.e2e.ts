@@ -5,7 +5,7 @@
 
 import type { Page } from "@playwright/test";
 import { altitudeOf, dailyClimbCm, metres, nextZone, zoneAt, zonesBelow } from "../lib/altitude";
-import { worldTop } from "../lib/climb-scene/scene";
+import { climbTop } from "../lib/climb-scene/scene";
 import { addDays, todayIn } from "../lib/dates";
 import { demoSeedPayload } from "../lib/demo-seed";
 import { expectNoA11yViolations, freshDemo, habitKey, holdKey } from "./helpers/app";
@@ -102,7 +102,7 @@ test("Today's strip shows the demo's altitude and zone, is named by its own word
   await expect(page.getByText(`${zone} · ${next.metres.toLocaleString("en-US")} m to ${next.zone.name}`)).toBeVisible();
   // The zones, for everyone; the ruler's own chip shows where you are.
   // Every zone below the world's top, plus "you are here".
-  await expect(page.getByRole("list", { name: "Zones" }).getByRole("listitem")).toHaveCount(zonesBelow(worldTop(altitudeCm / 100)).length + 1);
+  await expect(page.getByRole("list", { name: "Zones" }).getByRole("listitem")).toHaveCount(zonesBelow(climbTop(altitudeCm / 100)).length + 1);
   await expect(page.getByTestId("ruler-you")).toHaveText(metres(altitudeCm));
   for (const colorScheme of ["light", "dark"] as const) {
     await page.emulateMedia({ colorScheme });
@@ -321,4 +321,154 @@ test("Reduce Motion: the scene stands still; with motion, its clouds drift", asy
   await page.emulateMedia({ reducedMotion: "no-preference" });
   const start = await frame();
   await expect.poll(frame, { timeout: 5_000 }).not.toBe(start);
+});
+
+/** Climb's scrolling window, scrolled to one end ("top" or "bottom"). */
+async function climbAt(page: Page, end: "top" | "bottom") {
+  const region = page.getByRole("region", { name: /^The climb/ });
+  await region.evaluate((el, end) => el.scrollTo(0, end === "top" ? 0 : el.scrollHeight), end);
+  await page.waitForTimeout(100);
+  return region;
+}
+
+/** Chips (zone labels, ruler chips, yours) and ruler marks that stick out of Climb's world, or whose words spill out of their chip. */
+async function clipped(page: Page): Promise<string[]> {
+  return page.getByRole("region", { name: /^The climb/ }).evaluate((region) => {
+    const world = region.firstElementChild!.getBoundingClientRect();
+    const out: string[] = [];
+    const items = region.querySelectorAll<HTMLElement>('li:not(.sr-only), span.absolute, [data-testid="ruler-you"]');
+    for (const el of items) {
+      const r = el.getBoundingClientRect();
+      if (r.width === 0 || r.height > world.height / 2) continue; // the ruler's line runs the whole world
+      const text = el.textContent?.trim() || "a ruler mark";
+      if (r.top < world.top - 0.5 || r.bottom > world.bottom + 0.5 || r.left < world.left - 0.5 || r.right > world.right + 0.5) out.push(`${text}: out of the world`);
+      if (el.scrollWidth > el.clientWidth + 1) out.push(`${text}: words spill out`);
+    }
+    return out;
+  });
+}
+
+test("Climb (10g): at the top and bottom scroll limits no zone label or ruler mark is clipped; the world reaches past 45,000 m, at 390 px and 320 px with 200% text", async ({ page }) => {
+  const { today } = localToday();
+  await freshDemo(page);
+  try {
+    // The demo (8,763 m), then one perfect day (150 m: the user's own case), three (450 m: your chip near
+    // the floor) and 39 (5,850 m: your chip beside a label lifted above the 5,000 m ruler mark).
+    for (const days of [null, 1, 3, 39]) {
+      if (days !== null) await reseedDemo([{ name: "Climb", created_at: new Date(`${addDays(today, -days)}T12:00:00Z`).toISOString(), days: Array.from({ length: days }, (_, i) => addDays(today, -days + i)) }]);
+      for (const [width, textSize] of [
+        [390, 100],
+        [320, 100],
+        [320, 200],
+        [390, 200],
+      ] as const) {
+        await page.setViewportSize({ width, height: 844 });
+        await page.goto("/climb");
+        await expect(page.getByTestId("ruler-you")).toBeVisible();
+        if (textSize !== 100) await page.addStyleTag({ content: `html { font-size: ${textSize}% !important; }` });
+        const label = `${days === null ? "the demo" : `${days * 150} m`}, ${width} px, ${textSize}%`;
+        await expect(page.getByRole("region", { name: /^The climb/ })).toHaveAccessibleName(/to (4[6-9]|[5-9]\d|\d{3}),\d{3} m$/);
+        for (const end of ["top", "bottom"] as const) {
+          await climbAt(page, end);
+          expect(await clipped(page), `${label}, at the ${end}`).toEqual([]);
+        }
+        // Overlaps too: for the demo at every size; otherwise at normal text. At 200% text the room runs
+        // out (logged under Feature 10g): low down the floor has no room for "Base camp", "Forest" and
+        // your chip (500 m = 60 px apart), and at 5,850 m the word "clouds" is wider than the room left
+        // of your chip (by about 3 px at 390 px).
+        if (days === null || textSize === 100) {
+          const chips = '[role="region"] .bg-surface:not([aria-hidden="true"].w-px), [role="region"] li:not(.sr-only), [data-testid="ruler-you"]';
+          expect(await overlaps(page, chips), `${label}: Climb's chips`).toEqual([]);
+          expect(await balloonUnder(page, 'canvas[data-scene="world"]', chips), `${label}: a chip over the balloon`).toEqual([]);
+        }
+        // At the top: the 45,000 m zone ("Further still") in view, with sky above it.
+        const region = await climbAt(page, "top");
+        const box = (await region.boundingBox())!;
+        const chip = (await region.getByRole("listitem").filter({ hasText: "Further still" }).first().boundingBox())!;
+        expect(chip.y, `${label}: sky above the top label`).toBeGreaterThan(box.y + 20);
+        expect(chip.y + chip.height, `${label}: the top label in view`).toBeLessThan(box.y + box.height);
+      }
+    }
+  } finally {
+    await reseedDemo();
+  }
+});
+
+/**
+ * The colours in a faked bounce: the world shifted by `shift` css px (down at
+ * the top, up at the bottom: what iOS's rubber band does), shot, and the
+ * gap's pixels read back in the page. Counts of each colour, as #rrggbb.
+ */
+async function bounceGap(page: Page, end: "top" | "bottom", shift = 150): Promise<Record<string, number>> {
+  const region = await climbAt(page, end);
+  await region.evaluate((el, s) => ((el.firstElementChild as HTMLElement).style.transform = `translateY(${s}px)`), end === "top" ? shift : -shift);
+  await page.waitForTimeout(150);
+  const shot = (await region.screenshot()).toString("base64");
+  await region.evaluate((el) => ((el.firstElementChild as HTMLElement).style.transform = ""));
+  return page.evaluate(
+    async ({ shot, end, shift }) => {
+      const img = new Image();
+      img.src = `data:image/png;base64,${shot}`;
+      await img.decode();
+      const c = document.createElement("canvas");
+      c.width = img.width;
+      c.height = img.height;
+      const ctx = c.getContext("2d")!;
+      ctx.drawImage(img, 0, 0);
+      const scale = img.width / document.querySelector<HTMLElement>('[role="region"]')!.getBoundingClientRect().width;
+      // Inside the border and the rounded corners (24 px), in the gap: 8 px in from each side, 16 px from the end.
+      const rows = end === "top" ? [16, shift - 6] : [img.height / scale - shift + 6, img.height / scale - 16];
+      const data = ctx.getImageData(Math.round(8 * scale), Math.round(rows[0] * scale), Math.round(img.width - 16 * scale), Math.round((rows[1] - rows[0]) * scale)).data;
+      const counts: Record<string, number> = {};
+      for (let i = 0; i < data.length; i += 4) {
+        const hex = "#" + [data[i], data[i + 1], data[i + 2]].map((v) => v.toString(16).padStart(2, "0")).join("");
+        counts[hex] = (counts[hex] ?? 0) + 1;
+      }
+      return counts;
+    },
+    { shot, end, shift },
+  );
+}
+
+/** A --scene-* token (or the card's surface) as the browser resolves it, #rrggbb. */
+async function token(page: Page, name: string): Promise<string> {
+  return page.evaluate((name) => {
+    const probe = document.createElement("canvas").getContext("2d")!;
+    probe.fillStyle = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+    return String(probe.fillStyle).toLowerCase();
+  }, name);
+}
+
+test("Climb (10g): a faked bounce shows the sky above the top and the valley below the floor, never the card's background, light and dark", async ({ page }) => {
+  await freshDemo(page);
+  await page.goto("/climb");
+  await expect(page.locator('canvas[data-scene="world"][data-painted]')).toHaveCount(1);
+  for (const colorScheme of ["light", "dark"] as const) {
+    await page.emulateMedia({ colorScheme, reducedMotion: "reduce" });
+    await page.waitForTimeout(400);
+    const space = await token(page, "--scene-space-1");
+    const valley = await token(page, "--scene-valley");
+    const surface = await token(page, "--surface");
+    const background = await token(page, "--background");
+    const ruler = await token(page, "--scene-ruler");
+    const stars = [await token(page, "--scene-star"), await token(page, "--scene-star-dim")];
+    const sky = new Set<string>([ruler]);
+    for (const name of ["space-1", "star", "star-dim", "planet", "planet-shade", "satellite", "nebula", "nebula-light", "moon", "moon-shade"]) sky.add(await token(page, `--scene-${name}`));
+
+    const top = await bounceGap(page, "top");
+    const total = Object.values(top).reduce((a, b) => a + b, 0);
+    const inSky = Object.entries(top).filter(([hex]) => sky.has(hex)).reduce((n, [, v]) => n + v, 0);
+    expect(inSky / total, `${colorScheme}: the top gap is the scene's sky (${JSON.stringify(top).slice(0, 200)})`).toBeGreaterThan(0.99);
+    expect((top[space] ?? 0) / total, `${colorScheme}: mostly the top's space colour`).toBeGreaterThan(0.85);
+    expect(top[surface] ?? 0, `${colorScheme}: never the card`).toBe(0);
+    expect(top[background] ?? 0, `${colorScheme}: never the page`).toBe(0);
+    // Not a flat band: the stars drawn above the top, and the ruler running on through it.
+    expect(stars.reduce((n, hex) => n + (top[hex] ?? 0), 0) / total, `${colorScheme}: stars in the gap`).toBeGreaterThan(0.0005);
+    expect((top[ruler] ?? 0) / total, `${colorScheme}: the ruler in the gap`).toBeGreaterThan(0.0015);
+
+    const bottom = await bounceGap(page, "bottom");
+    const all = Object.values(bottom).reduce((a, b) => a + b, 0);
+    expect(((bottom[valley] ?? 0) + (bottom[ruler] ?? 0)) / all, `${colorScheme}: the bottom gap is the valley and the ruler (${JSON.stringify(bottom).slice(0, 200)})`).toBeGreaterThan(0.99);
+    expect((bottom[ruler] ?? 0) / all, `${colorScheme}: the ruler runs on below the floor`).toBeGreaterThan(0.0015);
+  }
 });

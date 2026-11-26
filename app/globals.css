@@ -207,6 +207,25 @@
   }
 }
 
+/* Climb's scroll box (Feature 10g): its background shows only past either
+   end, in iOS's bounce, and continues the scene. Near the top: the sky drawn
+   above the world's top (--climb-above, from the scene; repeated for a deep
+   pull) over the top's space colour; near the bottom (data-end, set as you
+   scroll): the valley. The ruler runs on through both (3 px, 12 px from the
+   right, like the scene's own), so nothing starts or stops at the seam. */
+.climb-box {
+  background-color: var(--scene-space-1);
+  background-image: linear-gradient(var(--scene-ruler), var(--scene-ruler)), var(--climb-above, none);
+  background-size: 3px 100%, var(--climb-above-size, auto);
+  background-position: right 12px top, left top;
+  background-repeat: no-repeat, repeat-y;
+  image-rendering: pixelated;
+}
+.climb-box[data-end="bottom"] {
+  background-color: var(--scene-valley);
+  background-image: linear-gradient(var(--scene-ruler), var(--scene-ruler));
+}
+
 /* The zone moment's card (Feature 10): in with a small scale and fade (motion-safe only). */
 @keyframes card-in {
   from {

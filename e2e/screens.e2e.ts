@@ -271,3 +271,33 @@ test("climb screens", async ({ page }) => {
     await reseedDemo();
   }
 });
+
+test("climb 10g screens", async ({ page }) => {
+  // Feature 10g: Climb's top limit, a faked bounce at each end (the world
+  // shifted as iOS's rubber band does: the gap shows the box's background),
+  // and the zones above the clouds, for the demo (8,763 m).
+  const folder = "feature-10/climb-10g";
+  await freshDemo(page);
+  await page.goto("/climb");
+  await expect(page.getByTestId("ruler-you")).toBeVisible();
+  const region = page.getByRole("region", { name: /^The climb/ });
+  const shift = (px: number) => region.evaluate((el, px) => ((el.firstElementChild as HTMLElement).style.transform = px ? `translateY(${px}px)` : ""), px);
+  await region.evaluate((el) => el.scrollTo(0, 0));
+  await shoot(page, folder, "top");
+  await shift(160);
+  await shoot(page, folder, "bounce-top");
+  await shift(0);
+  await region.evaluate((el) => el.scrollTo(0, el.scrollHeight));
+  await shoot(page, folder, "bottom");
+  await shift(-160);
+  await shoot(page, folder, "bounce-bottom");
+  await shift(0);
+  // Centred on a height: (top − a) / 25 m a row × 3 css px.
+  for (const [name, a] of [["11000", 11_000], ["stratosphere", 12_500], ["edge-of-space", 17_500], ["moonlight", 23_000], ["asteroid-belt", 33_000]] as const) {
+    await region.evaluate((el, a) => {
+      const top = (el.firstElementChild as HTMLElement).offsetHeight / 3 * 25;
+      el.scrollTo(0, ((top - a) / 25) * 3 - el.clientHeight / 2);
+    }, a);
+    await shoot(page, folder, name);
+  }
+});

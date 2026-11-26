@@ -13,7 +13,15 @@ import {
   SKY_BANDS,
   SMALL_CLOUDS,
   birdFor,
+  climbTop,
   climbWindowTop,
+  chipReach,
+  moonlightMoon,
+  MOONLIGHT_MOON_M,
+  MOONLIGHT_MOON_R,
+  dirtyRuns,
+  RIM_MIN_PX,
+  TOP_SKY_M,
   closeBalloonAt,
   closeFarOptions,
   drawWorldMoving,
@@ -36,10 +44,23 @@ const world = (o: Partial<Parameters<typeof drawWorld>[0]> = {}) =>
   drawWorld({ width: 88, height: 480, metresPerRow: 25, bottom: 0, top: 12_000, theme: "light", time: 0, altitude: 7_113, you: 7_113, driftMs: 700, moon: { x: 12, y: 30 }, ...o });
 const role = (name: (typeof ROLES)[number]) => ROLES.indexOf(name);
 const count = (px: Uint8Array, r: number) => px.reduce((n, v) => n + (v === r ? 1 : 0), 0);
+/** A moon's disc (moon and moon-shade) around its centre (a satellite's gold panels are moon-shade too). */
+const disc = (px: Uint8Array, width: number, at: { x: number; y: number }, r = 3.6) => {
+  let n = 0;
+  const reach = Math.ceil(r + 1);
+  for (let y = at.y - reach; y <= at.y + reach; y++) for (let x = at.x - reach; x <= at.x + reach; x++) if (x >= 0 && x < width && y >= 0 && (ROLES[px[y * width + x]] === "moon" || ROLES[px[y * width + x]] === "moon-shade")) n++;
+  return n;
+};
+/** The pixels in a whole disc of radius r (as the renderer rounds it). */
+const discArea = (r: number) => {
+  let n = 0;
+  for (let y = -8; y <= 8; y++) for (let x = -8; x <= 8; x++) if ((x + 0.5 - 0.5) ** 2 + (y + 0.5 - 0.5) ** 2 <= r * r) n++;
+  return n;
+};
 const CLOUDS = new Set((["cloud", "cloud-light", "cloud-shade", "cloud-deep", "cloud-far", "cloud-far-shade"] as const).map(role));
 /** Climb's whole world for you at `you`. */
 const climbView = (you: number, theme: "light" | "dark" = "light", altitude: number | null = you) => {
-  const top = worldTop(you);
+  const top = climbTop(you);
   const height = Math.ceil(top / 25);
   return { height, w: drawWorld({ width: 117, height, metresPerRow: 25, bottom: 0, top, you, theme, time: 0, altitude, driftMs: 700, moon: null }) };
 };
@@ -94,7 +115,8 @@ describe("the Climb's scene", () => {
 
   it("dark has stars and the moon; light has neither", () => {
     const dark = world({ theme: "dark" });
-    expect(count(dark.px, role("star")) + count(dark.px, role("star-dim"))).toBeGreaterThan(20);
+    // (Climb keeps stars off its edges and the ruler's column, 10g: about a tenth fewer on 88 px.)
+    expect(count(dark.px, role("star")) + count(dark.px, role("star-dim"))).toBeGreaterThan(15);
     expect(count(world({ theme: "dark" }).px, role("moon"))).toBeGreaterThan(10);
     expect(count(world().px, role("star"))).toBe(0);
     expect(count(world().px, role("moon"))).toBe(0);
@@ -445,7 +467,7 @@ describe("the Climb's scene", () => {
         const close = drawClose({ width, height: 47, theme: "light", time: 0, altitude: you, you, driftMs: 700 });
         expect(count(close.px, role("marker")), `${you} m: the balloon is drawn on the strip`).toBeGreaterThanOrEqual(20);
         // And on Climb's whole world, its basket on your row (or resting on the grass at 0 m).
-        const top = worldTop(you);
+        const top = climbTop(you);
         const height = Math.ceil(top / 25);
         const w = drawWorld({ width, height, metresPerRow: 25, bottom: 0, top, you, theme: "dark", time: 0, altitude: you, driftMs: 700, moon: null });
         expect(count(w.px, role("marker")), `${you} m: the balloon is drawn on Climb`).toBeGreaterThanOrEqual(20);
@@ -529,7 +551,7 @@ describe("the Climb's scene", () => {
 
   it("space repeats in Climb's real view too (from the valley, the real top, the moon): the rows around you match", () => {
     const view = (you: number) => {
-      const top = worldTop(you);
+      const top = climbTop(you);
       const height = Math.ceil(top / 25);
       const w = drawWorld({ width: 117, height, metresPerRow: 25, bottom: 0, top, you, theme: "dark", time: 0, altitude: you, driftMs: 700, moon: worldMoon(117, height, 25, you, top) });
       const youRow = height - 1 - Math.round(you / 25);
@@ -591,7 +613,7 @@ describe("the Climb's scene", () => {
 
   it("Climb's dark moon sits at least 700 m above the Summit (its glow clear of the slope and of the Summit's chip even at 200% text), in the opened window from about 7,300 m", () => {
     for (let you = 0; you <= 9_000; you += 100) {
-      const top = worldTop(you);
+      const top = climbTop(you);
       const height = Math.ceil(top / 25);
       const m = worldMoon(117, height, 25, you, top);
       const a = (height - 1 - m.y) * 25;
@@ -601,23 +623,27 @@ describe("the Climb's scene", () => {
     }
   });
 
-  it("Climb's dark moon never sits under a zone's chip (each just above where its zone starts, at the left, up to about 400 m tall at 200% text)", () => {
+  it("Climb's dark moon never sits under a zone's chip (each just above where its zone starts, at the left, up to about 400 m tall at 200% text; about 925 m on a ruler mark, 10g)", () => {
     for (let you = 0; you <= 60_000; you += 250) {
-      const top = worldTop(you);
+      const top = climbTop(you);
       const height = Math.ceil(top / 25);
       const m = worldMoon(117, height, 25, you, top);
       const a = (height - 1 - m.y) * 25;
-      for (const z of zonesBelow(top)) expect(a > z.from - 300 && a < z.from + 575, `${you} m: the moon at ${a} m, ${z.name}'s chip at ${z.from} m`).toBe(false);
+      for (const z of zonesBelow(top)) expect(a > z.from - 300 && a < z.from + chipReach(z.from) + 175, `${you} m: the moon at ${a} m, ${z.name}'s chip at ${z.from} m`).toBe(false);
     }
   });
 
   it("drifting clouds never cover the moon (its disc always shows whole)", () => {
     for (const you of [3_000, 8_700, 15_000]) {
       for (let time = 0; time < 120_000; time += 4_100) {
-        const top = worldTop(you);
+        const top = climbTop(you);
         const height = Math.ceil(top / 25);
-        const w = drawWorld({ width: 117, height, metresPerRow: 25, bottom: 0, top, you, theme: "dark", time, altitude: you, driftMs: 700, moon: worldMoon(117, height, 25, you, top) });
-        expect(count(w.px, role("moon")) + count(w.px, role("moon-shade")), `${you} m, time ${time}: the whole disc (37 px)`).toBe(37);
+        const moon = worldMoon(117, height, 25, you, top);
+        const w = drawWorld({ width: 117, height, metresPerRow: 25, bottom: 0, top, you, theme: "dark", time, altitude: you, driftMs: 700, moon });
+        expect(disc(w.px, 117, moon), `${you} m, time ${time}: the whole disc (37 px)`).toBe(37);
+        // And Moonlight's, when yours is far from it (10g).
+        const moonlight = moonlightMoon({ width: 117, height, metresPerRow: 25, bottom: 0, theme: "dark", moon });
+        if (moonlight) expect(disc(w.px, 117, moonlight, MOONLIGHT_MOON_R), `${you} m, time ${time}: Moonlight's disc`).toBe(discArea(MOONLIGHT_MOON_R));
       }
     }
   });
@@ -732,11 +758,216 @@ describe("the Climb's scene", () => {
     }
   });
 
-  it("Climb's world always reaches past the next zone (its label is always shown)", () => {
-    for (let a = 0; a <= 100_000; a += 137) {
-      // With room above it for its label and ruler chip.
-      expect(worldTop(a)).toBeGreaterThanOrEqual(nextZone(a * 100).zone.from + 600);
+  it("Today's strip's world still reaches past the next zone", () => {
+    for (let a = 0; a <= 100_000; a += 137) expect(worldTop(a)).toBeGreaterThanOrEqual(nextZone(a * 100).zone.from + 600);
+  });
+
+  it("Climb's world (10g) reaches the space loop (46,000 m at least), 1,500 m above you and past the next zone, with its highest zone and ruler mark exactly 1,000 m under the top", () => {
+    for (let a = 0; a <= 200_000; a += 50) {
+      const top = climbTop(a);
+      expect(top, `${a} m`).toBeGreaterThanOrEqual(LOOP_FROM_M + TOP_SKY_M);
+      expect(top, `${a} m`).toBeGreaterThanOrEqual(a + 1_500);
+      expect(top, `${a} m`).toBeGreaterThanOrEqual(nextZone(a * 100).zone.from + TOP_SKY_M);
+      const zones = zonesBelow(top);
+      expect(top - zones[zones.length - 1].from, `${a} m: the highest zone`).toBe(TOP_SKY_M);
+      expect(top - Math.floor(top / 2_500) * 2_500, `${a} m: the highest ruler mark`).toBe(TOP_SKY_M);
     }
+    expect(climbTop(150)).toBe(46_000);
+    expect(climbTop(42_499)).toBe(46_000);
+  });
+
+  it("Climb's top row is space (stars allowed) and its bottom row the valley, so the bounce's backdrop meets the scene's own colours", () => {
+    for (const width of [88, 117, 130, 156]) {
+      for (const theme of ["light", "dark"] as const) {
+        for (const you of [150, 8_763, 47_000]) {
+          const top = climbTop(you);
+          const height = Math.ceil(top / 25);
+          const w = drawWorld({ width, height, metresPerRow: 25, bottom: 0, top, you, theme, time: 0, altitude: you, driftMs: 700, moon: worldMoon(width, height, 25, you, top) });
+          const topRow = new Set(Array.from(w.px.slice(0, width)).map((v) => ROLES[v]));
+          for (const r of topRow) expect(["space-1", "star", "star-dim"], `${width} px ${theme} ${you} m: the top row`).toContain(r);
+          const bottomRow = new Set(Array.from(w.px.slice((height - 1) * width)).map((v) => ROLES[v]));
+          for (const r of bottomRow) expect(["valley", "valley-dark"], `${width} px ${theme} ${you} m: the bottom row`).toContain(r);
+          expect(count(w.px.slice((height - 1) * width), role("valley")), "mostly valley").toBeGreaterThan(width * 0.8);
+        }
+      }
+    }
+  });
+
+  it("the sky above Climb's top (the bounce's backdrop) is sky: space, stars and what's in space, every pixel drawn", () => {
+    const allowed = new Set(["space-1", "star", "star-dim", "planet", "planet-shade", "satellite", "nebula", "nebula-light", "moon", "moon-shade"]);
+    for (const width of [88, 117, 156]) {
+      for (const theme of ["light", "dark"] as const) {
+        for (const you of [150, 8_763, 43_000, 120_000]) {
+          const top = climbTop(you);
+          const above = drawWorldBase({ width, height: 150, metresPerRow: 25, bottom: top, top, you, theme, moon: null });
+          const seen = new Set(Array.from(above.px).map((v) => ROLES[v]));
+          for (const r of seen) expect(allowed, `${width} px ${theme} ${you} m: ${r}`).toContain(r);
+          expect(count(above.px, role("space-1")) / above.px.length, "mostly the top's own colour").toBeGreaterThan(0.85);
+        }
+      }
+    }
+  });
+
+  it("Moonlight has its moon on Climb whoever scrolls there (one, never two in a window), light and dark", () => {
+    for (const [theme, width] of [["light", 117], ["dark", 117], ["light", 88], ["dark", 156]] as const) {
+      for (const you of [150, 8_763, 22_000, 40_000]) {
+        const top = climbTop(you);
+        const height = Math.ceil(top / 25);
+        const moon = worldMoon(width, height, 25, you, top);
+        const w = drawWorld({ width, height, metresPerRow: 25, bottom: 0, top, you, theme, time: 0, altitude: you, driftMs: 700, moon });
+        // In Moonlight (22,500–25,000 m): a whole disc, yours or its own.
+        const own = moonShows(theme, (height - 1 - moon.y) * 25) && (height - 1 - moon.y) * 25 > 22_500 && (height - 1 - moon.y) * 25 < 25_000;
+        const moonlight = moonlightMoon({ width, height, metresPerRow: 25, bottom: 0, theme, moon });
+        expect(own || moonlight !== null, `${theme} ${width} px ${you} m: a moon in Moonlight`).toBe(true);
+        if (moonlight) {
+          expect(disc(w.px, width, moonlight, MOONLIGHT_MOON_R), `${theme} ${width} px ${you} m: Moonlight's moon, whole`).toBe(discArea(MOONLIGHT_MOON_R));
+          // No star touching its rim (within 2 px of the disc).
+          for (let y = moonlight.y - 8; y <= moonlight.y + 8; y++) {
+            for (let x = moonlight.x - 8; x <= moonlight.x + 8; x++) {
+              if ((x + 0.5 - (moonlight.x + 0.5)) ** 2 + (y + 0.5 - (moonlight.y + 0.5)) ** 2 > (MOONLIGHT_MOON_R + 2.5) ** 2) continue;
+              expect(["star", "star-dim"], `${theme} ${width} px ${you} m: a star on the moon's rim`).not.toContain(ROLES[w.px[y * width + x]]);
+            }
+          }
+          // Nothing else of space beside it (its zone's slot is the moon's): no planet or satellite within 20 px.
+          for (let y = moonlight.y - 20; y <= moonlight.y + 20; y++) {
+            for (let x = 0; x < width; x++) expect(["planet", "planet-shade", "satellite"], `${theme} ${width} px ${you} m`).not.toContain(ROLES[w.px[y * width + x]]);
+          }
+        }
+        // Never two moons within 8,000 m of each other.
+        const moonRows = rowsWith(w.px, width, new Set([role("moon")]));
+        expect(Math.max(...moonRows) - Math.min(...moonRows) < 12 || Math.max(...moonRows) - Math.min(...moonRows) > 8_000 / 25, `${theme} ${you} m`).toBe(true);
+      }
+    }
+    // Where it sits: right of centre, at MOONLIGHT_MOON_M, clear of the chips at the left.
+    const m = moonlightMoon({ width: 117, height: 1_840, metresPerRow: 25, bottom: 0, theme: "light", moon: null })!;
+    expect(discArea(MOONLIGHT_MOON_R), "larger than the moon you pass").toBeGreaterThan(discArea(3.6) * 2);
+    expect(m.x).toBeGreaterThan(117 / 2);
+    expect(Math.round((1_839 - m.y) * 25)).toBe(MOONLIGHT_MOON_M);
+  });
+
+  it("no stray coral: every coral rim pixel is part of an arc of at least 5 (Climb and the strip, dark, many heights and times)", () => {
+    const pieces = (px: Uint8Array, width: number) => {
+      const rim = role("rim");
+      const seen = new Set<number>();
+      const sizes: number[] = [];
+      for (let i = 0; i < px.length; i++) {
+        if (px[i] !== rim || seen.has(i)) continue;
+        const stack = [i];
+        seen.add(i);
+        let n = 0;
+        while (stack.length) {
+          const j = stack.pop()!;
+          n++;
+          const x = j % width;
+          const y = Math.floor(j / width);
+          for (let dy = -1; dy <= 1; dy++) {
+            for (let dx = -1; dx <= 1; dx++) {
+              const k = (y + dy) * width + x + dx;
+              if (x + dx < 0 || x + dx >= width || k < 0 || k >= px.length || seen.has(k) || px[k] !== rim) continue;
+              seen.add(k);
+              stack.push(k);
+            }
+          }
+        }
+        sizes.push(n);
+      }
+      return sizes;
+    };
+    let arcs = 0;
+    for (const width of [88, 117, 156]) {
+      for (const you of [150, 5_000, 8_763, 11_000]) {
+        const top = climbTop(you);
+        const o = { width, height: 520, metresPerRow: 25, bottom: 0, top, you, theme: "dark" as const, moon: null };
+        for (let time = 0; time < 300_000; time += 9_700) {
+          // Climb from the valley to 21,000 m: every height clouds drift at.
+          for (const bottom of [0, 8_000]) {
+            const sizes = pieces(drawWorld({ ...o, bottom, time, altitude: you, driftMs: 700 }).px, width);
+            arcs += sizes.length;
+            for (const n of sizes) expect(n, `Climb ${width} px, ${you} m, from ${bottom} m, time ${time}`).toBeGreaterThanOrEqual(RIM_MIN_PX);
+          }
+          for (const n of pieces(drawClose({ width, height: 47, theme: "dark", time, altitude: you, you, driftMs: 700 }).px, width)) expect(n, `strip ${width} px, ${you} m, time ${time}`).toBeGreaterThanOrEqual(RIM_MIN_PX);
+        }
+      }
+    }
+    // Dark's warm accent is still there.
+    expect(arcs).toBeGreaterThan(50);
+  });
+
+  it("the canvas repaints only the rows that changed, in runs (dirtyRuns)", () => {
+    const w = 4;
+    const frame = (rows: number[]) => {
+      const px = new Uint8Array(w * 30);
+      for (const r of rows) px[r * w + 1] = 7;
+      return px;
+    };
+    const blank = frame([]);
+    expect(dirtyRuns(null, blank, w)).toEqual([[0, 29]]);
+    expect(dirtyRuns(new Uint8Array(8), blank, w), "a resized frame: all of it").toEqual([[0, 29]]);
+    expect(dirtyRuns(blank, frame([]), w)).toEqual([]);
+    expect(dirtyRuns(blank, frame([5]), w)).toEqual([[5, 5]]);
+    expect(dirtyRuns(blank, frame([3, 9]), w), "6 rows apart: one run").toEqual([[3, 9]]);
+    expect(dirtyRuns(blank, frame([3, 11]), w), "8 apart: one run").toEqual([[3, 11]]);
+    expect(dirtyRuns(blank, frame([3, 20]), w), "17 apart: two").toEqual([[3, 3], [20, 20]]);
+    expect(dirtyRuns(blank, frame([0, 29]), w), "the first and last rows").toEqual([[0, 0], [29, 29]]);
+    // A drift tick on Climb's real world changes only rows of clouds and the balloon.
+    const top = climbTop(150);
+    const o = { width: 117, height: top / 25, metresPerRow: 25, bottom: 0, top, you: 150, theme: "dark" as const, altitude: 150, driftMs: 700, moon: worldMoon(117, top / 25, 25, 150, top) };
+    const a = drawWorld({ ...o, time: 7_000 }).px;
+    const b = drawWorld({ ...o, time: 7_700 }).px;
+    const runs = dirtyRuns(a, b, 117);
+    // Repainting the runs gives the new frame exactly.
+    const painted = new Uint8Array(a);
+    for (const [from, to] of runs) painted.set(b.subarray(from * 117, (to + 1) * 117), from * 117);
+    expect(Buffer.from(painted).equals(Buffer.from(b))).toBe(true);
+    const rowsPainted = runs.reduce((n, [from, to]) => n + to - from + 1, 0);
+    expect(rowsPainted, "a fraction of the 1,840 rows").toBeLessThan((top / 25) * 0.4);
+  });
+
+  it("space's named zones show what they're named for on Climb (10g): a dense Starfield, three Satellites, a clear asteroid belt, a sparser Deep space", () => {
+    const top = climbTop(150);
+    const height = top / 25;
+    const w = drawWorldBase({ width: 117, height, metresPerRow: 25, bottom: 0, top, you: 150, theme: "dark", moon: null });
+    const band = (from: number, to: number, names: string[]) => {
+      let n = 0;
+      for (let y = height - 1 - Math.round(to / 25); y <= height - 1 - Math.round(from / 25); y++) for (let x = 0; x < 117; x++) if (names.includes(ROLES[w.px[y * 117 + x]])) n++;
+      return n;
+    };
+    const stars = (from: number, to: number) => band(from, to, ["star", "star-dim"]) / ((to - from) / 1_000);
+    expect(stars(25_000, 27_000), "Starfield: denser than Moonlight").toBeGreaterThan(stars(20_000, 22_000) * 1.6);
+    expect(stars(42_500, 45_000), "Deep space: sparser").toBeLessThan(stars(40_000, 42_500) * 0.75);
+    // Satellites: three bodies (each 3 px wide, 2 rows, and a mast).
+    expect(band(27_500, 30_000, ["satellite"])).toBeGreaterThanOrEqual(3 * 9);
+    expect(band(32_500, 35_000, ["planet", "planet-shade"]), "the belt's rocks").toBeGreaterThan(110);
+    // Nothing of space on the window's edge, the ruler or its ticks (the last 8 columns).
+    for (let y = 0; y < height; y++) {
+      for (const x of [0, 109, 110, 111, 112, 113, 114, 115, 116]) expect(["star", "star-dim", "planet", "planet-shade"], `row ${y}, x ${x}`).not.toContain(ROLES[w.px[y * 117 + x]]);
+    }
+  });
+
+  it("the tidy only puts rim fragments back to the cloud under them; light is untouched", () => {
+    const clouds = new Set([...CLOUDS, role("cirrus"), role("cloud-high"), role("cloud-high-shade")]);
+    let tidied = 0;
+    for (const you of [5_000, 8_763, 11_000]) {
+      for (let time = 0; time < 300_000; time += 9_700) {
+        for (const theme of ["light", "dark"] as const) {
+          const o = { width: 117, height: 200, metresPerRow: 25, bottom: 9_000, top: 46_000, you, theme, time, altitude: you, driftMs: 700, moon: null };
+          const a = drawWorld({ ...o, keepRimFragments: true }).px;
+          const b = drawWorld(o).px;
+          const sa = drawClose({ width: 117, height: 47, theme, time, altitude: you, you, driftMs: 700, keepRimFragments: true }).px;
+          const sb = drawClose({ width: 117, height: 47, theme, time, altitude: you, you, driftMs: 700 }).px;
+          for (const [x, y, label] of [[a, b, "Climb"], [sa, sb, "strip"]] as const) {
+            for (let i = 0; i < x.length; i++) {
+              if (x[i] === y[i]) continue;
+              tidied++;
+              expect(theme, `${label} ${you} m t${time}: light changed`).toBe("dark");
+              expect(ROLES[x[i]], `${label} ${you} m t${time}`).toBe("rim");
+              expect(clouds.has(y[i]), `${label} ${you} m t${time}: put back to ${ROLES[y[i]]}`).toBe(true);
+            }
+          }
+        }
+      }
+    }
+    expect(tidied, "some fragments were tidied").toBeGreaterThan(0);
   });
 
   it("clouds drift with time (a step at a time), and stand still at time 0", () => {

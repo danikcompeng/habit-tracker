@@ -1122,6 +1122,129 @@ The logic-checker said "Ready after fixes". What changed:
 - The standard set (0 m to 100 km, Today's strip and Climb's window as it opens) refreshed in `docs/screenshots/feature-10/heights/`.
 - The app's own screenshots refreshed.
 
+### Feature 10g: Climb's top, the bounce, and on into space (2026-11-26)
+
+_The user's round 6 (pasted), after 10f._
+
+The user's report, on Climb (real account at 150 m, dark mode, iPhone):
+- At the scroll limit the top label ("Stratosphere") is cut in half.
+- Pulling past the top, iOS's bounce shows a flat navy band above the scene.
+- A stray coral pixel in the clouds around 11,000 m (dark).
+
+Why:
+- **The label.** Climb's world ends at `worldTop` (12,600 m for anyone below 10,000 m). "Stratosphere" starts at 12,500 m, only 100 m (12 css px) under the top. Its chip sits just above that line and is about 22 px tall, so the top edge cuts it.
+- **The band.** The bounce shows the scroll box's own background behind the scene (`--scene-sky-6`, navy in dark).
+- **The coral pixel.** Dark's coral rim on medium clouds (Feature 10). The renderer leaves rim fragments of 1 to 4 px: other clouds drawn over part of an arc, the rim kept only against the sky, and the frame's edge. Measured across heights and drift: about 125 of every 650 rims are such fragments; a whole arc is 5 to 12 px.
+
+Visuals only: **no change to the altitude maths, `habit_altitude()`, the zones, the demo, Today's strip (bar its coral rims) or the rule for where Climb's window opens (`climbWindowTop`; a window taller than a phone's can now open higher, see below); no migration.**
+
+What they asked for:
+1. (a) The scene tall enough that the top label and sky above it are whole at the scroll limit, never clipped. (b) During the bounce the sky keeps showing above (stars, space, the same scene), not a flat band: extra sky drawn above the limit, or a background that continues the sky at that height, seamless in light and dark.
+2. Scroll on up into space (Stratosphere, Edge of space, Space, Moonlight…), to at least the first space-loop height (45,000 m), or keep extending as they scroll: my call, logged. The same seamless bounce at the top, whatever it is. Smooth on an iPhone.
+3. Remove the stray coral pixels in the clouds.
+4. Tests:
+   - no zone label or ruler mark clipped at the top or bottom scroll limit;
+   - Climb scrolls to at least 45,000 m;
+   - what shows above the scene's top edge is sky-coloured, not the card's background.
+5. code-reviewer and design-critic on 390×844, light and dark, with a shot mid-bounce if I can fake the overscroll.
+
+**The call: a fixed top, at least 46,000 m, not one that grows as you scroll.**
+- A world that extends as you scroll has to redraw a taller canvas and move the scroll position mid-gesture. On iOS, with momentum scrolling, that means jank or a jump.
+- A fixed world is drawn once. Measured in Node: 49 ms for the 46,000 m world on a 130 px window (38 ms for today's 12,600 m), and 2 ms per drift tick.
+- **`climbTop(altitude)`** (new, Climb only; the strip keeps `worldTop`):
+  - the top is 1,000 m above a 2,500 m step;
+  - the step is at least the space loop's start (45,000 m), at least 1,500 m above you, and at least 1,000 m above the next zone, as before.
+  - So the highest zone and ruler mark are always exactly 1,000 m (120 css px) under the top. The zone's chip sits above the mark's chip (see "After logic-checker"), which leaves about 80 px of sky above it at 100% text and about 45 px at 200%.
+  - Anyone below 42,500 m gets 46,000 m (the 45,000 m "Further still" zone is the top one). Higher up it keeps growing, 2,500 m a zone, as now.
+- The space above Stratosphere is already drawn by height (stars, satellites, the asteroid belt, the ringed planet, the nebula, the loop from 45,000 m), so it needs no new art. One addition:
+  - **Moonlight's moon.** The moon is placed about 1,600 m above you, so climbers far below or above Moonlight would scroll through it with no moon.
+  - On Climb a second moon now sits in Moonlight (23,600 m, right of centre), in both themes.
+  - It's left out when your own moon shows within 8,000 m of it, so two moons are never in one window: the window is at most 900 px, 7,500 m.
+- **Smooth.** Each drift tick now repaints only the pixels that changed (the clouds, the balloon, the moon), with a dirty rectangle, not the whole canvas. The canvas is about 3.7 times taller than before.
+
+**The bounce: the scroll box's background continues the scene.**
+- The bounce shows what's behind the scrolled content: the scroll box's own background. Content drawn above the scroll origin can't be reached, and iOS doesn't reliably paint it, so the backdrop goes in the background.
+- **Above:** an image of the scene's next 150 rows above the top (3,750 m), drawn by the same renderer (the same stars and space, seeded by height) and scaled to whole pixels like the canvas. Under it, the top band's colour (`--scene-space-1`: the top is always space).
+- **Below:** the valley colour (`--scene-valley`) over the lower half. The world's bottom row is all valley on Climb.
+- The colours are set in the stylesheet, so they show before the image is made and before the page's script has run. The scene's own pre-paint colour moves to the content inside the box.
+- The background stays put while the content springs back. The stars above are a backdrop and don't move with the scene, which is how an iOS bounce looks anyway.
+
+**The coral rim, tidied.** After the drifting clouds are drawn (Climb and the strip), any piece of a cloud's coral rim under 5 pixels goes back to the cloud under it. Whole arcs (5 px and more) stay: they're dark's warm accent, and the design-critic asked for them in Feature 10. (How a piece is counted: see "After logic-checker" and the code-reviewer.)
+
+**Tests.**
+- Unit:
+  - `climbTop`: at least 46,000 m, at least 1,500 m above you, at least 1,000 m above the next zone; the highest zone below it exactly 1,000 m down; checked for every 50 m to 200 km.
+  - Climb's top row is space-1 and its bottom row all valley, on 88, 117, 130 and 156 px.
+  - The sky above the top (the backdrop) has only sky, star and space-object roles, nothing undrawn.
+  - Moonlight has exactly one moon for you at 150 m and at 22,000 m, light and dark.
+  - No coral run under 5 px on Climb or the strip, at many heights and drift times.
+- Browser (the demo account):
+  - at the top and bottom scroll limits, every zone label and ruler chip lies wholly inside the scroll content, at 390 px and 100% text, and at 320 px and 200% text;
+  - Climb's world reaches at least 46,000 m, and "Further still" (45,000 m) is in view at the top;
+  - a faked bounce (the content shifted down 150 px at the top, up 150 px at the bottom) shows only scene colours in the gap, never the card's background, light and dark.
+
+**Previews** (the demo at 8,763 m; 390×844, light and dark):
+- Climb at its top limit, and mid-bounce at the top and at the bottom;
+- Climb scrolled to Stratosphere, Edge of space, Moonlight and the asteroid belt;
+- dark around 11,000 m (the coral rims).
+
+**After logic-checker (decided):**
+
+The logic-checker said "Ready after fixes". What changed:
+- **The backdrop follows the end you're nearer.**
+  - The planned fixed split (space image on top, valley over the lower half) would have shown space under the meadow. On a 450 px box (Safari with its bars) the image covers the whole box, and the bottom bounce is the one a 150 m climber hits most.
+  - Now a passive scroll listener sets `data-end` on the box: "top" in the upper half of the world (the sky image over space-1), "bottom" in the lower half (the valley colour).
+  - It's an attribute, not React state, so scrolling never re-renders.
+  - The image is keyed by the scene's options and theme, so it's redrawn on a theme switch or a new width. It's drawn at scene pixels and sized to whole css pixels (`width·3 × 450`).
+- **The coral rim is tidied per cloud, in pieces.**
+  - Counting connected coral pixels across the frame split staircase arcs and would have dropped whole ones.
+  - Now each cloud records its own rim pixels and the role under each. Once every cloud is drawn (the strip's two layers together), its pixels still showing rim are grouped into pieces: touching pixels, diagonals included (first "within 2 px"; the code-reviewer asked for one definition, the eye's, in both the code and the test). A piece under 5 px goes back to the role under it.
+  - Measured on Climb (4 widths, 4 heights, 60 drift times): 52 small pieces left by a per-cloud count, none by pieces.
+- **The repaint:** in full when the size or colours change (a theme switch, a resize); otherwise one rectangle per run of changed rows (runs closer than 8 rows merged). The moon isn't redrawn per tick.
+- **Chips:**
+  - **On a ruler mark:** a zone that starts on a shown ruler mark (every zone from 10,000 m) sits above the mark's chip, at full width. A narrow chip there can't hold its words at 200% text on a 320 px phone. `underChip` widens its band for those zones (about 925 m above the line), so your own moon still keeps clear.
+  - **`rulerNear`:** it only counts ticks from 200 m below a zone's line to 700 m above. A tick's chip lower down can't reach the label above its line.
+  - **Spilled words:** zone chips are never narrower than their longest word (`min-width: min-content`). Snowline and the Summit spilled their words at 320 px and 200% text before.
+  - **Your chip** is clamped above the floor at any text size (CSS `min()`), not only below 400 m.
+- **Screen readers:** "You are at …" comes first in the zone list. Everyone now hears 22 items.
+- **Tests, rewritten for Climb's own world:**
+  - `climbView` and the moon tests use `climbTop`;
+  - each moon disc is counted in a box around its centre (a satellite's panels are moon-shade too);
+  - the moon/chip test uses `chipReach`;
+  - the top row allows stars, the bottom row valley-dark tufts.
+- **Today's strip, pinned:** the 10e checksums still pass unchanged (none of those frames had a fragment). A new test checks that the tidy changes only rim pixels, to a cloud role, and never in light.
+- **Wording:**
+  - `climbWindowTop` clamps to the world's top, so a window taller than a phone's can open higher now (the demo on a 900 px window: 13,488 m, was 12,600 m). Phones at 390×844 open where they did.
+  - Your own moon sits at the 9,548 m floor below 7,950 m, not 1,600 m above you.
+- **Accepted:**
+  - **Two moons in one world:** for anyone below about 14,000 m in dark, yours near 9,550 m and Moonlight's at 23,600 m, at least 8,000 m apart, so never in one window.
+  - **Arcs that switch off:** an arc can disappear when a passing cloud leaves it under 5 px. It's a piece of rim, behind cloud.
+  - **Crowding at the floor:** at 200% text, low down (below about 530 m), the floor has no room for "Base camp", "Forest" and your chip (500 m is 60 px; each chip about 45 px), so they overlap. This was already the case before 10g (Base camp's chip was squeezed to about 70 px, two lines tall). Overlaps are tested for the demo at every size and for low climbers at 100% text. Clipping is tested at all sizes.
+  - **The base draw grows with the world:** about 50 ms at 46,000 m in Node; for climbers far up, as before (about 220 ms at 200 km).
+
+**After the code-reviewer and the design-critic (decided):**
+- **The bounce, seamless:**
+  - The ruler is drawn in the box's background too (3 px, 12 px from the right, `--scene-ruler`), so it runs on through the gap at both ends instead of starting or stopping in mid-air.
+  - The sky image repeats down (a hard pull on a tall window).
+  - The rule lives in `globals.css` (`.climb-box`).
+- **A valley floor:** 24 css px of valley below 0 m, so "Base camp" isn't pinned to the box's bottom edge. The scene keeps its own height; your chip still rests on the world's floor.
+- **Space's named zones show what they're named for:**
+  - Starfield has twice the stars and cross-stars;
+  - Satellites has three satellites;
+  - the asteroid belt has 38 rocks in a clear band, a third of them lumps;
+  - Deep space has half the stars.
+- **Moonlight's moon:** radius 5.2 (89 px of disc, against 37), with three craters, so it reads as a moon in light too. Its zone's object slot stays empty, so nothing sits beside it.
+- **Stars** keep off Climb's edge columns and the ruler's.
+- **Your chip beside a lifted label:** a zone label on a ruler mark goes back to the narrow width when your chip is in its rows (you 0–1,200 m above the mark).
+- **The canvas:**
+  - It repaints in full after its context is restored or the page is shown again (a backgrounded home-screen app can lose its canvas pixels).
+  - The dirty rows are a pure, tested function (`dirtyRuns`).
+  - The backdrop is drawn with no moon.
+- **Accepted:** at 200% text the room runs out in two more places:
+  - at 5,850 m on 390 px the word "clouds" is about 3 px wider than the room left of your chip (before 10g the words spilled across it, unmeasured);
+  - at 320 px the lifted labels and your chip can touch.
+  - Overlaps are tested for the demo at every size and for every case at 100% text; clipping at every size.
+
 ## Reviews
 
 _One entry per feature. Every agent finding is logged with its severity and what was done about it, so the log shows what each reviewer caught and what changed as a result._
@@ -2300,6 +2423,74 @@ Verdict: **Ship after fixes**. Above about 8,250 m it reads clearly as a short, 
 | 4 | Low | The moon for you at 8,763 m (centre about 9,690 m) looked close to the "Into the clouds" chip. | No change needed | The chip sits above 10,000 m; the glow's top is about 9,865 m, 135 m (about 16 css px) below it; the test pins the band. |
 
 Checks (final): 600 unit and database tests, tsc, eslint, `next build`; the full browser suite on `next start`: **92 passed, 0 failed**. Renders: Climb scrolled to 3,000, 5,000, 7,500 and 8,848 m (you at 150 m) in `docs/screenshots/feature-10/climb-scrolled/`; the 23 heights (0 m to 100 km, Today's strip and Climb as it opens) refreshed in `docs/screenshots/feature-10/heights/`; the app's own screenshots refreshed by the suite. All light and dark.
+
+### Feature 10g: Climb's top, the bounce, and on into space (2026-11-26)
+
+The user's round 6:
+- **What they asked:** the top label whole at the scroll limit; the sky continuing in iOS's bounce; scrolling on into space to 45,000 m or more; no stray coral pixels.
+- **The call:** a fixed top at 46,000 m or more (`climbTop`), not one that extends as you scroll.
+- **The bounce:** the box's background, picked by the end you're nearer.
+
+Visuals only; no SQL.
+
+#### logic-checker (plan review)
+Verdict: **Ready after fixes**. `climbTop`'s arithmetic, Moonlight's moon and the iOS background behaviour checked out.
+
+| # | Severity | Finding | Outcome | What changed |
+|---|----------|---------|---------|--------------|
+| 1 | High | The fixed split put the star image over the bottom bounce: on a 450 px box it covers the whole box. | Fixed | The backdrop follows the end you're nearer (`data-end`, a passive scroll listener); the browser test wants valley only at the bottom. |
+| 2 | Medium-High | "Coral run under 5 connected px" splits staircase arcs (drops whole ones); per frame it flickers; `cloud-light` is wrong under a body pixel. | Fixed | Per cloud: its rim pixels and the role under each, grouped in pieces within 2 px; a piece under 5 px put back to its own role. Flicker accepted. |
+| 3 | Medium-High | The partial repaint would miss a theme switch (same roles, new colours) and a resize; one dirty rectangle spans everything from 30 km. | Fixed | Full paint when the size or colours change; one rectangle per run of changed rows. |
+| 4 | Medium | The backdrop's lifecycle and scale unspecified. | Fixed | Keyed by the scene's options and theme; drawn at scene pixels and sized to whole css px. |
+| 5 | Medium | At 200% text the chips on ruler marks spill their words (max-width under their padding); `underChip` assumed 400 m chips; your chip could sink below the floor at 400–530 m. | Fixed | Chips on a mark lifted above it at full width, `chipReach`, `min-w-min`, your chip clamped with `min()`. The browser test checks spilled words and runs at 150 m and 450 m too. |
+| 6 | Medium | Tests would break or stop meaning anything (two moons in one world, `worldTop` in Climb's tests, the e2e zone count, the top/bottom row rules). | Fixed | Rewritten (see the plan). |
+| 7 | Low-Medium | Regenerating the strip's goldens would lose what they prove. | Fixed | Goldens kept as they are (they still pass); a test that the tidy changes only rim pixels and never light. |
+| 8 | Low | "No change to where the window opens" isn't strictly true. | Fixed | Reworded: taller windows can open higher. |
+| 9 | Low | The screen-reader list grows to 22, "You are at" last. | Fixed | First. |
+| 10 | Low | The moon's height worded wrongly. | Fixed | |
+
+#### code-reviewer (diff review)
+Verdict: **Ship after fixes**. No Critical or High. Tailwind classes, CSS `min()`, the backdrop's freshness, the scroll listener and the paint's argument order checked out.
+
+| # | Severity | Finding | Outcome | What changed |
+|---|----------|---------|---------|--------------|
+| 1 | Medium | A label lifted above a ruler mark at full width meets your own chip at 200% text (you 700–1,200 m above the mark). | Fixed in part | Narrow width when your chip is in its rows. At 5,850 m on 390 px the word "clouds" still reaches about 3 px into your chip (accepted; tested at 100%). |
+| 2 | Medium | The partial repaint never recovers a wiped canvas (context loss, a backgrounded app). | Fixed | Full repaint after `contextrestored` and when the page is shown again. |
+| 3 | Medium | The top-bounce test passes with no sky image (flat space-1). | Fixed | It requires stars, and the ruler, in the gap. |
+| 4 | Medium | The partial paint can't be unit-tested. | Fixed | `dirtyRuns` in `lib/`, tested, including that repainting its runs gives the next real drift frame exactly. |
+| 5 | Low | The backdrop got the world's moon in the wrong rows. | Fixed | No moon. |
+| 6 | Low | The Climb rim test skipped clouds below 8,000 m. | Fixed | From the valley too. |
+| 7 | Low | The tidy and the test counted pieces differently. | Fixed | Touching pixels in both. |
+| 8 | Low | Moonlight's moon checked at 117 px only. | Fixed | Also 88 and 156 px, with nothing of space within 20 rows of it. |
+| 9 | Low | Plan text out of date (the rim, the sky above the top label at 200%). | Fixed | |
+
+#### design-critic, round 1 (the top and bottom limits, a faked bounce at each, Stratosphere, Edge of space, Moonlight, the asteroid belt, 11,000 m; light and dark)
+Verdict: **Ship after fixes**. All four asks met. The bounce's colour matches the top band exactly in both themes, the top label has about 80 px of sky above it, and no coral fragments show. Nothing High.
+
+| # | Severity | Finding | Outcome | What changed |
+|---|----------|---------|---------|--------------|
+| 1 | Medium | The ruler gives the bounce's seam away: it starts and stops in mid-air. | Fixed | The ruler drawn in the box's background too. |
+| 2 | Medium | "Base camp" pinned to the box's bottom-left corner at the bottom limit. | Fixed | 24 px of valley below 0 m. |
+| 3 | Medium | Space is one star field; the named zones don't deliver (the belt reads as dust; one satellite). | Fixed | Starfield, Satellites, the belt and Deep space (see the plan). |
+| 4 | Low-Medium | Moonlight's moon small and sun-like in light, crowded by a satellite. | Fixed | Larger, with craters; its slot left empty. |
+| 5 | Low | Stars on the ruler's column and the window's edges; slivers under chips. | Fixed in part | Off the edges and the ruler on Climb; slivers under chips accepted. |
+| 6 | Low | Labels on ruler marks float about 16 px above their line. | Accepted | It reads correctly and avoids collisions at 200% text. |
+| 7 | Low | The backdrop could run out on a hard pull. | Fixed | It repeats down. |
+
+#### design-critic, round 2 (verification)
+Verdict: **Ship**. All seven round-1 items hold. The bounce has no visible seam at either end in either theme (the ruler, the star grain and the valley run straight through), "Further still" has about 81 px of space above it at the top limit, Base camp clears the corner, the belt reads as a band and Deep space as sparser.
+
+| # | Severity | Finding | Outcome | What changed |
+|---|----------|---------|---------|--------------|
+| 1 | Low | Stars and belt rocks still in the column at a tick's left end (it reads as a broken tick). | Fixed | On Climb they keep 8 columns from the right (a cross-star's centre 9), and 2 from the left; tested for the last 8 columns. |
+| 2 | Low | A star touching Moonlight's moon's rim reads as a nick. | Fixed | Stars within 2 px of the large moon become its glow (dark) or the sky (light); tested. |
+| 3 | Low | Moonlight's craters barely show (moon-shade on moon, about 1.2 : 1). | Accepted | A deeper crater tone needs a new token in both themes; the size alone fixed most of it. |
+| 4 | Low | The Base camp chip covers the lake's left end. | Accepted | Moving the lake would change Today's strip (pinned to 10e). |
+| — | Note | In light the white ruler disappears over the white cloud band (from Feature 10). | Accepted | Decoration; the chips carry the heights. |
+
+Starfield and Satellites weren't in a shot; they're covered by the unit test of the named zones and by the height renders.
+
+Checks (final): 608 unit and database tests, tsc, eslint, next build; the browser suite on the production build: 95 passed, 0 failed. Screenshots: `docs/screenshots/feature-10/climb-10g/` (the top and bottom limits, a faked bounce at each, Stratosphere, Edge of space, Moonlight, the asteroid belt, 11,000 m), the app's screenshots and the 23 height renders refreshed.
 
 <!--
 Template — copy for each feature:

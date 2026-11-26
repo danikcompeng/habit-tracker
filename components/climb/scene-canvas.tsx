@@ -1,7 +1,7 @@
 "use client";
 
 // Paints the Climb's pixel-art world (lib/climb-scene/scene.ts) on a canvas
-// (plans/habit-tracker.md, Features 10 to 10f). The scene is drawn at a low logical
+// (plans/habit-tracker.md, Features 10 to 10g). The scene is drawn at a low logical
 // resolution and scaled up by a whole number with image-rendering:
 // pixelated, so every pixel is a crisp square. Colours are the --scene-*
 // tokens, read from CSS (they follow the colour scheme). Decorative: the
@@ -9,8 +9,10 @@
 //
 // Clouds drift a logical pixel at a time (MOTION.drift), only while the
 // scene is on screen and the page is visible, and never with Reduce Motion.
+// Each tick repaints only the rows that changed (Climb's canvas is tall);
+// in full after a theme switch, a resize, or the canvas being wiped.
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { MOTION } from "@/lib/motion";
 import {
   BALLOON_MIN_X,
@@ -18,6 +20,7 @@ import {
   ROLES,
   closeBalloonAt,
   closeFarOptions,
+  dirtyRuns,
   drawCloseMoving,
   drawWorldBase,
   drawWorldMoving,
@@ -30,18 +33,26 @@ import {
 export const SCENE_SCALE = 3;
 /** The Climb screen's world: metres per row. */
 export const WORLD_METRES_PER_ROW = 25;
+/** Rows of sky drawn above the world's top for the bounce's backdrop (3,750 m: 450 css px, half the tallest window). */
+export const BACKDROP_ROWS = 150;
+
+/** The sky above Climb's top, as an image for the scroll box's background (shown in iOS's bounce), and its width in logical px. */
+export type Backdrop = { url: string; width: number };
 
 type Props = (
   | { view: "close"; altitude: number; shapeAt: number }
   | { view: "world"; altitude: number; top: number }
 ) & {
   className?: string;
+  style?: CSSProperties;
   /**
    * The page's own chips over the scene (a selector, within the scene's
    * parent): the balloon keeps to the right of any at its height, measured,
    * so it holds at any width and text size.
    */
   avoid?: string;
+  /** Climb: receives the sky above the world's top, drawn in the theme's colours, whenever it changes. */
+  onBackdrop?: (backdrop: Backdrop) => void;
 };
 
 function reducedMotion(): boolean {
@@ -72,7 +83,18 @@ function readColours(): [number, number, number][] {
   });
 }
 
-function paint(el: HTMLCanvasElement, scene: Canvas, colours: [number, number, number][], reuse: { image: ImageData | null }) {
+/** What was last painted on a canvas, so the next tick repaints only what changed. */
+type Painted = { image: ImageData | null; last: Uint8Array | null; colours: [number, number, number][] | null };
+
+/**
+ * Paints the scene's roles in the theme's colours. In full when the size or
+ * the colours changed (a theme switch, a resize: the canvas was cleared) or
+ * nothing is known to be on it (`last` reset: a lost context, the page
+ * shown again); otherwise only the rows whose roles changed since the last
+ * paint (the drifting clouds, the balloon), one rectangle per run (dirtyRuns).
+ */
+function paint(el: HTMLCanvasElement, scene: Canvas, colours: [number, number, number][], reuse: Painted) {
+  const resized = el.width !== scene.width || el.height !== scene.height;
   if (el.width !== scene.width) el.width = scene.width;
   if (el.height !== scene.height) el.height = scene.height;
   const ctx = el.getContext("2d");
@@ -82,14 +104,28 @@ function paint(el: HTMLCanvasElement, scene: Canvas, colours: [number, number, n
     image = ctx.createImageData(scene.width, scene.height);
     reuse.image = image;
   }
-  for (let i = 0; i < scene.px.length; i++) {
-    const [r, g, b] = colours[scene.px[i]];
-    image.data[i * 4] = r;
-    image.data[i * 4 + 1] = g;
-    image.data[i * 4 + 2] = b;
-    image.data[i * 4 + 3] = 255;
+  const full = resized || reuse.colours !== colours;
+  const { width } = scene;
+  for (const [from, to] of dirtyRuns(full ? null : reuse.last, scene.px, width)) {
+    for (let i = from * width; i < (to + 1) * width; i++) {
+      const [r, g, b] = colours[scene.px[i]];
+      image.data[i * 4] = r;
+      image.data[i * 4 + 1] = g;
+      image.data[i * 4 + 2] = b;
+      image.data[i * 4 + 3] = 255;
+    }
+    ctx.putImageData(image, 0, 0, 0, from, width, to - from + 1);
   }
-  ctx.putImageData(image, 0, 0);
+  if (reuse.last && reuse.last.length === scene.px.length) reuse.last.set(scene.px);
+  else reuse.last = new Uint8Array(scene.px);
+  reuse.colours = colours;
+}
+
+/** The scene's roles as a PNG data URL, in these colours. */
+function toUrl(scene: Canvas, colours: [number, number, number][]): string {
+  const el = document.createElement("canvas");
+  paint(el, scene, colours, { image: null, last: null, colours: null });
+  return el.toDataURL();
 }
 
 export function SceneCanvas(props: Props) {
@@ -205,7 +241,27 @@ export function SceneCanvas(props: Props) {
   // and view, then copied; each tick only draws the drifting clouds and you.
   const base = useRef<{ key: string; px: Uint8Array } | null>(null);
   const colours = useRef<{ theme: Theme; rgb: [number, number, number][] } | null>(null);
-  const image = useRef<{ image: ImageData | null }>({ image: null });
+  const image = useRef<Painted>({ image: null, last: null, colours: null });
+  // Repaint in full when the canvas may have been wiped: its 2D context lost
+  // and restored, or the page shown again (a backgrounded home-screen app can
+  // lose its canvas). Forgetting what's on it makes the next paint full.
+  const [shown, setShown] = useState(0);
+  useEffect(() => {
+    const el = canvas.current;
+    const wiped = () => {
+      image.current.last = null;
+      setShown((n) => n + 1);
+    };
+    const visible = () => document.visibilityState === "visible" && wiped();
+    el?.addEventListener("contextrestored", wiped);
+    document.addEventListener("visibilitychange", visible);
+    return () => {
+      el?.removeEventListener("contextrestored", wiped);
+      document.removeEventListener("visibilitychange", visible);
+    };
+  }, []);
+  const backdrop = useRef<string | null>(null);
+  const onBackdrop = props.onBackdrop;
   useEffect(() => {
     if (!size || !canvas.current) return;
     const world = {
@@ -232,12 +288,19 @@ export function SceneCanvas(props: Props) {
     if (colours.current?.theme !== theme) colours.current = { theme, rgb: readColours() };
     paint(canvas.current, scene, colours.current.rgb, image.current);
     setPainted(true);
-  }, [size, theme, time, altitude, top, shapeAt, props.view, balloonMinX]);
+    // Climb: the sky above the top (the same scene, seeded by height), for the bounce.
+    if (props.view === "world" && onBackdrop && backdrop.current !== key + theme) {
+      backdrop.current = key + theme;
+      // (No moon: its row is the world's, not the backdrop's.)
+      const above = drawWorldBase({ ...world, bottom: top, height: BACKDROP_ROWS, moon: null });
+      onBackdrop({ url: toUrl(above, colours.current.rgb), width: size.width });
+    }
+  }, [size, theme, time, altitude, top, shapeAt, props.view, balloonMinX, onBackdrop, shown]);
 
   return (
     // overflow-hidden: the canvas is exactly SCENE_SCALE css px per logical
     // pixel (a whole number, so pixels stay square), a little wider than the box.
-    <div ref={box} aria-hidden="true" className={`overflow-hidden ${props.className ?? ""}`}>
+    <div ref={box} aria-hidden="true" className={`overflow-hidden ${props.className ?? ""}`} style={props.style}>
       <canvas
         ref={canvas}
         data-scene={props.view}
