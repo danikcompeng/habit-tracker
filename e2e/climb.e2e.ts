@@ -24,13 +24,45 @@ const strip = (page: Page) => page.getByRole("link", { name: /^Altitude/ });
 /**
  * Forget the zones celebrated on this device: any earlier visit to the demo
  * (~8,760 m) remembered "Above the clouds" and would hide a lower zone's
- * moment (or one finishing the demo, High ridge). Needs the app's origin, so it visits a page without the climb.
+ * moment (or the one finishing the demo, the Summit). Needs the app's origin, so it visits a page without the climb.
  */
 async function forgetZones(page: Page) {
   await page.goto("/settings");
   await page.evaluate(() => {
-    for (const key of Object.keys(localStorage)) if (key.startsWith("climb-zone:")) localStorage.removeItem(key);
+    for (const key of Object.keys(localStorage)) if (key.startsWith("climb-zone")) localStorage.removeItem(key);
   });
+}
+
+/** The balloon's box on a scene canvas (CSS px), from its data-balloon (logical centre and basket row) with its ring. */
+async function balloonBox(page: Page, canvas: string): Promise<{ left: number; right: number; top: number; bottom: number }> {
+  // Only once the scene is painted at its size (before that there's no balloon to measure).
+  await expect(page.locator(`${canvas}[data-painted][data-balloon]`)).toHaveCount(1);
+  // Let the balloon settle beside chips measured after a text-size change.
+  await page.waitForTimeout(200);
+  const box = await page.locator(canvas).evaluate((el) => {
+    const [x, y] = (el.getAttribute("data-balloon") ?? "").split(",").map(Number);
+    const r = el.getBoundingClientRect();
+    const scale = r.width / (el as HTMLCanvasElement).width;
+    return { left: r.left + (x - 4) * scale, right: r.left + (x + 5) * scale, top: r.top + (y - 13) * scale, bottom: r.top + (y + 2) * scale, scale };
+  });
+  expect([box.left, box.right, box.top, box.bottom].every(Number.isFinite), "the balloon's box is measured").toBe(true);
+  expect(box.scale, "the canvas is painted at 3 CSS px a pixel").toBeCloseTo(3, 1);
+  return box;
+}
+
+/** Does any of these elements cover the balloon on this canvas? */
+async function balloonUnder(page: Page, canvas: string, covers: import("@playwright/test").Locator | string): Promise<boolean | string[]> {
+  const b = await balloonBox(page, canvas);
+  const locator = typeof covers === "string" ? page.locator(covers) : covers;
+  const hits = await locator.evaluateAll(
+    (els, b) =>
+      els
+        .map((el) => ({ text: el.textContent?.trim() ?? "", r: el.getBoundingClientRect() }))
+        .filter(({ r }) => r.width > 0 && Math.min(r.right, b.right) - Math.max(r.left, b.left) > 1 && Math.min(r.bottom, b.bottom) - Math.max(r.top, b.top) > 1)
+        .map(({ text }) => text),
+    b,
+  );
+  return typeof covers === "string" ? hits : hits.length > 0;
 }
 
 /** Any two of these overlap (by more than a pixel)? Returns the pairs that do. */
@@ -163,7 +195,7 @@ test("the zone moment: once, after the save, with the right words, and never aga
   }
 });
 
-test("a demo visitor who finishes today's three open habits crosses into High ridge and sees the card (Feature 10b)", async ({ page }) => {
+test("a demo visitor who finishes today's three open habits passes the Summit and sees the card (Feature 10c)", async ({ page }) => {
   await freshDemo(page);
   try {
     await forgetZones(page);
@@ -176,12 +208,14 @@ test("a demo visitor who finishes today's three open habits crosses into High ri
       // Not before the last one (the perfect day's +70 m is what crosses).
       if (i < 2) await expect(page.getByRole("button", { name: /New zone/ })).toHaveCount(0);
     }
-    const card = page.getByRole("button", { name: /New zone High ridge/ });
+    const card = page.getByRole("button", { name: /New zone Summit/ });
     await expect(card).toBeVisible();
-    await expect(card).toContainText(/\+70 m · up to 8,8\d\d m/);
-    await expect(strip(page)).toHaveAccessibleName(/High ridge/);
+    await expect(card).toContainText(/\+70 m · up\sto 8,8\d\d\sm/);
+    await expect(strip(page)).toHaveAccessibleName(/Summit/);
+    // The card sits clear of the balloon: you see it passing the peak.
+    expect(await balloonUnder(page, 'canvas[data-scene="close"]', card)).toBe(false);
   } finally {
-    // Never leave the shared demo finished (past High ridge) for the next visitor.
+    // Never leave the shared demo finished (past the Summit) for the next visitor.
     await reseedDemo();
   }
 });
@@ -197,11 +231,38 @@ test("the chips on the strip and on Climb never overlap: 320 px, and 200% text",
     await expect(strip(page)).toBeVisible();
     if (textSize !== 100) await page.addStyleTag({ content: `html { font-size: ${textSize}% !important; }` });
     expect(await overlaps(page, 'a[href="/climb"] .bg-surface'), `${width} px, ${textSize}%: the strip`).toEqual([]);
+    expect(await balloonUnder(page, 'canvas[data-scene="close"]', 'a[href="/climb"] .bg-surface'), `${width} px, ${textSize}%: a strip chip over the balloon`).toEqual([]);
     await page.goto("/climb");
     await expect(page.getByTestId("ruler-you")).toBeVisible();
     if (textSize !== 100) await page.addStyleTag({ content: `html { font-size: ${textSize}% !important; }` });
     const chips = '[role="region"] .bg-surface:not([aria-hidden="true"].w-px), [role="region"] li:not(.sr-only), [data-testid="ruler-you"]';
     expect(await overlaps(page, chips), `${width} px, ${textSize}%: Climb's chips`).toEqual([]);
+    expect(await balloonUnder(page, 'canvas[data-scene="world"]', chips), `${width} px, ${textSize}%: a chip over the balloon`).toEqual([]);
+  }
+});
+
+test("on Climb no zone label covers the balloon, low down too (0 m, and 3,000 m right at Snowline), at 320 px and 200% text", async ({ page }) => {
+  const { today } = localToday();
+  await freshDemo(page);
+  try {
+    for (const days of [0, 20]) {
+      // 20 perfect days of one habit: 20 × 150 m = 3,000 m.
+      await reseedDemo([{ name: "Climb", created_at: new Date(`${addDays(today, -days)}T12:00:00Z`).toISOString(), days: Array.from({ length: days }, (_, i) => addDays(today, -days + i)) }]);
+      for (const [width, textSize] of [
+        [390, 100],
+        [320, 100],
+        [390, 200],
+      ] as const) {
+        await page.setViewportSize({ width, height: 844 });
+        await page.goto("/climb");
+        await expect(page.getByTestId("ruler-you")).toHaveText(days === 0 ? "0 m" : "3,000 m");
+        if (textSize !== 100) await page.addStyleTag({ content: `html { font-size: ${textSize}% !important; }` });
+        const chips = '[role="region"] li:not(.sr-only), [role="region"] .bg-surface, [data-testid="ruler-you"]';
+        expect(await balloonUnder(page, 'canvas[data-scene="world"]', chips), `${days * 150} m, ${width} px, ${textSize}%`).toEqual([]);
+      }
+    }
+  } finally {
+    await reseedDemo();
   }
 });
 

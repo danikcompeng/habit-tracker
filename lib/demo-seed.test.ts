@@ -118,13 +118,14 @@ describe("needsReseed", () => {
   });
 });
 
-describe.each(["UTC", "Pacific/Kiritimati", "Pacific/Pago_Pago", "Asia/Kolkata", "America/New_York", "Europe/London"])("the demo on the Climb (Feature 10b), %s", (tz) => {
+describe.each(["UTC", "Pacific/Kiritimati", "Pacific/Pago_Pago", "Asia/Kolkata", "America/New_York", "Europe/London"])("the demo on the Climb (Features 10b, 10c), %s", (tz) => {
   const today = "2026-11-25";
   const habits = demoSeedPayload(today, tz).map((h) => ({ createdDay: todayIn(tz, new Date(h.created_at)), days: h.days }));
   const { altitudeCm, beforeTodayCm } = altitudeOf(habits, today);
 
-  it("lands 60–100 m below a zone boundary", () => {
+  it("lands 60–100 m below the Summit, with the peak in view", () => {
     const next = zoneByIndex(zoneIndex(altitudeCm) + 1).from * CM;
+    expect(zoneByIndex(zoneIndex(altitudeCm) + 1).name).toBe("Summit");
     expect(next - altitudeCm).toBeGreaterThanOrEqual(60 * CM);
     expect(next - altitudeCm).toBeLessThanOrEqual(100 * CM);
   });
@@ -136,5 +137,8 @@ describe.each(["UTC", "Pacific/Kiritimati", "Pacific/Pago_Pago", "Asia/Kolkata",
     expect(zoneIndex(steps[0])).toBe(zoneIndex(altitudeCm));
     expect(zoneIndex(steps[1])).toBe(zoneIndex(altitudeCm));
     expect(zoneIndex(steps[2])).toBe(zoneIndex(altitudeCm) + 1);
+    // The card: "+70 m · up to 8,873 m" (8,8xx in every time zone).
+    expect(steps[2] - steps[1]).toBe(70 * CM);
+    expect(Math.floor(steps[2] / CM)).toBeGreaterThanOrEqual(8_848);
   });
 });

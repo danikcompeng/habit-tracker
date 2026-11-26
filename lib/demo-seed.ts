@@ -23,10 +23,11 @@ type SampleHabit = {
 // best streak. Oldest day is 89 days ago: inside the database's 100-day
 // window for new check-ins.
 //
-// The Climb (Feature 10b): this history lands the demo about 85 m below
-// High ridge (8,848 m), so a visitor who completes today's three open
-// habits crosses into it and sees the zone card (the last one makes a
-// perfect day: +70 m). lib/demo-seed.test.ts checks the landing.
+// The Climb (Features 10b, 10c): this history lands the demo about 85 m
+// below the Summit (8,848 m), with the peak in view, so a visitor who
+// completes today's three open habits crosses it and sees the zone card
+// (the last one makes a perfect day: +70 m). lib/demo-seed.test.ts checks
+// the landing.
 export const DEMO_HABITS: readonly SampleHabit[] = [
   {
     name: "Drink a glass of water",

@@ -13,6 +13,7 @@ import { useEffect, useRef, useState } from "react";
 import { ChevronRightIcon } from "@/components/icons";
 import { SceneCanvas } from "@/components/climb/scene-canvas";
 import { CM, metres, metresText, type Zone, zoneAt } from "@/lib/altitude";
+import { NIGHT_M } from "@/lib/climb-scene/scene";
 import { MOTION } from "@/lib/motion";
 
 export type ZoneMoment = { id: number; zone: Zone; gainedCm: number; altitudeCm: number };
@@ -76,9 +77,9 @@ export function ClimbStrip({ altitudeCm, shapeCm, moment, onDismissMoment }: Pro
       <Link
         ref={link}
         href="/climb"
-        className="relative flex min-h-[8.75rem] flex-col items-start justify-between gap-2 overflow-hidden rounded-key border border-line bg-(--scene-sky-6) p-3 motion-safe:transition-transform motion-safe:duration-(--motion-fast) motion-safe:active:translate-y-0.5"
+        className={`relative flex min-h-[8.75rem] flex-col items-start justify-between gap-2 overflow-hidden rounded-key border border-line ${altitudeCm >= NIGHT_M * CM ? "bg-(--scene-space-1)" : "bg-(--scene-sky-6)"} p-3 motion-safe:transition-transform motion-safe:duration-(--motion-fast) motion-safe:active:translate-y-0.5`}
       >
-        <SceneCanvas view="close" altitude={shownM} shapeAt={shapeCm / CM} className="absolute inset-0" />
+        <SceneCanvas view="close" altitude={shownM} shapeAt={shapeCm / CM} className="absolute inset-0" avoid={".bg-surface"} />
         {/* Under the zone card, the chips step aside (the card says it all). */}
         <span className={`relative flex flex-wrap items-baseline gap-x-1.5 rounded-full bg-surface px-3 py-1 text-ink ${moment ? "invisible" : ""}`}>
           <span className="text-sm font-semibold tracking-wide text-ink-muted uppercase">Altitude</span>{" "}
@@ -102,14 +103,17 @@ export function ClimbStrip({ altitudeCm, shapeCm, moment, onDismissMoment }: Pro
           onClick={onDismissMoment}
           onFocus={() => (cardFocused.current = true)}
           onBlur={() => (cardFocused.current = false)}
-          // In the right half, clear of the flag, so you see it standing there during its own moment.
-          className="absolute inset-y-0 right-0 flex w-1/2 items-center justify-center rounded-key p-3"
+          // In the right 42%, clear of the balloon and the peak, so you see them during the moment.
+          className="absolute inset-y-0 right-0 flex w-[42%] items-center justify-center rounded-key p-2"
         >
-          <span className="flex max-w-full flex-col items-center gap-0.5 rounded-(--radius-field) border border-line bg-surface px-5 py-3 text-center shadow-[0_3px_0_var(--surface-sunk)] motion-safe:animate-[card-in_var(--motion-base)_var(--ease-out)_both]">
+          <span className="flex max-w-full flex-col items-center gap-0.5 rounded-(--radius-field) border border-line bg-surface px-3 py-2.5 text-center text-balance shadow-[0_3px_0_var(--surface-sunk)] motion-safe:animate-[card-in_var(--motion-base)_var(--ease-out)_both]">
             <span className="text-sm font-semibold tracking-wide text-accent uppercase">New zone</span>
             <span className="text-list font-bold text-ink">{moment.zone.name}</span>
             <span className="text-sm font-medium text-ink-muted">
-              +{metresText(Math.floor(moment.gainedCm / CM))} · up to {metres(moment.altitudeCm)}
+              {/* Two lines, no dangling dot (screen readers still hear "·"). */}
+              <span className="block">+{metresText(Math.floor(moment.gainedCm / CM))}</span>
+              <span className="sr-only"> · </span>
+              <span className="block">up to {metres(moment.altitudeCm)}</span>
             </span>
             <span className="sr-only">, close</span>
           </span>

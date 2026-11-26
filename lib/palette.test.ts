@@ -63,8 +63,9 @@ describe.each(["light", "dark"] as Mode[])("%s scene palette (Feature 10)", (mod
     expect(fromCss).toEqual(Object.fromEntries(Object.entries(scene).map(([k, v]) => [k, v.toUpperCase()])));
   });
 
-  it("the marker is Ascend's accent", () => {
+  it("the marker (the balloon) is Ascend's accent, shaded with its lip", () => {
     expect(scene.marker.toUpperCase()).toBe(PALETTE[mode].accent.toUpperCase());
+    expect(scene["balloon-shade"].toUpperCase()).toBe(PALETTE[mode]["accent-lip"].toUpperCase());
   });
 
   it("the marker's ring has a light and a dark colour, 3:1 apart, and the flag stands out from its light ring", () => {

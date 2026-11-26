@@ -1,7 +1,7 @@
 "use client";
 
 // Paints the Climb's pixel-art world (lib/climb-scene/scene.ts) on a canvas
-// (plans/habit-tracker.md, Feature 10). The scene is drawn at a low logical
+// (plans/habit-tracker.md, Features 10, 10b, 10c). The scene is drawn at a low logical
 // resolution and scaled up by a whole number with image-rendering:
 // pixelated, so every pixel is a crisp square. Colours are the --scene-*
 // tokens, read from CSS (they follow the colour scheme). Decorative: the
@@ -13,12 +13,15 @@
 import { useEffect, useRef, useState } from "react";
 import { MOTION } from "@/lib/motion";
 import {
+  BALLOON_MIN_X,
   Canvas,
   ROLES,
+  closeBalloonAt,
   closeFarOptions,
   drawCloseMoving,
   drawWorldBase,
   drawWorldMoving,
+  worldBalloonAt,
   worldMoon,
   type Theme,
 } from "@/lib/climb-scene/scene";
@@ -28,9 +31,18 @@ export const SCENE_SCALE = 3;
 /** The Climb screen's world: metres per row. */
 export const WORLD_METRES_PER_ROW = 25;
 
-type Props =
-  | { view: "close"; altitude: number; shapeAt: number; className?: string }
-  | { view: "world"; altitude: number; top: number; className?: string };
+type Props = (
+  | { view: "close"; altitude: number; shapeAt: number }
+  | { view: "world"; altitude: number; top: number }
+) & {
+  className?: string;
+  /**
+   * The page's own chips over the scene (a selector, within the scene's
+   * parent): the balloon keeps to the right of any at its height, measured,
+   * so it holds at any width and text size.
+   */
+  avoid?: string;
+};
 
 function reducedMotion(): boolean {
   return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -86,6 +98,8 @@ export function SceneCanvas(props: Props) {
   const [size, setSize] = useState<{ width: number; height: number } | null>(null);
   const [theme, setTheme] = useState<Theme>("light");
   const [time, setTime] = useState(0);
+  // Set once the scene has been painted at its size (the browser tests wait for it).
+  const [painted, setPainted] = useState(false);
 
   // The box's size, in logical pixels.
   useEffect(() => {
@@ -146,6 +160,47 @@ export function SceneCanvas(props: Props) {
   const altitude = props.altitude;
   const top = props.view === "world" ? props.top : 0;
   const shapeAt = props.view === "close" ? props.shapeAt : altitude;
+  // Keep the balloon right of the page's chips at its height (measured; they
+  // change with the text size).
+  const [avoidX, setAvoidX] = useState<number | undefined>(undefined);
+  const avoid = props.avoid;
+  const balloonRowAtRest = !size
+    ? null
+    : props.view === "close"
+      ? closeBalloonAt({ width: size.width, height: size.height, altitude, you: shapeAt }).y
+      : worldBalloonAt({ width: size.width, height: size.height, metresPerRow: WORLD_METRES_PER_ROW, bottom: 0, you: altitude }, altitude).y;
+  useEffect(() => {
+    const el = box.current;
+    const scope = el?.parentElement;
+    if (!el || !scope || !avoid || balloonRowAtRest === null || !size) return;
+    const measure = () => {
+      const area = el.getBoundingClientRect();
+      // The balloon's rows (ring and bob included), in CSS px on the page.
+      const top = area.top + (balloonRowAtRest - 14) * SCENE_SCALE;
+      const bottom = area.top + (balloonRowAtRest + 3) * SCENE_SCALE;
+      let right = 0;
+      for (const chip of scope.querySelectorAll(avoid)) {
+        const r = chip.getBoundingClientRect();
+        // Only chips on the left half, at the balloon's height.
+        if (r.width === 0 || r.left > area.left + area.width / 2 || r.bottom <= top || r.top >= bottom) continue;
+        right = Math.max(right, r.right - area.left);
+      }
+      // Its centre this far right: half its width, its ring, and a pixel of air.
+      setAvoidX(right > 0 ? Math.ceil(right / SCENE_SCALE) + 5 : undefined);
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    scope.querySelectorAll(avoid).forEach((chip) => observer.observe(chip));
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [avoid, balloonRowAtRest, size]);
+  const balloonMinX = avoidX !== undefined && size ? Math.max(avoidX, Math.round(size.width * BALLOON_MIN_X)) : undefined;
+  // Where the balloon is (logical px), for the browser tests that keep labels and the card off it.
+  const balloon = !size
+    ? null
+    : props.view === "close"
+      ? closeBalloonAt({ width: size.width, height: size.height, altitude, you: shapeAt, balloonMinX })
+      : worldBalloonAt({ width: size.width, height: size.height, metresPerRow: WORLD_METRES_PER_ROW, bottom: 0, you: altitude, balloonMinX }, altitude);
   // The still layer (sky, mountain, banks…) is drawn once per size, theme
   // and view, then copied; each tick only draws the drifting clouds and you.
   const base = useRef<{ key: string; px: Uint8Array } | null>(null);
@@ -170,13 +225,14 @@ export function SceneCanvas(props: Props) {
     const scene = new Canvas(size.width, size.height);
     scene.px.set(base.current.px);
     if (props.view === "close") {
-      drawCloseMoving(scene, { width: size.width, height: size.height, theme, time, altitude, you: shapeAt, driftMs: MOTION.drift });
+      drawCloseMoving(scene, { width: size.width, height: size.height, theme, time, altitude, you: shapeAt, driftMs: MOTION.drift, balloonMinX });
     } else {
-      drawWorldMoving(scene, { ...world, time, altitude, driftMs: MOTION.drift });
+      drawWorldMoving(scene, { ...world, time, altitude, driftMs: MOTION.drift, balloonMinX });
     }
     if (colours.current?.theme !== theme) colours.current = { theme, rgb: readColours() };
     paint(canvas.current, scene, colours.current.rgb, image.current);
-  }, [size, theme, time, altitude, top, shapeAt, props.view]);
+    setPainted(true);
+  }, [size, theme, time, altitude, top, shapeAt, props.view, balloonMinX]);
 
   return (
     // overflow-hidden: the canvas is exactly SCENE_SCALE css px per logical
@@ -185,6 +241,8 @@ export function SceneCanvas(props: Props) {
       <canvas
         ref={canvas}
         data-scene={props.view}
+        data-balloon={balloon ? `${balloon.x},${balloon.y}` : undefined}
+        data-painted={painted || undefined}
         className="block [image-rendering:pixelated]"
         style={size ? { width: size.width * SCENE_SCALE, height: size.height * SCENE_SCALE } : undefined}
       />

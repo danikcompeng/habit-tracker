@@ -90,7 +90,7 @@ All text pairs must pass 4.5:1 (`ink-muted` on `background` and `surface`, `on-a
 - **Hold (signature)**: on press, an `accent-tint` circle grows out from the exact touch point until it covers the row, over 650 ms, linear so progress reads as honest. Let go early and it shrinks back in 150 ms.
 - **Done pop**: the row **snaps** to `accent-key` with `on-accent` text (no colour fade into done), scales 1 → 1.03 → 1 (about 250 ms), the check draws in, and the streak number updates. One short vibration where the device supports it.
 - **Undo**: the colour fades back to `surface` in 200 ms and the streak ticks down. No scale.
-- UI feedback 150–250 ms. Nothing loops, nothing moves on its own, with one exception since Feature 10 (2026-11-25, the user's brief): the Climb's pixel scene, whose clouds drift a pixel at a time (stars twinkle in dark), only while it's on screen, never with Reduce Motion. The scene is the app's one playful moment; everything else stays still.
+- UI feedback 150–250 ms. Nothing loops, nothing moves on its own, with one exception since Feature 10 (2026-11-25, the user's brief): the Climb's pixel scene, whose clouds drift a pixel at a time and whose balloon bobs a pixel (Feature 10c), only while it's on screen, never with Reduce Motion. The scene is the app's one playful moment; everything else stays still.
 - **Reduce Motion**: no growing circle, no scale. The hold shows as the row's tint fading in over the same 650 ms (opacity only, from about a third so the press shows at once), and done or undone changes colour instantly.
 
 **Brand mark** (since 2026-11-24): the **Summit** icon, a bone (`background`, light) mountain with a trail cut up its face on a persimmon (`accent`, light) field. Its sharp corners are the one deliberate exception to the rounded, key-like UI: don't round the mark, and don't copy sharp corners into screens. Only the tab icon's field square is rounded. The geometry lives in `lib/app-identity.ts` (`SUMMIT`) and is pinned by a test next to `ICON_VERSION`.
@@ -865,6 +865,8 @@ The user's brief (`~/Documents/claude-inbox/habit-tracker/01-the-climb.md`): mak
 
 ### Feature 10b: a constant journey (2026-11-25)
 
+_Superseded in part by Feature 10c (the user's round 3): the peak is visible again near the top and you pass it; Summit is back; space above._
+
 The user's feedback after seeing the Climb live (`~/Documents/claude-inbox/habit-tracker/02-climb-mountain-shape.md`): the mountain is too pointy and its top is visible; the point is a constant journey, the top may never be in sight. A visual and wording change: **the altitude maths and `habit_altitude()` don't change; no migration.**
 
 **1. The mountain: a broad cone whose top is never seen**
@@ -884,6 +886,40 @@ The user's feedback after seeing the Climb live (`~/Documents/claude-inbox/habit
 **After logic-checker (decided):** the cone is anchored to at least 2,500 m, so even at Base camp the slopes are broad and sweep past the edges; the far ridges end below the cloud cap too; on Today the mountain is shaped around the day's start (before today), so the slope and its cap stay still while the flag climbs it (a day adds at most 150 m; the cap stays above you); the strip's moon sits in clear sky beside the cone (never on it), Climb's above the cap; Climb's world always reaches past the next zone, so its label is always there; the cap's underside overlaps the slope (no sky gap); later zone names suit an endless mountain (Silver ridge, Long ridge, Quiet heights instead of Edge of space, Low orbit, Meteor trail). Kept: below you on Climb the mountain fills the width edge to edge (the brief's "past the edges"); snow appears once you're near the snowline (under 2,300 m the upper slopes are in cloud). The demo's moment needs a fresh seed and a device that hasn't celebrated High ridge (a shared account: another visitor finishing the day, or one a day west within the hour, sees no card); documented, and what the video and the e2e do.
 
 **Tests**: zones far up and their names; the mountain never shows its top (no mountain pixel above the cloud cap, and mountain right below it, at 0 / 3,000 / 7,113 / 8,763 / 9,500 / 12,000 / 30,000 m, in both views); the cone is wider below you than at you; the demo's landing and crossing; e2e: a demo visitor who completes the three open habits sees "New zone · High ridge"; screenshots in `docs/screenshots/feature-10/` refreshed (Today, Climb, Climb's top, the demo's zone moment), light and dark; design-critic on them.
+
+### Feature 10c: past the peak, into space (2026-11-25)
+
+The user's round 3 (pasted, after seeing e00cd03): it **replaces "the peak is never visible"**. The journey is mountain → pass the peak → clouds → space, and space loops forever. Visuals, zones and wording only: **the altitude maths and `habit_altitude()` don't change; no migration.**
+
+**1. The mountain has a real top at 8,848 m**, still a broad Fuji: the cone is fixed in metres again (no longer shaped around you), concave flanks that sweep past the edges low down and narrow to a small flat-topped crater at 8,848 m (snow from the snowline up).
+- **Far below, the top stays hidden**: the cloud cap sits about 700 m above you, as in 10b.
+- **The last ~700 m**: the cap thins (smaller, fewer lobes) between 1,100 and 700 m below the summit and is gone from 700 m below it: you see the peak, then you pass it. On Today the cap follows the day's start (as in 10b), so it doesn't flicker during a lift.
+
+**2. Above the peak**: the mountain falls away below you. A band of pixel clouds you pass through ("Into the clouds", about 10,000–11,500 m), then the sky darkens (the stratosphere, 12,500 m up), stars come out in light mode too from about 17,500 m, and from 20,000 m it's **space**.
+
+**3. Space loops**: from 30,000 m the scene is a seamless backdrop repeating every 10,000 m (stars, the odd distant planet or satellite, seeded per period position, not per altitude): 40 km looks the same as 50 km, forever. No top: `worldTop` keeps adding sky above you.
+
+**4. Zones** (pure functions in `lib/altitude.ts`, as in 10b, endless): Base camp 0, Forest 500, Treeline 1,500, Snowline 3,000, Above the clouds 5,000, **Summit 8,848** (back: you really pass it now), Into the clouds 10,000, Stratosphere 12,500, Thin air 15,000, Edge of space 17,500, Space 20,000, then space zones every 2,500 m: Moonlight 22,500, Starfield 25,000, Satellites 27,500, Orbit 30,000, Asteroid belt 32,500, Ringed planet 35,000, Nebula 37,500, Far stars 40,000, Deep space 42,500, then **Further still** every 2,500 m forever. Stored memories by height still work ("8848" = Summit).
+
+**5. The marker is a hot-air balloon** (Noillirk-style), small pixel art in Ascend's accent: an accent envelope with a darker accent stripe (`accent-lip`), a basket, a one-pixel ring that picks the contrasting colour of what's under it (as the flag's did, tested 3:1). On the mountain it floats just off the lit (left) slope at your altitude; above the summit it rises over the peak, through the clouds, into space. A gentle bob (one pixel, slow); still under Reduce Motion. **Always on the canvas**, at every altitude from 0 m (clamped, tested).
+
+**6. Demo**: stays at 8,763 m, 85 m below the Summit, with the peak in view; finishing the three open habits crosses the **Summit**: the card says "New zone · Summit · +70 m · up to 8,873 m".
+
+**New tokens** (`--scene-*`, light and dark, tested): `space-1…3` (deep night colours, used in both themes above the stratosphere), `planet`, `planet-shade`, `satellite`, `balloon-shade`, `basket`.
+
+**Tests**: zones (Summit back, the journey list, "Further still" forever, old "8848" = Summit); the mountain: no mountain above the cap while more than 700 m below the summit, the peak drawn when within 700 m, never any mountain above 8,848 m; the balloon on canvas and drawn at 0, 3,000, 8,700, 9,500, 15,000, 40,000 and 100,000 m in both views; space seamless (40 km = 50 km); the demo crosses the Summit (unit + e2e). Screenshots: the app at the demo's height (Today, Climb, Climb's top, the Summit moment) refreshed in `docs/screenshots/feature-10/`, plus renders of both views at 0, 3,000, 8,700, 9,500, 15,000, 40,000 and 100,000 m, light and dark (`docs/screenshots/feature-10/heights/`, from the pure renderer with the real tokens), for the design-critic and the portfolio.
+
+**After logic-checker (decided):**
+- **The cone far below** keeps 10b's trick: shaped as if its top were 1,200 m above you (hidden in the cap, which is 700 m above you), so the slopes where you are look broad, never a wall. It becomes the real cone (top at 8,848 m) from 1,200 m below the Summit, before the cap starts thinning (1,100 m), so the top never pops.
+- **Thinning**: between 1,100 and 700 m below the Summit the cap is a few shrinking wisps and the mountain behind is the real one, so a gap only ever shows the real peak (with its crater), never a cut-off top.
+- **The balloon** floats just off the lit slope where that's clear of Climb's zone-label column, else in front of the slope at 36% of the width (never under a label: tested on Climb at 0 m and 3,000 m in the browser, and at every height in the unit tests). Above the top it rises straight up from where it was: no sideways jump at the Summit (tested: at most 1 px per 10 m, 0–12 km).
+- **Its ring** picks its colour at rest (before the bob) and ignores specks (stars, planets, satellites), so one star never hides it in space; the clear-of-clouds box includes the bob.
+- **Space loops from 45 km** (after the last named zone, Deep space), every 10 km: each named space zone has its own sky (a satellite at Satellites, a ringed planet at Ringed planet, the moon in dark), and 50 km = 60 km exactly (tested, both views, with drift). Nothing above 12 km is seeded by absolute height: clouds end at 12 km, cirrus at 17 km, stars and planets are seeded by `looped()`, and sprites hanging in from outside a view are drawn (tested: the same pixels whichever row the view starts on).
+- **Today's lift in space**: the strip's near layer above the clouds is specks (ice, then dust) about every 25 m, so a completion still shows things passing you.
+- **The zone memory key is now `climb-zone-2:`**: devices that finished the demo in 10b stored "8848" (then High ridge), which would have hidden the Summit's moment. The new key is refilled silently from the server's altitude on the first visit, so only zones above where you are get a moment.
+- **Before the canvas paints**, the box is the sky's colour, or space's (`space-1`) from 15 km. The "you" chip on Climb sits just below your tick (your balloon floats above it; at 200% text a centred chip reached its basket).
+- Accepted: for one day around the cap's thinning, Today (shaped from the day's start) may show a thin cap while Climb shows none.
+- Heights renders: the app can't reach 40 km on a real account (100 days of check-ins is at most 15 km), so `docs/screenshots/feature-10/heights/` are the pure renderer at phone size with the real tokens; the app's own screenshots are at the demo's height.
 
 ## Reviews
 
@@ -1778,6 +1814,86 @@ Checks (final, after design-critic round 2's fixes): 537 unit and database tests
 #### Takeaways
 - A shape shaped "around you" needs its edge cases tried at the ends (0 m and 30 km): the off-canvas flag only showed at Base camp.
 - A formatter that isn't the project's own rewrote two files; restored and re-applied the edits by hand. Use the repo's tools only.
+
+
+### Feature 10c: past the peak, into space (2026-11-25)
+
+The user's round 3 (replacing "the peak is never visible"): a real top at 8,848 m that shows in the last 700 m and that you pass; a cloud band, the stratosphere, then space that loops; Summit back; a hot-air balloon marker; the demo crosses the Summit. No SQL change.
+
+**Zones** (heights unchanged from 10b): Base camp 0, Forest 500, Treeline 1,500, Snowline 3,000, Above the clouds 5,000, Summit 8,848, Into the clouds 10,000, Stratosphere 12,500, Thin air 15,000, Edge of space 17,500, Space 20,000, Moonlight 22,500, Starfield 25,000, Satellites 27,500, Orbit 30,000, Asteroid belt 32,500, Ringed planet 35,000, Nebula 37,500, Far stars 40,000, Deep space 42,500, then Further still every 2,500 m.
+
+#### logic-checker (plan review)
+Verdict: **Ready after fixes**.
+
+| # | Severity | Finding | Outcome | What changed |
+|---|----------|---------|---------|--------------|
+| 1 | High | A fixed cone puts the balloon under Climb's zone labels below ~4.8 km. | Fixed | The balloon never left of 36% of the width; browser test at 0 m and 3,000 m, unit test at every height. |
+| 2 | High | The ring's worst-backdrop rule picks the wrong colour when a star is under it (space) or it straddles the slope. | Fixed | Specks don't count; a 2 px gap off the slope; space, planet and satellite colours added to the 3:1 ring test. |
+| 3 | High | A jump sideways at the Summit during the demo's lift. | Fixed (by design) | Above the top the balloon rises straight up where it was; tested ≤ 1 px per 10 m. |
+| 4 | Medium | Today's lift invisible in space. | Fixed | A near layer of specks above the clouds; tested (a 20 m lift moves them). |
+| 5 | Medium | Layers seeded by absolute height break the loop; sprites pop in at a view's edge. | Fixed | Ceilings for clouds and cirrus; `looped()` seeding; stars and planets drawn from beyond the view's edges (and a star skip at a view's first and last rows removed, found by the new test). |
+| 6 | Medium | Thinning could show a fake cut-off top; one rule for the top. | Fixed | `mountainTop(you)`: the cap's underside while solid, else the real top; the real cone from 1,200 m below. |
+| 7 | Low | Devices that stored "8848" in 10b never get the Summit card. | Fixed | Memory key `climb-zone-2:`. |
+| 8 | Low | Named space zones clash with a loop from 30 km. | Fixed | The loop starts at 45 km. |
+| 9 | Low | The bob vs the clear box, the ring, the bottom edge. | Fixed | Box includes the bob; ring chosen at rest; the bob only lifts. |
+| 10 | Low | Light chrome on dark space; a pale flash before paint. | Fixed | Space background from 15 km; the ruler is white on space (fine). |
+| — | Tests | The gaps it listed. | Added | Summit crossing in six time zones, the whole Climb canvas, continuity, periodicity, view independence. |
+
+#### code-reviewer (diff review)
+Verdict: **Ship after fixes**. No security or data problems (no server or SQL change).
+
+| # | Severity | Finding | Outcome | What changed |
+|---|----------|---------|---------|--------------|
+| 1 | Medium | The browser balloon check could pass measuring nothing (before paint, NaN coordinates). | Fixed | It waits for `data-painted` and asserts finite coordinates at 3 CSS px a pixel. |
+| 2 | Medium | The balloon's left limit (a share of the width) and the label column (rem) only agree at 390 px, 100% text. | Fixed | The scene measures the page's own chips at the balloon's height and keeps it right of them; browser tests at 0 m and 3,000 m at 390 px, 320 px and 200% text, and the strip at 320 px and 200%. At 200% the strip's chips span almost its width, so the balloon sits at its right edge (envelope in view). |
+| 3 | Medium | The cap vanished in one step (solid band, then wisps). | Fixed | One band that thins: the same lobes, smaller and fewer, bodies shortening; the mist row only while solid. Tested (a 2 m climb changes under 12% of the picture at 7,747, 7,900, 8,100 m) and rendered at 7,800, 8,000, 8,148 m. |
+| 4 | Low | The ring under 3:1 over a planet in light; the palette test passed for the wrong reason. | Fixed | Planets and satellites keep out of the balloon's column (20 px either side of the centre); tested at 22.5–50 km. |
+| 5 | Low | The "you" chip below the valley at low altitude. | Fixed | Below 400 m it sits on the world's floor. |
+| 6 | Low | The two views disagreed where the dense cloud band ends. | Fixed | The same `[from, to)` test in both. |
+| 7 | Low | Light-mode balloon details blend into its dark ring. | Fixed (design) | A highlight token, a teardrop shape, unringed ropes (design-critic #5). |
+| 8 | Low | A star on a view's edge row could depend on where the view starts. | Fixed | Crowding judged on star positions (a set), stars from a kilometre beyond each edge. |
+| — | Tests | Climb's view draws the balloon at every height and width; the real Climb loop (bottom 0, the real top, the moon); smoothness across the Summit on Today, a metre at a time; nothing behind the balloon in space. | Added | |
+
+#### design-critic, round 1 (the app at the demo's height; renders at 0 m to 100 km; light and dark)
+Verdict: **Ship after fixes**. Dark carried the journey; light missed the key frames.
+
+| # | Severity | Finding | Outcome | What changed |
+|---|----------|---------|---------|--------------|
+| 1 | High | Light: a cream bank sat on the crater at the demo height and the Summit moment. | Fixed | That bank moved into the cloud band, which is now a full-width two-tier layer (10,050–11,450 m). |
+| 2 | High | Base camp had no mountain: a field under a cloud ceiling. | Fixed | The cap is never below 2,000 m and the cone is anchored at 1,300 m: a forested mountain with both flanks under the cap (tested). |
+| 3 | High | Light: the stratosphere was one hard step, 2.5 km late. | Fixed | Nine tones from 13,250 to 20,000 m (light from #48699D to #141B3A; dark near-black steps); sky-1 from 12,500 m. |
+| 4 | Medium | The Summit moment wasn't the best frame (the card over the shoulder; the balloon beside the crater). | Fixed | Past the top the balloon drifts over the crater (1 px per 15 m); the card is the right 42%, breaking after the dot. |
+| 5 | Medium | The balloon read as a blob on a stick in light. | Fixed | A top-heavy teardrop, a `balloon-light` highlight, the ropes unringed with the sky between them. |
+| 6 | Medium | The top was a steep plug. | Fixed | A shoulder term (at least a pixel a row near the top, tested), a flat top ~17% of the width, a 5 px crater notch. |
+| 7 | Medium | Clouds over the slope drawn as flat white slabs. | Fixed | Per pixel over snow, a paler version of the same cloud (crescents and underside kept). |
+| 8 | Medium | "Into the clouds" didn't read as a layer. | Fixed | The two-tier band; in it, clouds may brush the balloon (only its envelope stays clear). |
+| 9 | Medium | Cirrus read as scratches. | Fixed | Two-row wisps one band paler than their sky; none across the dark moon. |
+| 10 | Medium | Space zone names promising things not drawn. | Fixed | Asteroid belt rocks, a Nebula (new tokens), the moon in light-mode space (Moonlight); Satellites and Ringed planet already. |
+| 11 | Low | The ringed planet's ring a stick on the wrong side. | Fixed | An ellipse, its lower arc in front. |
+| 12 | Low | At 0 m the balloon on Climb's last row. | Fixed | It rests on the grass (basket kept 3 rows up). |
+| 13 | Low | The balloon 2 px under the Altitude chip; planet slivers at edges; stars against the ring; the plan's motion line. | Fixed in part | The balloon two thirds down the strip (and kept right of chips, measured); stars make way around the ring; the plan says the balloon bobs. Planet slivers kept: skipping a planet until 60% is in frame would make it pop in as the strip lifts. |
+
+#### design-critic, round 2 (the retaken shots, renders at 17 heights)
+Verdict: **Ship after fixes**. Every round-1 High resolved; "the light Summit frame is now the best frame of the journey"; the Summit sequence 7,800 → 8,148 → 8,700 → 8,873 → 9,500 m "reads exactly as the brief describes"; the balloon reads as a hot-air balloon at every height in both themes.
+
+| # | Severity | Finding | Outcome | What changed |
+|---|----------|---------|---------|--------------|
+| 1 | Medium | Mist on the snow read as fences, darker than the snow in dark. | Fixed | Far clouds pass behind the mountain (not drawn over it); near ones over snow only in tones no darker than the shaded snow. |
+| 2 | Medium | Coral rims on mist over the slope (dark). | Fixed | No rim over snow. |
+| 3 | Medium | At 7,800 m the thinning cap was a straight shelf. | Fixed | A ragged underside while thinning, hanging lobes, and sky opening at a third and two thirds across below strength 0.9. |
+| 4 | Medium | Dark: the cone at 0–1,500 m barely visible against the sky. | Fixed | Dark pines one step lighter (#2C5262 / #204050); ring tests still 3:1. |
+| 5 | Low–Medium | Today's strip at Base camp a wall of forest. | Fixed | The cone anchored at 1,000 m: both flanks fall inside the strip's top rows. |
+| 6 | Low | A dangling dot on the card. | Fixed | Two plain lines ("+70 m", "up to 8,873 m"); the dot stays for screen readers. |
+| 7 | Low | The basket touching the slope near the top. | Fixed | The gap is measured against the slope two rows below the basket. |
+| 8 | Low | A 1-px line inside the cloud band. | Fixed | A one-column gap between a big lobe and a small one; the step between lobes capped. |
+
+Not sent for a third round: the round-2 items are local fixes, checked in renders at 0, 7,800, 8,700 and 10,700 m in both themes.
+
+Checks (final): 576 unit and database tests, tsc, eslint, `next build`; the full browser suite on `next start`: **92 passed, 0 failed**. On the way: 91 of 92 twice (the "you" chip reaching the balloon at 200% text, then a strip chip over it at 200% text), both fixed. Screenshots: `docs/screenshots/feature-10/` (the app at the demo's height) and `docs/screenshots/feature-10/heights/` (17 heights, 0 m to 100 km, light and dark, from the renderer).
+
+#### Takeaways
+- A journey needs its key frames rendered before review, at every stage (the cap's thinning, the band, the Summit moment): the reviewers found the problems exactly in the heights nobody had rendered.
+- Positions that must clear page text can't be a share of the canvas: measure the text.
 
 <!--
 Template — copy for each feature:

@@ -244,21 +244,21 @@ test("climb screens", async ({ page }) => {
   await page.getByRole("link", { name: /^Altitude/ }).click();
   await expect(page.getByTestId("ruler-you")).toBeVisible();
   await shoot(page, folder, "climb");
-  // And the top of the window: the cloud cap and the sky above it (Feature 10b: no summit in sight).
+  // And the top of the window: past the Summit, the clouds and the sky darkening (Feature 10c).
   await page.getByRole("region", { name: /^The climb/ }).evaluate((el) => el.scrollTo(0, 0));
   await shoot(page, folder, "climb-top");
 
-  // The zone moment, as a demo visitor sees it (Feature 10b): finishing
-  // today's three open habits crosses into High ridge.
+  // The zone moment, as a demo visitor sees it (Feature 10c): finishing
+  // today's three open habits passes the Summit.
   await freshDemo(page);
   try {
     await page.evaluate(() => {
-      for (const key of Object.keys(localStorage)) if (key.startsWith("climb-zone:")) localStorage.removeItem(key);
+      for (const key of Object.keys(localStorage)) if (key.startsWith("climb-zone")) localStorage.removeItem(key);
     });
     await page.goto("/");
     for (const name of ["Read 10 pages", "Stretch for 5 minutes", "No phone in bed"]) await hold(page, name);
     await page.evaluate(() => window.scrollTo(0, 0));
-    await expect(page.getByRole("button", { name: /New zone High ridge/ })).toBeVisible();
+    await expect(page.getByRole("button", { name: /New zone Summit/ })).toBeVisible();
     // Shot quickly: the card closes itself after 6 s.
     for (const scheme of SCHEMES) {
       await page.emulateMedia({ colorScheme: scheme, reducedMotion: "reduce" });

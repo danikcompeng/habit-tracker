@@ -1,15 +1,15 @@
 "use client";
 
-// The Climb screen's scene (plans/habit-tracker.md, Feature 10): the world
-// from the valley to the top, in a scrolling window that opens on your
-// marker. The ruler (every 2,500 m, your height highlighted) and the zone
+// The Climb screen's scene (plans/habit-tracker.md, Features 10, 10c): the
+// world from the valley up past the Summit into space, in a scrolling window
+// that opens on your balloon. The ruler (every 2,500 m, your height highlighted) and the zone
 // labels are text over the art, in token chips; the zones are a list for
 // screen readers, the ruler is decoration (your height is in the readout).
 
 import { useLayoutEffect, useRef } from "react";
 import { SCENE_SCALE, SceneCanvas, WORLD_METRES_PER_ROW } from "@/components/climb/scene-canvas";
 import { CM, metres, metresText, wholeMetres, zonesBelow } from "@/lib/altitude";
-import { worldTop } from "@/lib/climb-scene/scene";
+import { NIGHT_M, worldTop } from "@/lib/climb-scene/scene";
 
 /** CSS px from the world's top to an altitude. */
 function yOf(altitudeM: number, top: number): number {
@@ -37,13 +37,13 @@ export function ClimbWorld({ altitudeCm }: { altitudeCm: number }) {
     <div
       ref={box}
       // A window onto the climb, down to the bottom of the screen, scrolling inside.
-      className="relative mt-5 min-h-[24rem] flex-1 basis-0 overflow-x-hidden overflow-y-auto overscroll-contain rounded-key border border-line bg-(--scene-sky-6)"
+      className={`relative mt-5 min-h-[24rem] flex-1 basis-0 overflow-x-hidden overflow-y-auto overscroll-contain rounded-key border border-line ${altitudeM >= NIGHT_M ? "bg-(--scene-space-1)" : "bg-(--scene-sky-6)"}`}
       tabIndex={0}
       aria-label={`The climb, from the valley to ${metresText(top)}`}
       role="region"
     >
       <div className="relative" style={{ height }}>
-        <SceneCanvas view="world" altitude={altitudeM} top={top} className="absolute inset-0" />
+        <SceneCanvas view="world" altitude={altitudeM} top={top} className="absolute inset-0" avoid={"li"} />
 
         {/* The ruler down the right: one scene pixel wide (on the pixel grid),
             a tick and a chip every 2,500 m, your height in the accent. */}
@@ -73,8 +73,11 @@ export function ClimbWorld({ altitudeCm }: { altitudeCm: number }) {
         <span
           aria-hidden="true"
           data-testid="ruler-you"
-          className="absolute right-6 z-10 -translate-y-1/2 rounded-full bg-accent px-2 py-0.5 text-sm font-bold text-on-accent"
-          style={{ top: yOf(wholeMetres(altitudeCm), top) }}
+          // Just below your height's tick: your balloon floats above it, and at
+          // large text sizes a centred chip would reach its basket.
+          className="absolute right-6 z-10 translate-y-2 rounded-full bg-accent px-2 py-0.5 text-sm font-bold text-on-accent"
+          // Near the valley it sits on the world's floor instead (never below it).
+          style={altitudeM < 400 ? { bottom: SCENE_SCALE, transform: "none" } : { top: yOf(wholeMetres(altitudeCm), top) }}
         >
           {metres(altitudeCm)}
         </span>

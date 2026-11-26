@@ -20,16 +20,18 @@ export const CM = 100;
 export const DAY_CM = 100 * CM;
 /** …plus this for a perfect day (50 m). */
 export const PERFECT_BONUS_CM = 50 * CM;
-/** Where High ridge starts: Everest's height, a height on the way, never the end (Feature 10b). */
-export const HIGH_RIDGE_M = 8_848;
+/** The mountain's top: Everest's height. You pass it (Feature 10c), and the climb goes on into space. */
+export const SUMMIT_M = 8_848;
 
 /** A zone of the climb: its name and the height it starts at, in metres. */
 export type Zone = { readonly name: string; readonly from: number };
 
 /**
- * The named zones, from the valley up. The climb has no last zone: above
- * these, a new one every 2,500 m, forever (zoneByIndex), so there's always
- * a next zone moment (Feature 10b: a constant journey).
+ * The named zones, from the valley up: the mountain, its summit, the clouds
+ * above it, then space (Feature 10c: the journey). The climb has no last
+ * zone: above these, a new one every 2,500 m, forever (zoneByIndex), so
+ * there's always a next zone moment. The heights are 10b's (only the names
+ * moved), so a zone remembered by its height on a device still matches.
  */
 export const ZONES: readonly Zone[] = [
   { name: "Base camp", from: 0 },
@@ -37,32 +39,34 @@ export const ZONES: readonly Zone[] = [
   { name: "Treeline", from: 1_500 },
   { name: "Snowline", from: 3_000 },
   { name: "Above the clouds", from: 5_000 },
-  { name: "High ridge", from: HIGH_RIDGE_M },
-  // Where the real stratosphere starts at mid-latitudes.
-  { name: "Stratosphere", from: 10_000 },
-  { name: "Jet stream", from: 12_500 },
+  { name: "Summit", from: SUMMIT_M },
+  { name: "Into the clouds", from: 10_000 },
+  { name: "Stratosphere", from: 12_500 },
   { name: "Thin air", from: 15_000 },
-  { name: "Aurora", from: 17_500 },
-  { name: "Starlight", from: 20_000 },
-  { name: "Silver ridge", from: 22_500 },
-  { name: "Moonrise", from: 25_000 },
-  { name: "Long ridge", from: 27_500 },
-  { name: "Quiet heights", from: 30_000 },
-  { name: "Far horizon", from: 32_500 },
-  { name: "Deep sky", from: 35_000 },
+  { name: "Edge of space", from: 17_500 },
+  { name: "Space", from: 20_000 },
+  { name: "Moonlight", from: 22_500 },
+  { name: "Starfield", from: 25_000 },
+  { name: "Satellites", from: 27_500 },
+  { name: "Orbit", from: 30_000 },
+  { name: "Asteroid belt", from: 32_500 },
+  { name: "Ringed planet", from: 35_000 },
+  { name: "Nebula", from: 37_500 },
+  { name: "Far stars", from: 40_000 },
+  { name: "Deep space", from: 42_500 },
 ];
 
 /** Above the named zones: a new zone every this many metres, all called this. */
 export const ZONE_STEP_M = 2_500;
-export const HIGHER_STILL = "Higher still";
+export const FURTHER_STILL = "Further still";
 
 const LAST = ZONES.length - 1;
 
-/** The zone at an index (0 = Base camp), for any index: named, then "Higher still" every 2,500 m. */
+/** The zone at an index (0 = Base camp), for any index: named, then "Further still" every 2,500 m. */
 export function zoneByIndex(index: number): Zone {
   const i = Math.max(0, Math.floor(index));
   if (i <= LAST) return ZONES[i];
-  return { name: HIGHER_STILL, from: ZONES[LAST].from + (i - LAST) * ZONE_STEP_M };
+  return { name: FURTHER_STILL, from: ZONES[LAST].from + (i - LAST) * ZONE_STEP_M };
 }
 
 /** The zones that start below a height (metres), in order: for labels on the Climb screen. */
@@ -177,7 +181,11 @@ export function metresText(value: number): string {
 
 /** localStorage key: the highest zone celebrated, by its starting height in metres. */
 export function zoneMemoryKey(userId: string): string {
-  return `climb-zone:${userId}`;
+  // v2 (Feature 10c): 10b remembered "8848" as High ridge, which would hide
+  // the Summit's moment on a device that finished the demo then. A fresh key
+  // is refilled silently from the server's altitude on the first visit, so
+  // only zones above where you are now get a moment.
+  return `climb-zone-2:${userId}`;
 }
 
 /** The zone index a stored value stands for; -1 for nothing stored (or unreadable). */
