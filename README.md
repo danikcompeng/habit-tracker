@@ -6,6 +6,14 @@ balloon up a mountain and into space.**
 **Live:** [ascend-dk.vercel.app](https://ascend-dk.vercel.app). Try the demo, no email needed.
 
 <p align="center">
+  <img src="design/videos/ascend-summit.gif" alt="Holding the last three habits on Today, each fill growing under the finger; the perfect day lifts the balloon past the Summit and a New zone: Summit card pops up" width="360">
+</p>
+
+Full tour (sign in, the Summit, History, then Climb up into space):
+[light](design/videos/ascend-demo-light.mp4) ·
+[dark](design/videos/ascend-demo-dark.mp4)
+
+<p align="center">
   <img src="docs/screenshots/feature-10/today-light.png" alt="Today in light mode: habit keys under The Climb strip, a balloon on a pixel-art mountain" width="300">
   &nbsp;
   <img src="docs/screenshots/feature-10/today-dark.png" alt="Today in dark mode: the same screen at night, with stars and the moon" width="300">
@@ -92,4 +100,5 @@ and your production `/auth/confirm` to Redirect URLs.
 npm test             # unit + database tests
 npm run test:e2e     # Playwright on an iPhone-sized browser, with axe (needs .env.local)
 npm run screens      # screenshots in docs/screenshots/
+npm run record:demo  # the demo videos in design/videos/, on production (needs ffmpeg or FFMPEG_PATH)
 ```
