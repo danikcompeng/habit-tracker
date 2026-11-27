@@ -18,9 +18,11 @@ import { CheckIcon, PlusIcon } from "@/components/icons";
 import { saveTimezoneCookie } from "@/components/timezone-sync";
 import { buttonClass } from "@/components/ui/button";
 import { ErrorText } from "@/components/ui/error-text";
-import { CM, celebratedIndex, dailyClimbCm, metres, silentlyRaised, zoneMemoryKey, zoneMemoryValue, zoneMomentAfterSave } from "@/lib/altitude";
+import { CM, celebratedIndex, dailyClimbCm, liftHoldFor, metres, silentlyRaised, zoneMemoryKey, zoneMemoryValue, zoneMomentAfterSave } from "@/lib/altitude";
 import { setCheckin, type CheckinResult } from "@/lib/checkin-actions";
+import { holdOnSave, holdReleased, momentMayShow, stripAltitude, type LiftHold } from "@/lib/celebration";
 import type { HoldMode } from "@/lib/hold";
+import { MOTION } from "@/lib/motion";
 import { NO_TAP_HINT, TAP_HINT_HELD_KEY, TAP_HINT_TEXT, nextTapHint, tapHintAnnouncement } from "@/lib/tap-hint";
 import { applyDone, streakText, summaryLine, weekdayName, type HabitView } from "@/lib/today";
 
@@ -36,8 +38,14 @@ type Props = {
   userId: string;
 };
 
-/** How long the zone moment's card stays, unless tapped away first. */
+/** How long the zone moment's card stays once it has landed, unless tapped away first. */
 const MOMENT_MS = 6_000;
+/** A held lift (Feature 10h) never waits longer than this for its save's answer. */
+const LIFT_HOLD_MS = 5_000;
+
+function reducedMotion(): boolean {
+  return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+}
 
 /** The highest zone celebrated on this device, or -1 (none, or storage blocked). */
 function readCelebrated(userId: string): number {
@@ -96,9 +104,24 @@ export function TodayScreen({ today, habits, mode, heading, beforeTodayCm, userI
   const [moment, setMoment] = useState<ZoneMoment | null>(null);
   useEffect(() => {
     if (!moment) return;
-    const timer = setTimeout(() => setMoment(null), MOMENT_MS);
+    // With motion the card lands MOTION.land into the celebration; then its 6 s.
+    const timer = setTimeout(() => setMoment(null), MOMENT_MS + (reducedMotion() ? 0 : MOTION.land));
     return () => clearTimeout(timer);
   }, [moment]);
+  // The held lift (Feature 10h): a completion that will open a new zone
+  // keeps the strip at the height before it until its save answers, so the
+  // zone moment's celebration plays the climb. Released by that answer (with
+  // the moment), after LIFT_HOLD_MS, on a new day, or on leaving Today.
+  const [liftHold, setLiftHold] = useState<LiftHold | null>(null);
+  useEffect(() => {
+    if (!liftHold) return;
+    const timer = setTimeout(() => setLiftHold((h) => holdReleased(h, liftHold.id)), LIFT_HOLD_MS);
+    return () => clearTimeout(timer);
+  }, [liftHold]);
+  // Each save's number, and the last undo's: an answer that an undo (of any
+  // habit) came after brings no moment (momentMayShow).
+  const saves = useRef(0);
+  const lastUndo = useRef(0);
   // Leaving Today (hidden routes stay alive) closes the card, and a save
   // that answers after you left doesn't bring it back.
   const shown = useRef(false);
@@ -107,6 +130,7 @@ export function TodayScreen({ today, habits, mode, heading, beforeTodayCm, userI
     return () => {
       shown.current = false;
       setMoment(null);
+      setLiftHold(null);
     };
   }, []);
   // Polite, for screen readers: what just changed. (Errors use their own
@@ -164,6 +188,14 @@ export function TodayScreen({ today, habits, mode, heading, beforeTodayCm, userI
   function save(habit: KeyHabit, nowDone: boolean, climb: { beforeCm: number; afterCm: number } | null = null) {
     const server = habits.find((h) => h.id === habit.id);
     if (!server) return;
+    const mine = ++saves.current;
+    if (!nowDone) lastUndo.current = mine;
+    // Urgent (outside the transition), so the strip never lifts first and
+    // then drops back. Not with Reduce Motion: there's no climb to play.
+    if (climb) {
+      const holds = !reducedMotion() && liftHoldFor(climb, readCelebrated(userId));
+      setLiftHold((h) => holdOnSave(h, { id: mine, day: today, cm: climb.beforeCm, holds }));
+    }
     say(`${habit.name} ${nowDone ? "done" : "not done"}. ${streakText(applyDone(server, nowDone).streak)}.`);
     setNotice(null);
     // The server works out "today" from this cookie: make sure it's there.
@@ -183,12 +215,18 @@ export function TodayScreen({ today, habits, mode, heading, beforeTodayCm, userI
       // zone never celebrated on this device (read now: another tab may have).
       // Read the memory HERE, as the answer arrives: the refreshed data (and
       // the silent raise it triggers) only lands once this function ends.
-      const momentAfter = climb ? zoneMomentAfterSave(climb, result, readCelebrated(userId)) : null;
+      // Not if a habit was undone meanwhile (the card would claim a height
+      // you no longer have, and use up the zone), nor once you've left Today
+      // (it would be used up unseen).
+      const may = momentMayShow(mine, lastUndo.current, shown.current);
+      const momentAfter = climb && may ? zoneMomentAfterSave(climb, result, readCelebrated(userId)) : null;
       if (momentAfter) writeCelebrated(userId, momentAfter.store);
       const zone = momentAfter?.zone ?? null;
       // Part of the same transition, so the message lands together with the
       // server's fresh data (not while the key still shows the guess).
       startTransition(() => {
+        // The held lift ends with its answer: in this render, together with the moment.
+        setLiftHold((h) => holdReleased(h, mine));
         if (next) {
           setNotice({ ...next, id: Date.now() });
           if (next.tone === "info") say(next.text);
@@ -225,7 +263,7 @@ export function TodayScreen({ today, habits, mode, heading, beforeTodayCm, userI
     <>
       <DayWatcher isHolding={() => holds.current > 0} />
       {altitudeCm !== null && knownBefore !== null && (
-        <ClimbStrip altitudeCm={altitudeCm} shapeCm={knownBefore} moment={moment} onDismissMoment={() => setMoment(null)} />
+        <ClimbStrip altitudeCm={stripAltitude(altitudeCm, liftHold, today)} shapeCm={knownBefore} moment={moment} onDismissMoment={() => setMoment(null)} />
       )}
       {heading}
       {/* At 5 of 5 the line is the day's payoff, so it stops looking like the

@@ -230,3 +230,13 @@ export function zoneMomentAfterSave(
   const zone = newZone(climb.beforeCm, climb.afterCm, celebrated);
   return zone ? { zone, store: zoneIndex(zone.from * CM) } : null;
 }
+
+/**
+ * At a completion, before its save answers: will it (if the save works) be
+ * a zone moment? Then Today's strip holds its lift for the answer, so the
+ * moment's celebration can play the climb (Feature 10h). The same question
+ * zoneMomentAfterSave asks of an ok save.
+ */
+export function liftHoldFor(climb: { beforeCm: number; afterCm: number }, celebrated: number): boolean {
+  return zoneMomentAfterSave(climb, { ok: true }, celebrated) !== null;
+}

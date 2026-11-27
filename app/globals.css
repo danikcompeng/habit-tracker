@@ -226,11 +226,18 @@
   background-image: linear-gradient(var(--scene-ruler), var(--scene-ruler));
 }
 
-/* The zone moment's card (Feature 10): in with a small scale and fade (motion-safe only). */
+/* The zone moment's card (Feature 10): in with a small scale and fade (motion-safe only), after the
+   celebration's lift (--motion-land, Feature 10h); with Reduce Motion, a fade alone (fade-in). */
 @keyframes card-in {
   from {
     opacity: 0;
     transform: scale(0.96);
+    visibility: hidden;
+  }
+}
+@keyframes fade-in {
+  from {
+    opacity: 0;
   }
 }
 
@@ -303,6 +310,9 @@
   --motion-hold: 650ms;
   --motion-drift: 700ms;
   --motion-lift: 600ms;
+  --motion-celebrate: 1300ms;
+  --motion-land: 950ms;
+  --motion-confetti: 2000ms;
   --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 

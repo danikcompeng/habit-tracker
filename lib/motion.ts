@@ -20,6 +20,12 @@ export const MOTION = {
   drift: 700,
   /** The view lifting (or settling) to a new altitude after a completion. */
   lift: 600,
+  /** The zone celebration (Feature 10h): the view's lift, with the balloon leading it. */
+  celebrate: 1300,
+  /** The zone card starts landing this long into the celebration (its 200 ms card-in: landed by 1,150 ms), as the balloon settles. */
+  land: 950,
+  /** The last confetti bit is gone by this. */
+  confetti: 2000,
 } as const;
 
 /** Quick to start, gentle to land: cubic-bezier(0.2, 0.8, 0.2, 1). */

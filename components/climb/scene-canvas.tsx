@@ -13,6 +13,7 @@
 // in full after a theme switch, a resize, or the canvas being wiped.
 
 import { useEffect, useRef, useState, type CSSProperties } from "react";
+import type { Bit } from "@/lib/celebration";
 import { MOTION } from "@/lib/motion";
 import {
   BALLOON_MIN_X,
@@ -39,8 +40,14 @@ export const BACKDROP_ROWS = 150;
 /** The sky above Climb's top, as an image for the scroll box's background (shown in iOS's bounce), and its width in logical px. */
 export type Backdrop = { url: string; width: number };
 
+/** Still layers kept per canvas (Climb's is the largest: about 0.25 MB at 130 px wide, 46,000 m). */
+const BASES_KEPT = 3;
+
+/** Today's zone celebration, this frame (Feature 10h, lib/celebration.ts): as CloseOptions' rise, sway, confetti and sparkles. */
+export type Celebration = { rise?: number; sway?: number; confetti?: readonly Bit[]; anchor?: number; streaks?: number; sparkles?: readonly { dx: number; dy: number }[] };
+
 type Props = (
-  | { view: "close"; altitude: number; shapeAt: number }
+  | { view: "close"; altitude: number; shapeAt: number; celebration?: Celebration }
   | { view: "world"; altitude: number; top: number }
 ) & {
   className?: string;
@@ -239,7 +246,9 @@ export function SceneCanvas(props: Props) {
       : worldBalloonAt({ width: size.width, height: size.height, metresPerRow: WORLD_METRES_PER_ROW, bottom: 0, you: altitude, balloonMinX }, altitude);
   // The still layer (sky, mountain, banks…) is drawn once per size, theme
   // and view, then copied; each tick only draws the drifting clouds and you.
-  const base = useRef<{ key: string; px: Uint8Array } | null>(null);
+  // A few kept (the newest last): a lift, or a celebration's overshoot and
+  // settle, crosses back over a frame it has just drawn (Feature 10h).
+  const bases = useRef(new Map<string, Uint8Array>());
   const colours = useRef<{ theme: Theme; rgb: [number, number, number][] } | null>(null);
   const image = useRef<Painted>({ image: null, last: null, colours: null });
   // Repaint in full when the canvas may have been wiped: its 2D context lost
@@ -262,6 +271,7 @@ export function SceneCanvas(props: Props) {
   }, []);
   const backdrop = useRef<string | null>(null);
   const onBackdrop = props.onBackdrop;
+  const celebration = props.view === "close" ? props.celebration : undefined;
   useEffect(() => {
     if (!size || !canvas.current) return;
     const world = {
@@ -277,11 +287,15 @@ export function SceneCanvas(props: Props) {
     const baseOptions =
       props.view === "close" ? closeFarOptions({ width: size.width, height: size.height, theme, altitude, you: shapeAt }) : world;
     const key = JSON.stringify(baseOptions);
-    if (base.current?.key !== key) base.current = { key, px: drawWorldBase(baseOptions).px };
+    let basePx = bases.current.get(key);
+    if (basePx) bases.current.delete(key);
+    else basePx = drawWorldBase(baseOptions).px;
+    bases.current.set(key, basePx);
+    if (bases.current.size > BASES_KEPT) bases.current.delete(bases.current.keys().next().value!);
     const scene = new Canvas(size.width, size.height);
-    scene.px.set(base.current.px);
+    scene.px.set(basePx);
     if (props.view === "close") {
-      drawCloseMoving(scene, { width: size.width, height: size.height, theme, time, altitude, you: shapeAt, driftMs: MOTION.drift, balloonMinX });
+      drawCloseMoving(scene, { width: size.width, height: size.height, theme, time, altitude, you: shapeAt, driftMs: MOTION.drift, balloonMinX, ...celebration });
     } else {
       drawWorldMoving(scene, { ...world, time, altitude, driftMs: MOTION.drift, balloonMinX });
     }
@@ -295,7 +309,7 @@ export function SceneCanvas(props: Props) {
       const above = drawWorldBase({ ...world, bottom: top, height: BACKDROP_ROWS, moon: null });
       onBackdrop({ url: toUrl(above, colours.current.rgb), width: size.width });
     }
-  }, [size, theme, time, altitude, top, shapeAt, props.view, balloonMinX, onBackdrop, shown]);
+  }, [size, theme, time, altitude, top, shapeAt, props.view, balloonMinX, onBackdrop, shown, celebration]);
 
   return (
     // overflow-hidden: the canvas is exactly SCENE_SCALE css px per logical
@@ -306,6 +320,9 @@ export function SceneCanvas(props: Props) {
         data-scene={props.view}
         data-balloon={balloon ? `${balloon.x},${balloon.y}` : undefined}
         data-painted={painted || undefined}
+        // The celebration's bits and Reduce Motion's sparkles, as painted (the browser tests read them).
+        data-confetti={celebration?.confetti?.length || undefined}
+        data-sparkles={celebration?.sparkles?.length || undefined}
         className="block [image-rendering:pixelated]"
         style={size ? { width: size.width * SCENE_SCALE, height: size.height * SCENE_SCALE } : undefined}
       />

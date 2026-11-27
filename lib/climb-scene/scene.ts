@@ -24,6 +24,7 @@
 // each tick only draws the drifting clouds and you (drawWorldMoving).
 
 import { CM, SUMMIT_M, nextZone, zoneByIndex } from "../altitude";
+import type { Bit } from "../celebration";
 import { SCENE_PALETTE, contrast } from "../palette";
 
 /** Sky bands, highest (1) to lowest (12). */
@@ -1509,7 +1510,31 @@ export type CloseOptions = {
   balloonMinX?: number;
   /** As WorldOptions.keepRimFragments. */
   keepRimFragments?: boolean;
+  /** The zone celebration (Feature 10h, lib/celebration.ts): the balloon this many rows above its resting row. */
+  rise?: number;
+  /** … and this many px right of it (the sway). */
+  sway?: number;
+  /** … and its confetti, relative to the balloon's envelope at rest at `anchor` (never over the balloon). */
+  confetti?: readonly Bit[];
+  /** The height the confetti's burst is anchored at (the zone's new height), so it doesn't step with the view. Default: altitude. */
+  anchor?: number;
+  /**
+   * Streaks rushing past in the near layer while the view climbs (0–1: how
+   * many show, with its speed), so the climb shows where there's no near
+   * cloud: short upright streaks, seeded by height (5 m a row, like the
+   * near clouds), on the sky only.
+   */
+  streaks?: number;
+  /** Reduce Motion's still sparkles instead (centres, relative to the envelope at rest): small gold crosses. */
+  sparkles?: readonly { dx: number; dy: number }[];
 };
+
+/** The celebration's streaks: one chance every STREAK_M metres of the near layer, at most STREAK_SHARE of them showing. */
+const STREAK_M = 12;
+const STREAK_SHARE = 0.55;
+
+/** The balloon's envelope centre, in rows above its basket's bottom row (the confetti's origin). */
+export const ENVELOPE_ABOVE = 8;
 
 const NEAR_M = 5;
 const FAR_M = 40;
@@ -1658,10 +1683,59 @@ export function drawCloseMoving(c: Canvas, o: CloseOptions) {
     if (isSky(c.get(x, y))) c.set(x, y, role);
     if (rnd() < 0.3 && isSky(c.get(x + 1, y))) c.set(x + 1, y, role);
   }
-  // The moon over the near clouds too, then you, just off the slope of the far world.
-  // (The moon is drawn with the far layer, behind the clouds.)
-  drawBalloon(c, stripX, Math.min(o.height - 3, rowOf(o.altitude)), o.theme, bob(o));
+  // The celebration's streaks, behind you (on the sky only).
+  if (o.streaks) {
+    const streak = R["cloud-light"];
+    const length = 2 + Math.round(2 * o.streaks);
+    for (let k = Math.floor(bottom / STREAK_M) - 1; k * STREAK_M <= bottom + o.height * NEAR_M; k++) {
+      const rnd = seeded(SEED + 31_000 + looped(k * STREAK_M) / STREAK_M);
+      if (rnd() >= o.streaks * STREAK_SHARE) continue;
+      const x = 2 + Math.floor(rnd() * (o.width - 4));
+      const y = rowOf(k * STREAK_M + rnd() * STREAK_M);
+      // Off the balloon and its ring.
+      if (Math.abs(x - stripX) < 6) continue;
+      // Longer as the view speeds up (2 to 4 rows: a motion blur, unlike a falling bit).
+      for (let dy = 0; dy < length; dy++) if (isSky(c.get(x, y + dy))) c.set(x, y + dy, streak);
+    }
+  }
+  // You, just off the slope of the far world (the moon is drawn with the far
+  // layer, behind the clouds); in a celebration, risen and swaying (its ring
+  // judged where it's drawn, before any confetti is there).
+  const rest = Math.min(o.height - 3, rowOf(o.altitude));
+  drawBalloon(c, stripX + (o.sway ?? 0), rest - (o.rise ?? 0), o.theme, bob(o));
+  // The celebration's confetti and Reduce Motion's sparkles, around the
+  // envelope at rest (at the anchor's height: the burst stays where it
+  // popped), over the scene but never over the balloon.
+  if (o.confetti?.length || o.sparkles?.length) {
+    const at = o.anchor === undefined ? { x: stripX, y: rest } : closeBalloonAt({ ...o, altitude: o.anchor });
+    const ox = at.x;
+    const oy = at.y - ENVELOPE_ABOVE;
+    // Each bit keeps its own shape: one that lands on another (or touches it) waits a frame.
+    const taken = new Set<number>();
+    const put = (x: number, y: number, role: number) => {
+      if (!BALLOON_ROLES.has(c.get(x, y))) c.set(x, y, role);
+    };
+    for (const bit of o.confetti ?? []) {
+      const x = ox + bit.dx;
+      const y = oy + bit.dy;
+      let free = true;
+      for (let dy = -1; dy <= bit.h && free; dy++) for (let dx = -1; dx <= bit.w && free; dx++) if (taken.has((y + dy) * o.width + x + dx)) free = false;
+      if (!free) continue;
+      for (let dy = 0; dy < bit.h; dy++) {
+        for (let dx = 0; dx < bit.w; dx++) {
+          put(x + dx, y + dy, R[bit.role]);
+          taken.add((y + dy) * o.width + x + dx);
+        }
+      }
+    }
+    for (const { dx, dy } of o.sparkles ?? []) {
+      for (const [ex, ey] of [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]]) put(ox + dx + ex, oy + dy + ey, R.moon);
+    }
+  }
 }
+
+/** The balloon's own pixels (and its ring): confetti never covers them. */
+const BALLOON_ROLES = new Set<number>([R.marker, R["balloon-light"], R["balloon-shade"], R.basket, R["marker-ring"], R["marker-edge"]]);
 
 /**
  * Above the Summit by at least this much, Climb's moon clears the mountain

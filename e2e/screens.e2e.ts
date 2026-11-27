@@ -301,3 +301,76 @@ test("climb 10g screens", async ({ page }) => {
     await shoot(page, folder, name);
   }
 });
+
+test("climb 10h screens", async ({ page }) => {
+  // Feature 10h: the zone celebration, crossing the demo's Summit, as stills
+  // on a paused clock (the scene's frames and the card's CSS animation both
+  // set to the same moment): 150, 400, 900 and 1,400 ms in; and with Reduce
+  // Motion, the card with its still sparkles.
+  test.setTimeout(240_000);
+  const folder = "feature-10/climb-10h";
+  for (const scheme of SCHEMES) {
+    await page.emulateMedia({ colorScheme: scheme, reducedMotion: "no-preference" });
+    await page.clock.install();
+    await freshDemo(page);
+    await page.goto("/settings");
+    await page.evaluate(() => Object.keys(localStorage).filter((k) => k.startsWith("climb-zone")).forEach((k) => localStorage.removeItem(k)));
+    await page.goto("/");
+    await page.evaluate(() => document.fonts.ready);
+    await hold(page, "No phone in bed");
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await hold(page, "Read 10 pages");
+    await page.waitForTimeout(800);
+    // The last: its answer comes 1.5 s late (the key saves as the hold
+    // completes, finger still down), so the clock can stop before it lands
+    // and the celebration waits at 0 ms.
+    await page.route("**/*", async (route) => {
+      if (route.request().method() === "POST" && route.request().headers()["next-action"]) await new Promise((resolve) => setTimeout(resolve, 1_500));
+      await route.fallback();
+    });
+    const answered = page.waitForResponse((r) => r.request().method() === "POST" && Boolean(r.request().headers()["next-action"]));
+    const key = habitKey(page, "Stretch for 5 minutes");
+    const box = (await key.boundingBox())!;
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.mouse.down();
+    await page.waitForTimeout(800);
+    await page.mouse.up();
+    await page.waitForTimeout(200);
+    await page.clock.pauseAt((await page.evaluate(() => Date.now())) + 100);
+    await answered;
+    await page.unroute("**/*");
+    // (By its text: until it lands it's hidden, so not in the accessibility tree.)
+    const card = page.locator("button", { hasText: "New zone" });
+    await expect(card).toBeAttached();
+    await page.waitForTimeout(300);
+    let at = 0;
+    for (const t of [150, 400, 900, 1_400]) {
+      await page.clock.runFor(t - at);
+      at = t;
+      // The card's CSS animation, to the same moment (it began with the celebration).
+      await card.evaluate((el, t) => el.getAnimations().forEach((a) => ((a.currentTime = t), a.pause())), t);
+      await page.screenshot({ path: `docs/screenshots/${folder}/t${t}-${scheme}.png`, clip: { x: 0, y: 0, width: 390, height: 300 } });
+    }
+    await page.clock.resume();
+    await reseedDemo();
+  }
+  // Reduce Motion: the card at once, and the sparkles.
+  for (const scheme of SCHEMES) {
+    await page.emulateMedia({ colorScheme: scheme, reducedMotion: "reduce" });
+    await freshDemo(page);
+    await page.goto("/settings");
+    await page.evaluate(() => Object.keys(localStorage).filter((k) => k.startsWith("climb-zone")).forEach((k) => localStorage.removeItem(k)));
+    await page.goto("/");
+    await hold(page, "No phone in bed");
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await hold(page, "Read 10 pages");
+    await page.waitForTimeout(800);
+    const answered = page.waitForResponse((r) => r.request().method() === "POST" && Boolean(r.request().headers()["next-action"]));
+    await hold(page, "Stretch for 5 minutes");
+    await answered;
+    await expect(page.getByRole("button", { name: /New zone Summit/ })).toBeVisible();
+    await page.waitForTimeout(400);
+    await page.screenshot({ path: `docs/screenshots/${folder}/reduce-${scheme}.png` });
+    await reseedDemo();
+  }
+});

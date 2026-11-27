@@ -1245,6 +1245,135 @@ The logic-checker said "Ready after fixes". What changed:
   - at 320 px the lifted labels and your chip can touch.
   - Overlaps are tested for the demo at every size and for every case at 100% text; clipping at every size.
 
+### Feature 10h: the zone celebration (2026-11-26)
+
+_The user's request (pasted), after the demo videos._
+
+When the zone card appears (same trigger as now: only after the server confirms the save, once per zone on this device), the moment becomes a celebration in the strip's scene:
+1. **A big lift:** the balloon visibly rises more than a normal habit's lift, easing out with a small overshoot and settle, about 1–1.5 s.
+2. **Sway:** 2–3 gentle, damped side-to-side swings as it rises.
+3. **Pixel confetti:** a small burst of square bits in the scene's palette plus the accent (persimmon, gold, the zone's colours), popping out around the balloon and drifting down with a flutter, gone after about 1.5–2 s. Crisp pixels, inside the strip, never over the habit keys or the card's text.
+4. **One moment:** the lift and the confetti start together, and the card lands as the balloon settles.
+5. **Reduce Motion:** no lift animation, sway or confetti. The balloon is just at its new height, the card fades in, and a few still sparkle pixels sit by the balloon while the card is up.
+6. **Light:** drawn on the existing canvas, no new libraries, 60 fps on an iPhone, nothing left running after it ends.
+7. **Tests:** the timing and curves as pure functions; a browser test that crossing the demo's Summit starts the celebration once and not again on reload; Reduce Motion shows no confetti.
+8. **Afterwards:** re-record the demo videos (as last time), restore the demo, commit and push.
+
+Visuals only: **no change to the altitude maths, the zones, when a moment is due (`zoneMomentAfterSave`), what's announced, or Climb's screen; no migration.**
+
+**The problem with "a bigger lift".** Today the strip lifts the moment a key completes (optimistic, 600 ms), but the card waits for the server (about 0.3–1 s on production). By the time the card is due, the lift is over: there's nothing left to celebrate with.
+
+**So a completion that will (probably) open a new zone holds the strip's lift until the server answers.**
+- At completion, Today asks the same question the answer will: `zoneMomentAfterSave(climb, { ok: true }, celebrated)` (as `liftHoldFor`). If it would be a moment, the strip is held at the height before this completion (a hold: the save's id, the day, the height). The key itself completes as always (fill, pop, done), and so do the summary line and the announcement.
+- The hold ends when that save answers (in the same transition as the moment, so the release and the card land in one render), after 5 s at most (a hung request), on a new day, or on leaving Today.
+- Then:
+  - **a moment:** the strip plays the celebration from the held height to the new one;
+  - **no moment** (the save failed: the key goes back and nothing moves; or another tab celebrated it meanwhile): the strip does its normal lift, or none.
+- While held, the strip shows the held height everywhere (the scene and the Altitude chip), so the two never disagree. It never shows more than the live height (a `min`: an undo during the hold drops it at once).
+- A moment that comes without a hold (storage changed between the two reads) still celebrates, with no travel: the surge, sway and confetti alone.
+
+**The celebration (pure functions in `lib/celebration.ts`, times in `MOTION`).** One clock, `t` in ms from the moment:
+- **The camera** (the strip's view) travels from the held height to the new one over `MOTION.celebrate` (1,300 ms), easing out with a slight overshoot (`liftProgress`, an ease-out-back peaking about 6% past the end around 60% of the way, then settling to exactly 1).
+- **The balloon surges ahead of it** (`balloonRise`, whole logical rows above its resting row): up 6 rows (18 css px) by about 400 ms, a row too far, then back to rest by the end, with a one-row dip just before. The camera catches up as it settles. This is the "clear extra lift": the Summit's +70 m is 14 rows of near clouds rushing past plus the balloon rising 18 px out of its place; a normal habit is 4 rows and no surge.
+- **The sway** (`balloonSway`, whole logical px): a damped sine, 2.5 swings over the lift, ±2 px at first, then ±1, then still.
+- **Confetti** (`confetti(seed, t, roles)`): 22 bits from the balloon's envelope, in a fan upward and out (never straight down). Each one:
+  - pops out quickly and slows (drag), then falls slowly (a terminal speed of a few px a second);
+  - flutters side to side (±1 px) and tumbles (a 2×1 bit turns 1×2 and back);
+  - lives 1.3–1.9 s, so all of them are gone by `MOTION.confetti` (2,000 ms).
+  - Positions are whole logical pixels, relative to the balloon's resting envelope (the burst stays where it popped, on the screen).
+  - Colours: persimmon (`marker`, `balloon-light`), gold (`moon`), and two of the zone's own (`zoneConfetti`: pine and snow low down, snow and cloud-light around the Summit, cirrus and satellite in the stratosphere, star, planet and nebula-light in space). Existing roles only, so no new tokens.
+  - Drawn behind the balloon, over everything else in the scene. They're on the canvas, so they can't leave the strip. The card is opaque, so it hides any bit that goes under it.
+- **The card lands** at `MOTION.land` (950 ms: its own 200 ms "card-in" after a delay), as the balloon settles. It stays 6 s after landing, as before. The chips step aside at once, so the scene has the strip to itself until the card lands.
+- **Reduce Motion:** the strip jumps to the new height (as now), there's no surge, sway or confetti, and the card fades in (opacity only, 200 ms, no delay). Four still sparkles (`sparkles()`, gold 1 px crosses around the balloon) stay while the card is up.
+- **Nothing left running:** one `requestAnimationFrame` loop in the strip, which stops at 2,000 ms, or when the strip unmounts or Today hides (it then rests at the new height). The drift timer is untouched.
+- **60 fps:** each frame redraws the strip's moving layer (as the normal lift already does, about 47×120 px) and repaints only the rows that changed. I'll measure a frame in Node.
+- **Test hooks:** the strip carries `data-celebrations` (how many celebrations started since it mounted) and `data-celebrating` while one runs; the canvas carries `data-confetti` (bits drawn in the last paint) and `data-sparkles`.
+
+**Tests.**
+- Unit (`lib/celebration.test.ts`):
+  - `liftProgress`: 0 at 0, exactly 1 from `MOTION.celebrate` on, a peak between 1.03 and 1.1, rising before the peak and falling after it.
+  - `balloonRise`: whole rows; 0 at 0 and at the end; peaks at 6 or 7 rows before 600 ms; never below −1.
+  - `balloonSway`: whole px, never more than 2 from centre, 0 at the end, at least two changes of side (2–3 swings), smaller later.
+  - `confetti`: 22 bits at the start near the envelope, every one moving up first, none left at `MOTION.confetti`, fewer as time goes on, whole pixels, only the given roles, the same for the same seed.
+  - `sparkles`: 4, still, gold.
+  - The timeline: `MOTION.land` is within the lift's last third, and the confetti outlasts the lift.
+  - The hold: `liftHoldFor` agrees with `zoneMomentAfterSave` for an ok save, and is null for an undo or a step inside a zone.
+- Scene: `drawCloseMoving` with a rise, a sway and bits draws the balloon where they say and every bit in one of its roles; with none, the strip's goldens are unchanged.
+- Browser (the demo):
+  - crossing the Summit: the strip shows `data-celebrating`, the canvas shows confetti, the card lands, the celebration ends with no confetti left, `data-celebrations` is 1; a reload (and waiting 2.5 s) shows no card and `data-celebrations` 0;
+  - with Reduce Motion: the card shows, `data-confetti` stays 0 throughout (polled), the sparkles show, and the strip is at the new height at once.
+
+**Previews** (the demo crossing the Summit, 390×844, light and dark): stills at about 150, 400, 900 and 1,400 ms, and Reduce Motion with the card.
+
+**After logic-checker (decided):**
+
+The logic-checker said "Ready after fixes". What changed:
+- **One driver for the view, re-aimed mid-flight.**
+  - A completion or undo during the 1.3 s celebration changes the target. The flight (`Flight`, `flightAt`, `retarget` in `lib/celebration.ts`) then adds a normal lift (MOTION.lift) from exactly where the view is to the new target, so it never jumps and always ends on the live height.
+  - The normal lift doesn't run while a flight does.
+  - Tested: re-aimed at several moments, to higher, lower and the same target; no frame-to-frame step over 15 m; ends exactly on the target.
+- **Where it starts and ends:** from the view as it is (`from.current`, even mid-lift), to the live height. The card keeps its own numbers ("up to 8,873 m").
+- **Undo before the answer: no moment.**
+  - Each save gets a number, and Today keeps the latest per habit. An answer for a habit changed again since (undone at once) brings no card and doesn't write the zone memory, so the zone is still to come.
+  - This fixes a pre-10h bug (the card claimed a height you'd undone, and used up the zone). `zoneMomentAfterSave` is unchanged; only Today's call is gated. Tested in the browser, with saves delayed 1.5 s.
+- **The hold is urgent state:**
+  - It's set in `save()` before the transition, so the strip never lifts first and then drops back.
+  - It's cleared in the post-answer transition, with the moment.
+  - The 5 s timer clears it only if it's still the same hold.
+  - Accepted: React commits concurrent actions together, so a release can wait for another pending save (at most until the 5 s cap).
+- **Reduce Motion: no hold** (nothing to play). It's followed live:
+  - turned on mid-flight, the strip jumps to the end;
+  - the sparkles show while the card is up and Reduce Motion is on.
+- **The card:**
+  - It's hidden (`visibility`, in `card-in`'s first frame) until it lands, so a tap on the strip during the lift still opens Climb.
+  - Its 6 s count from landing (`MOMENT_MS + MOTION.land`; 6 s with Reduce Motion).
+  - Closing it doesn't stop the celebration: the flight is keyed on the moment's id, not on the card being up.
+  - Screen readers hear the moment at once (the status line), as before.
+- **Once per moment:**
+  - The flight is remembered by the moment's id in a ref, so Strict Mode's second effect run and a re-render continue it rather than replay it.
+  - Hiding Today mid-flight stops its frames (the effect cleans up; Today's cleanup clears the card and the hold). Coming back within its 2 s carries on with the same clock; later, the view eases from wherever it stopped to the live height. It never starts again.
+- **The confetti, drawn after the balloon:**
+  - The ring is judged at the balloon's drawn position, before any confetti is there.
+  - Confetti never covers balloon or ring pixels (tested at five heights, both themes, several frames).
+  - The burst is anchored at the zone's new height (`anchor`), so it doesn't step a pixel as the view settles (tested near the floor, where the resting row moves).
+- **Confetti colours that show:**
+  - The zone's own two colours are chosen to stand out at least 1.8:1, in both themes, from what's behind the balloon there (measured on the strip at each zone; tested).
+  - So: snow and cloud-light on the forest and rock; pine and rock-shade on the snow; the Summit's snow on its sky; a rust and a slate blue in the clouds (nothing white shows on a cloud); ice and satellites in the stratosphere; stars, a planet and satellites in space.
+  - Persimmon and gold are always in, as asked.
+- **60 fps:**
+  - Measured in Node: a celebration frame takes about 1 ms on average, 9–14 ms when the far layer's 40 m frame is redrawn.
+  - Climb's and the strip's canvases now keep the last 3 still bases, so the overshoot's return reuses one: 2 redraws a celebration, not 3.
+- **Accepted:**
+  - **Off screen:** a celebration plays unseen if the strip is scrolled off screen (7+ habits, the last key low on the list). The card already did. Waiting for the strip to come into view would change when the moment shows.
+  - **A failed crossing then a successful one:** the second save's climb assumed the first was done, so its moment is null and the zone is raised silently. This predates 10h; working the moment out from the saved height would change when a moment is due.
+  - **The overshoot crossing a 40 m frame:** the far world steps a row and back during the settle. It reads as part of the overshoot.
+
+**After the code-reviewer and the design-critic (decided):**
+- **The lift is a lead, not a hop** (design-critic round 1).
+  - In the first build the balloon surged 7 rows and fell 8 while the world barely moved. At the Summit the near layer has no cloud, so the 14 rows of travel didn't show, and it read as a hop.
+  - Now the view waits 120 ms, then eases in and out (`liftProgress`, no overshoot). The balloon surges 5 rows (a 6th as its overshoot) and hands its lead back as the view's lift runs out. So in the world it only climbs (tested for +70 m), and it never goes below its row (no dip onto the snow).
+  - **Streaks** show the travel: 2–4-row upright lines in the near layer, seeded by height, on the sky only. Their number and length follow the view's speed (`liftSpeed`).
+- **Confetti colours, per zone and theme** (`confettiRoles(zoneFrom, theme)`):
+  - Zone colours are always bars. A single pale pixel reads as a star, and in dark the Summit's snow and cloud-light were the stars' own colour.
+  - Every zone colour is at least 1.8:1 against the backdrop measured behind the balloon, and at least 60 apart (RGB) from both star colours. At least one warm colour is 1.8:1 too. All tested at every zone in both themes.
+  - In light the persimmon is `balloon-shade` and `marker` (the envelope's highlight melted into the sky).
+- **The burst:**
+  - Bits start on the envelope's rim, evenly spread across the fan, so all of them pop at once.
+  - They fall at 20 px/s (it rained too slowly, hovering like stars).
+  - A bit that would land on or touch another that frame waits (no merged blocks).
+- **The sway:** 2 swings over 1.8 s (about 1 Hz; 2.5 over 1.3 s read as a shake).
+- **One rule for any undo** (code-reviewer): an undo of any habit after a crossing's save cancels its moment (`momentMayShow`), not only an undo of the same habit. That save's climb assumed the other keys were done. Nor does an answer that comes while Today is hidden use up the zone.
+- **The rules are pure and tested** (code-reviewer):
+  - `nextRun` decides what the strip plays: a new moment, the same one again, a new height, Reduce Motion on or off, a second moment.
+  - `holdOnSave`, `holdReleased` and `stripAltitude` are the held lift.
+  - The hooks only call them.
+- **Reduce Motion and the theme** are read through stable `useSyncExternalStore` stores, so the 60 renders a second don't resubscribe.
+- **The card:** it starts landing at 950 ms and has landed by 1,150 ms. Its fade uses `--ease-out`.
+- **Accepted:**
+  - **No pre-drawn base:** the far layer's base isn't drawn ahead during the hold. A frame that redraws it takes 9–14 ms in Node, and the last 3 bases are kept. To check on a phone.
+  - **Indigo confetti:** `nebula-light` appears as confetti in light (forest, Treeline, Summit); few other roles show on those backdrops.
+  - **A small settle:** the balloon settles about 3 rows against the far mountain as the view catches up. It's slow and has streaks.
+
 ## Reviews
 
 _One entry per feature. Every agent finding is logged with its severity and what was done about it, so the log shows what each reviewer caught and what changed as a result._
@@ -2491,6 +2620,74 @@ Verdict: **Ship**. All seven round-1 items hold. The bounce has no visible seam 
 Starfield and Satellites weren't in a shot; they're covered by the unit test of the named zones and by the height renders.
 
 Checks (final): 608 unit and database tests, tsc, eslint, next build; the browser suite on the production build: 95 passed, 0 failed. Screenshots: `docs/screenshots/feature-10/climb-10g/` (the top and bottom limits, a faked bounce at each, Stratosphere, Edge of space, Moonlight, the asteroid belt, 11,000 m), the app's screenshots and the 23 height renders refreshed.
+
+### Feature 10h: the zone celebration (2026-11-26)
+
+The user's request:
+- **What they asked:** when a new zone's card appears, a bigger lift with an overshoot and settle, a damped sway, and pixel confetti, all as one moment with the card landing as the balloon settles; Reduce Motion still; light on an iPhone. Then re-record the demo videos.
+- **The call:** a completion that will open a new zone holds the strip's lift until its save answers (the card has always waited for the server; the lift hadn't), so the celebration can play the climb.
+
+Visuals and the moment's gate only; no SQL.
+
+#### logic-checker (plan review)
+Verdict: **Ready after fixes**. Midnight, a failed save, another tab, a hung save, two crossings in a day (impossible: at most 150 m a day, zones at least 500 m apart) and the timings checked out.
+
+| # | Severity | Finding | Outcome | What changed |
+|---|----------|---------|---------|--------------|
+| 1 | High | A completion or undo mid-celebration leaves two loops writing the height: the strip can rest at the wrong one. | Fixed | One driver: the flight, re-aimed without a jump (`retarget`); tested continuous and ending on the target. |
+| 2 | High | Undoing during the hold still shows the card and uses up the zone (predates 10h). | Fixed | No moment if an undo came after the save (widened to any habit after the code-reviewer). |
+| 3 | High | The hold must be urgent state, set outside the action, released in the post-answer transition. | Fixed | As described; concurrent actions committing together accepted. |
+| 4 | Medium | Leaving Today mid-flight could replay it or rest mid-flight. | Fixed | Keyed on the moment's id (`nextRun`); it carries on or eases to the live height, never replays. |
+| 5 | Medium | Start and end heights unspecified. | Fixed | From the view as it is, to the live height. |
+| 6 | Medium | The hold delays Reduce Motion for nothing. | Fixed | No hold with Reduce Motion; turned on mid-flight, it jumps to the end. |
+| 7 | Medium | The ring is judged at rest and could flicker with confetti under it. | Fixed | Judged where drawn; confetti drawn after, never on balloon or ring pixels. |
+| 8 | Medium | A celebration off screen plays unseen. | Accepted | As the card already did. |
+| 9 | Low | The card's 6 s, its taps while invisible, closing it mid-flight. | Fixed | 6 s from landing; hidden until it lands; closing doesn't stop the flight. |
+| 10 | Low | The burst should be anchored. | Fixed | At the zone's height (`anchor`). |
+| 11 | Low | The overshoot crossing a 40 m frame redraws the base. | Fixed in part | The last 3 bases kept. |
+| 12 | Low | Confetti colours that vanish. | Fixed | Tested against the backdrop. |
+| 13 | Low | A failed crossing then a successful one loses the moment (predates 10h). | Accepted | Out of scope. |
+
+#### code-reviewer (diff review)
+Verdict: **Ship after fixes**. No Critical or High. The hold's lanes and release paths, Strict Mode, the card's visibility, the bases cache and the tokens checked out.
+
+| # | Severity | Finding | Outcome | What changed |
+|---|----------|---------|---------|--------------|
+| 1 | Medium | The undo guard covered the same habit only: undoing another habit before the answer still showed the card. | Fixed | `momentMayShow`: any undo after the save; the browser test does both. |
+| 2 | Medium | The rules deciding what plays live in effects, untested. | Fixed | `nextRun` and the hold functions, pure and tested (Reduce Motion on and off, the card closing, a new height, a second moment). |
+| 3 | Medium | The Reduce Motion test's height check matched the old height too. | Fixed | Saves delayed 1.5 s; the strip must already differ from the old height. |
+| 4 | Low | `useSyncExternalStore` resubscribed every render. | Fixed | Stable module-level stores. |
+| 5 | Low | An answer while Today is hidden wrote the zone memory unseen. | Fixed | Gated on Today being shown. |
+| 6 | Low | A base redraw mid-lift may drop frames on a phone. | Accepted | 9–14 ms in Node, 3 bases kept; to check on a device. |
+| 7 | Low | The fade used `ease-out`, not `--ease-out`. | Fixed | |
+| — | Tests | A failed save during a hold, closing the card mid-flight. | Fixed | Browser tests added. The 5 s cap and Reduce Motion toggles are unit-tested (`holdReleased`, `nextRun`). |
+
+#### design-critic, round 1 (the Summit crossing at 150, 400, 900, 1,400 ms; Reduce Motion; light and dark)
+Verdict: **Ship after fixes**. The beats are in the right order; Reduce Motion is good. Nothing High.
+
+| # | Severity | Finding | Outcome | What changed |
+|---|----------|---------|---------|--------------|
+| 1 | Medium | The lift reads as a hop: up 7, down 8, the world barely moving (no near cloud at the Summit). | Fixed | The balloon leads, the view follows; streaks show the travel. |
+| 2 | Medium | Dark: a third of the confetti is star-coloured. | Fixed | Zone colours per theme, always bars, tested apart from both star colours. |
+| 3 | Medium | The confetti hovers like a star field. | Fixed | Falls at 20 px/s. |
+| 4 | Medium | Light: `balloon-light` melts into the sky. | Fixed | `balloon-shade` and `marker`. |
+| 5 | Low-Medium | The pop's first frames are behind the balloon. | Fixed | Bits start on the rim. |
+| 6 | Low | The sway reads as a shake. | Fixed | 2 swings over 1.8 s. |
+| 7 | Low | The dip puts the basket on the snow. | Fixed | No dip. |
+| 8 | Low | Overlapping bits merge into blocks. | Fixed | A bit touching another waits a frame. |
+| 9 | Low | The card lands at 1,150, not 950 as written. | Fixed | Worded "starts landing at 950, landed by 1,150". |
+
+#### design-critic, round 2 (verification)
+Verdict: **Ship**. All nine round-1 items resolved; it reads as one moment in order: the pop, the burst framing the balloon, the bits falling past as it settles, the card landing. Dark reads as warm confetti against cool stars.
+
+| # | Severity | Finding | Outcome | What changed |
+|---|----------|---------|---------|--------------|
+| 1 | Low | The touch rule thins the pop's first frame (random angles start bits together). | Fixed | Angles spread evenly across the fan. |
+| 2 | Low | Streaks and falling bits move alike; dark's `snow-shade` confetti shares the streaks' slate. | Fixed | Streaks 2–4 rows with the speed; dark Summit confetti two rusts. |
+| 3 | Low | Indigo (`nebula-light`) confetti in light is off the warm palette. | Accepted | Few other roles show on those backdrops. |
+| 4 | Low | A small settle against the far mountain. | Accepted | Slow, with streaks. |
+
+Checks (final): 655 unit and database tests, tsc, eslint, next build; the browser suite on the production build: 100 passed, 0 failed. Screenshots: `docs/screenshots/feature-10/climb-10h/` (stills at 150, 400, 900, 1,400 ms on a paused clock, and Reduce Motion, light and dark), the app's screenshots refreshed. Unit tests run with a 120 s timeout this time: the machine was at 100% CPU from other programs, and three heavy scene tests passed their 20 s limit (they pass alone).
 
 <!--
 Template — copy for each feature:

@@ -220,6 +220,188 @@ test("a demo visitor who finishes today's three open habits passes the Summit an
   }
 });
 
+/**
+ * Watches Today's strip every frame (Feature 10h): the most confetti and
+ * sparkles painted, and whether a celebration ever ran. Read with party().
+ */
+async function watchParty(page: Page) {
+  await page.evaluate(() => {
+    const w = window as unknown as { __party: { confetti: number; sparkles: number; celebrating: boolean } };
+    w.__party = { confetti: 0, sparkles: 0, celebrating: false };
+    const look = () => {
+      const canvas = document.querySelector('canvas[data-scene="close"]');
+      w.__party.confetti = Math.max(w.__party.confetti, Number(canvas?.getAttribute("data-confetti") ?? 0));
+      w.__party.sparkles = Math.max(w.__party.sparkles, Number(canvas?.getAttribute("data-sparkles") ?? 0));
+      if (document.querySelector("[data-celebrating]")) w.__party.celebrating = true;
+      requestAnimationFrame(look);
+    };
+    look();
+  });
+}
+
+function party(page: Page) {
+  return page.evaluate(() => (window as unknown as { __party: { confetti: number; sparkles: number; celebrating: boolean } }).__party);
+}
+
+/** Completes the demo's three open habits (the last one crosses the Summit), each save answered. */
+async function finishDemo(page: Page) {
+  for (const name of ["Read 10 pages", "Stretch for 5 minutes", "No phone in bed"]) {
+    const saved = nextSave(page);
+    await holdKey(page, habitKey(page, name), 800);
+    await saved;
+  }
+}
+
+test("Feature 10h: crossing the Summit celebrates once (a lift, confetti, then the card), and never again on reload", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "no-preference" });
+  await freshDemo(page);
+  try {
+    await forgetZones(page);
+    await page.goto("/");
+    const box = page.locator("[data-celebrations]");
+    await expect(box).toHaveAttribute("data-celebrations", "0");
+    await watchParty(page);
+    await finishDemo(page);
+    const card = page.getByRole("button", { name: /New zone Summit/ });
+    await expect(card).toBeVisible();
+    await expect(card).toContainText("+70 m");
+    // Closing the card (here, as soon as it has landed) doesn't start it again.
+    await card.click();
+    await expect(card).toHaveCount(0);
+    // It ran (a lift and a burst of confetti), then stopped: nothing left on the canvas.
+    await expect(box).not.toHaveAttribute("data-celebrating", /.*/, { timeout: 5_000 });
+    await expect(box).toHaveAttribute("data-celebrations", "1");
+    const seen = await party(page);
+    expect(seen.celebrating).toBe(true);
+    expect(seen.confetti).toBeGreaterThan(10);
+    expect(seen.sparkles).toBe(0);
+    await expect(page.locator('canvas[data-scene="close"][data-confetti]')).toHaveCount(0);
+    await expect(strip(page)).toHaveAccessibleName(/Summit/);
+    await page.waitForTimeout(1_000);
+    await expect(box).toHaveAttribute("data-celebrations", "1");
+
+    // A reload: no card and no celebration.
+    await page.reload();
+    await expect(strip(page)).toHaveAccessibleName(/^Altitude 8,8\d\d m/);
+    await watchParty(page);
+    await page.waitForTimeout(2_500);
+    await expect(page.getByRole("button", { name: /New zone/ })).toHaveCount(0);
+    await expect(page.locator("[data-celebrations]")).toHaveAttribute("data-celebrations", "0");
+    expect((await party(page)).confetti).toBe(0);
+  } finally {
+    await reseedDemo();
+  }
+});
+
+/** Every save answers `ms` late (the server taking its time), or never (`ms` null: the request fails). */
+async function slowSaves(page: Page, ms: number | null) {
+  await page.route("**/*", async (route) => {
+    if (route.request().method() === "POST" && route.request().headers()["next-action"]) {
+      if (ms === null) return route.abort();
+      await new Promise((resolve) => setTimeout(resolve, ms));
+    }
+    await route.fallback();
+  });
+}
+
+/** The demo with two of its three open habits done (the third crosses the Summit), and the strip's height then ("8,803 m"). */
+async function oneToGo(page: Page): Promise<string> {
+  await forgetZones(page);
+  await page.goto("/");
+  for (const name of ["Read 10 pages", "Stretch for 5 minutes"]) {
+    const saved = nextSave(page);
+    await holdKey(page, habitKey(page, name), 800);
+    await saved;
+  }
+  return ((await strip(page).textContent()) ?? "").match(/8,\d{3} m/)![0];
+}
+
+test("Feature 10h: the strip holds its lift until the crossing's save answers; an undo (of it, or of another habit) before then brings no card and leaves the zone to come", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "no-preference" });
+  await freshDemo(page);
+  try {
+    const before = await oneToGo(page);
+    await slowSaves(page, 1_500);
+    const crossing = habitKey(page, "No phone in bed");
+    const other = habitKey(page, "Read 10 pages");
+    for (const undo of [crossing, other]) {
+      const saved = nextSave(page);
+      await holdKey(page, crossing, 800);
+      await expect(crossing).toHaveAttribute("aria-pressed", "true");
+      // Held: the key is done, the strip still says the height before it.
+      await page.waitForTimeout(400);
+      await expect(strip(page)).toContainText(before);
+      const undone = nextSave(page);
+      await undo.click();
+      await saved;
+      await undone;
+      await page.waitForTimeout(1_500);
+      await expect(page.getByRole("button", { name: /New zone/ })).toHaveCount(0);
+      await expect(page.locator("[data-celebrations]")).toHaveAttribute("data-celebrations", "0");
+    }
+    await page.unroute("**/*");
+    // Now "No phone in bed" is done and "Read 10 pages" isn't: completing it
+    // crosses the Summit for real, and the card comes (the zone wasn't used up).
+    const again = nextSave(page);
+    await holdKey(page, other, 800);
+    await again;
+    await expect(page.getByRole("button", { name: /New zone Summit/ })).toBeVisible();
+    await expect(page.locator("[data-celebrations]")).toHaveAttribute("data-celebrations", "1");
+  } finally {
+    await page.unroute("**/*");
+    await reseedDemo();
+  }
+});
+
+test("Feature 10h: a held crossing whose save fails never lifts the strip, nor shows a card", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "no-preference" });
+  await freshDemo(page);
+  try {
+    const before = await oneToGo(page);
+    await watchParty(page);
+    await slowSaves(page, null);
+    const key = habitKey(page, "No phone in bed");
+    await holdKey(page, key, 800);
+    // The key goes back once the save fails; all the while the strip stays put.
+    for (let i = 0; i < 20; i++) {
+      await expect(strip(page)).toContainText(before, { timeout: 100 });
+      await page.waitForTimeout(100);
+    }
+    await expect(key).toHaveAttribute("aria-pressed", "false");
+    await expect(page.getByRole("button", { name: /New zone/ })).toHaveCount(0);
+    expect((await party(page)).celebrating).toBe(false);
+  } finally {
+    await page.unroute("**/*");
+    await reseedDemo();
+  }
+});
+
+test("Feature 10h, Reduce Motion: no held lift, no lift, sway or confetti; the card fades in beside still sparkles", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await freshDemo(page);
+  try {
+    const before = await oneToGo(page);
+    await watchParty(page);
+    await slowSaves(page, 1_500);
+    const saved = nextSave(page);
+    await holdKey(page, habitKey(page, "No phone in bed"), 800);
+    // At the new height at once, before the answer: nothing is held.
+    await page.waitForTimeout(300);
+    await expect(strip(page)).not.toContainText(before);
+    await saved;
+    await expect(page.getByRole("button", { name: /New zone Summit/ })).toBeVisible();
+    await expect(page.locator('canvas[data-scene="close"]')).toHaveAttribute("data-sparkles", "4");
+    await page.waitForTimeout(2_000);
+    const seen = await party(page);
+    expect(seen.confetti).toBe(0);
+    expect(seen.celebrating).toBe(false);
+    await expect(page.locator("[data-celebrations]")).toHaveAttribute("data-celebrations", "0");
+  } finally {
+    await page.unroute("**/*");
+    await reseedDemo();
+  }
+});
+
 test("the chips on the strip and on Climb never overlap: 320 px, and 200% text", async ({ page }) => {
   await freshDemo(page);
   for (const [width, textSize] of [
