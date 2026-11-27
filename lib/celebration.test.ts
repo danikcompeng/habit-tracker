@@ -74,8 +74,8 @@ describe("the balloon's surge", () => {
     }
     expect(world[world.length - 1]).toBeCloseTo(70, 9);
   });
-  it("is home by the time the card has landed (MOTION.land + the card's 200 ms)", () => {
-    expect(balloonRise(MOTION.land + MOTION.base)).toBe(0);
+  it("is home by the time the card has landed (MOTION.land + its 250 ms wipe)", () => {
+    expect(balloonRise(MOTION.land + MOTION.pop)).toBe(0);
     expect(balloonRise(MOTION.land)).toBeLessThanOrEqual(1);
   });
 });
@@ -199,9 +199,9 @@ describe("Reduce Motion's sparkles", () => {
 });
 
 describe("the timeline", () => {
-  it("the card starts landing in the lift's last third and has landed (MOTION.land + 200 ms) by its end", () => {
+  it("the card starts landing in the lift's last third and has landed (MOTION.land + its 250 ms wipe) by its end", () => {
     expect(MOTION.land).toBeGreaterThan((MOTION.celebrate * 2) / 3);
-    expect(MOTION.land + MOTION.base).toBeLessThanOrEqual(MOTION.celebrate);
+    expect(MOTION.land + MOTION.pop).toBeLessThanOrEqual(MOTION.celebrate);
     expect(liftProgress(MOTION.land)).toBeGreaterThan(0.8);
   });
   it("runs until the last bit is gone, then stops", () => {

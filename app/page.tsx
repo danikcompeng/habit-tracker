@@ -1,11 +1,12 @@
 // Today: your habits as keys to press and hold (plans/habit-tracker.md, Feature 3).
-import { Suspense } from "react";
+import { Suspense, ViewTransition } from "react";
 import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { LogOutButton, ResetDemoButton } from "@/components/account-actions";
 import { FOOTER_LINK } from "@/components/ui/footer-link";
+import { CLIMB_SCENE, MORPH_ONLY } from "@/lib/motion";
 import { TodayScreen } from "@/components/today-screen";
 import { buttonClass } from "@/components/ui/button";
 import { APP_NAME } from "@/lib/app-identity";
@@ -168,8 +169,12 @@ function TodaySkeleton() {
           <div className="h-11 w-[68px] rounded-full bg-surface-sunk" />
         </div>
       </div>
-      {/* The scene strip's box (Feature 10), so nothing moves when it arrives. */}
-      <div className="mt-3 h-[8.75rem] rounded-key bg-surface-sunk" />
+      {/* The scene strip's box (Feature 10), so nothing moves when it arrives. Named like the strip
+          (Feature 10i): coming back from Climb while Today loads, the window shrinks into this box,
+          in the scene's own colour (--climb-ground: sky, or space once the strip has shown it), not grey. */}
+      <ViewTransition name={CLIMB_SCENE} share={MORPH_ONLY} default="none">
+        <div className="mt-3 h-[8.75rem] rounded-key border border-line bg-(--climb-ground)" />
+      </ViewTransition>
       <div className="mt-5 h-9 w-23 rounded bg-surface-sunk" />
       <div className="mt-3 h-5 w-64 rounded bg-surface-sunk" />
       <div className="mt-7 flex flex-col gap-3">

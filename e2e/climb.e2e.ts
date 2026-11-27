@@ -6,6 +6,7 @@
 import type { Page } from "@playwright/test";
 import { altitudeOf, dailyClimbCm, metres, nextZone, zoneAt, zonesBelow } from "../lib/altitude";
 import { climbTop } from "../lib/climb-scene/scene";
+import { MOTION } from "../lib/motion";
 import { addDays, todayIn } from "../lib/dates";
 import { demoSeedPayload } from "../lib/demo-seed";
 import { expectNoA11yViolations, freshDemo, habitKey, holdKey } from "./helpers/app";
@@ -265,6 +266,9 @@ test("Feature 10h: crossing the Summit celebrates once (a lift, confetti, then t
     const card = page.getByRole("button", { name: /New zone Summit/ });
     await expect(card).toBeVisible();
     await expect(card).toContainText("+70 m");
+    // It wiped open from the balloon's side after the lift (Feature 10i): 250 ms, from 950 ms.
+    const wipe = await card.evaluate((el) => el.getAnimations().map((a) => ({ name: (a as CSSAnimation).animationName, delay: Number(a.effect?.getTiming().delay), duration: Number(a.effect?.getTiming().duration) })));
+    expect(wipe).toEqual([{ name: "card-in", delay: MOTION.land, duration: MOTION.pop }]);
     // Closing the card (here, as soon as it has landed) doesn't start it again.
     await card.click();
     await expect(card).toHaveCount(0);
@@ -400,6 +404,118 @@ test("Feature 10h, Reduce Motion: no held lift, no lift, sway or confetti; the c
     await page.unroute("**/*");
     await reseedDemo();
   }
+});
+
+/**
+ * Records every view transition's animations on this page (Feature 10i):
+ * each pseudo-element's name and duration, checked every frame. Installed as
+ * an init script, so it runs in every new document from its very start (a
+ * reload's own reveal is caught too); `__vtReady` says it ran.
+ */
+async function recordViewTransitions(page: Page) {
+  const install = () => {
+    const w = window as unknown as { __vt: [string, number][]; __vtReady: boolean };
+    if (w.__vtReady) return;
+    w.__vt = [];
+    w.__vtReady = true;
+    const look = () => {
+      for (const a of document.documentElement?.getAnimations({ subtree: true }) ?? []) {
+        const name = (a.effect as KeyframeEffect | null)?.pseudoElement;
+        if (name && name.startsWith("::view-transition")) w.__vt.push([name, Number(a.effect?.getTiming().duration ?? 0)]);
+      }
+      requestAnimationFrame(look);
+    };
+    look();
+  };
+  await page.addInitScript(install);
+  await page.evaluate(install);
+}
+
+/** The view transitions recorded while `go` ran (name → longest duration). */
+async function viewTransitions(page: Page, go: () => Promise<unknown>): Promise<Map<string, number>> {
+  await page.evaluate(() => ((window as unknown as { __vt: [string, number][] }).__vt = []));
+  await go();
+  await page.waitForTimeout(1_200);
+  const seen = await page.evaluate(() => {
+    const w = window as unknown as { __vt?: [string, number][]; __vtReady?: boolean };
+    return w.__vtReady ? (w.__vt ?? []) : null;
+  });
+  expect(seen, "the recorder ran in this document").not.toBeNull();
+  const out = new Map<string, number>();
+  for (const [name, ms] of seen!) out.set(name, Math.max(out.get(name) ?? 0, ms));
+  return out;
+}
+
+test("Feature 10i: tapping the strip grows it into Climb's window, and Done shrinks it back (first visit and again); instant with Reduce Motion", async ({ page }) => {
+  await recordViewTransitions(page);
+  for (const reducedMotion of ["no-preference", "reduce"] as const) {
+    await page.emulateMedia({ reducedMotion });
+    await freshDemo(page);
+    for (let visit = 0; visit < 2; visit++) {
+      const there = await viewTransitions(page, () => strip(page).click());
+      await expect(page.getByRole("heading", { name: "Climb", level: 1 })).toBeVisible();
+      const back = await viewTransitions(page, () => page.getByRole("link", { name: "Done" }).click());
+      await expect(strip(page)).toBeVisible();
+      for (const [label, run] of [["to Climb", there], ["back to Today", back]] as const) {
+        const where = `${reducedMotion}, visit ${visit + 1}, ${label}`;
+        // Only the box moves: the page itself isn't captured.
+        expect(run.has("::view-transition-group(root)"), `${where}: no root snapshot`).toBe(false);
+        if (reducedMotion === "reduce") {
+          // Instant: nothing that runs takes any time (a 0 s transition may not even be seen).
+          for (const [name, ms] of run) expect(ms, `${where}: ${name}`).toBe(0);
+        } else {
+          expect(run.get("::view-transition-group(climb-scene)"), `${where}: the strip and the window morph`).toBe(MOTION.morph);
+        }
+      }
+    }
+  }
+  await page.emulateMedia({ reducedMotion: "no-preference" });
+  // A page load (the skeleton's strip giving way to the strip), the browser's
+  // back, a save, and Today's other links don't morph, or start any view transition.
+  const none = (label: string, run: Map<string, number>) => expect([...run.keys()], label).toEqual([]);
+  none("a reload", await viewTransitions(page, () => page.reload()));
+  none("a cold load", await viewTransitions(page, () => page.goto("/")));
+  await strip(page).click();
+  await expect(page.getByRole("heading", { name: "Climb", level: 1 })).toBeVisible();
+  await page.waitForTimeout(600);
+  none("the browser's back", await viewTransitions(page, () => page.goBack()));
+  await expect(strip(page)).toBeVisible();
+  none(
+    "a save",
+    await viewTransitions(page, async () => {
+      const saved = nextSave(page);
+      await holdKey(page, habitKey(page, "Read 10 pages"), 800);
+      await saved;
+    }),
+  );
+  none("History", await viewTransitions(page, () => page.getByRole("link", { name: "History" }).click()));
+  await reseedDemo();
+});
+
+test("Feature 10i: the morph never blocks input: a tap that lands while the box is still growing goes through", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "no-preference" });
+  await freshDemo(page);
+  // A slow morph (3 s instead of 350 ms), so the tap certainly lands during it.
+  await page.addStyleTag({ content: ":root { --motion-morph: 3000ms; }" });
+  await page.evaluate(() => {
+    const w = window as unknown as { __tapDuringMorph?: boolean };
+    addEventListener(
+      "pointerdown",
+      () => {
+        w.__tapDuringMorph = document.documentElement
+          .getAnimations({ subtree: true })
+          .some((a) => (a.effect as KeyframeEffect | null)?.pseudoElement === "::view-transition-group(climb-scene)" && a.playState === "running");
+      },
+      { capture: true },
+    );
+  });
+  await strip(page).click();
+  await expect(page.getByRole("heading", { name: "Climb", level: 1 })).toBeVisible();
+  // Climb's header is live under the growing box: Done takes the tap.
+  await page.getByRole("link", { name: "Done" }).click({ timeout: 2_000 });
+  expect(await page.evaluate(() => (window as unknown as { __tapDuringMorph?: boolean }).__tapDuringMorph)).toBe(true);
+  await expect(page).toHaveURL(/\/$/);
+  await expect(strip(page)).toBeVisible();
 });
 
 test("the chips on the strip and on Climb never overlap: 320 px, and 200% text", async ({ page }) => {

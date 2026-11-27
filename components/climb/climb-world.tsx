@@ -8,10 +8,11 @@
 // labels are text over the art, in token chips; the zones are a list for
 // screen readers, the ruler is decoration (your height is in the readout).
 
-import { useCallback, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
+import { ViewTransition, useCallback, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 import { BACKDROP_ROWS, SCENE_SCALE, SceneCanvas, WORLD_METRES_PER_ROW, type Backdrop } from "@/components/climb/scene-canvas";
 import { CM, metres, metresText, wholeMetres, zonesBelow } from "@/lib/altitude";
 import { NIGHT_M, climbTop, climbWindowTop } from "@/lib/climb-scene/scene";
+import { CLIMB_SCENE, MORPH_ONLY } from "@/lib/motion";
 
 /** Valley drawn below 0 m (css px): room under "Base camp" at the scroll's bottom limit. */
 const FLOOR_PX = 8 * SCENE_SCALE;
@@ -61,6 +62,8 @@ export function ClimbWorld({ altitudeCm }: { altitudeCm: number }) {
   }, [altitudeM, top]);
 
   return (
+    // The same name as Today's strip (Feature 10i): the strip grows into this window.
+    <ViewTransition name={CLIMB_SCENE} share={MORPH_ONLY} default="none">
     <div
       ref={box}
       // A window onto the climb, down to the bottom of the screen, scrolling
@@ -151,5 +154,6 @@ export function ClimbWorld({ altitudeCm }: { altitudeCm: number }) {
         </ul>
       </div>
     </div>
+    </ViewTransition>
   );
 }

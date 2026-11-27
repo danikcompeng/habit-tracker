@@ -6,6 +6,7 @@
 //   Walk outside            done today, 2-day streak
 //   No phone in bed         not done, 1-day streak
 
+import type { Locator, Page } from "@playwright/test";
 import { expectNoA11yViolations, freshDemo, habitKey, holdKey } from "./helpers/app";
 import { expect, nextSave, test } from "./helpers/saves";
 
@@ -160,4 +161,103 @@ test("holding Space completes once and stays done", async ({ page }) => {
 
 test("the signed-in account is shown, so a forged login link would be noticed", async ({ page }) => {
   await expect(page.getByText("Demo account")).toBeVisible();
+});
+
+/**
+ * Records each Web Animation started on the page by the element's id
+ * (Feature 10i's streak pulse). An init script, so a new document (a reload)
+ * records from its very start, before the first render. Read with started().
+ */
+async function watchAnimate(page: Page) {
+  const install = () => {
+    const w = window as unknown as { __started: string[]; __watching?: boolean };
+    w.__started = [];
+    if (w.__watching) return;
+    w.__watching = true;
+    const animate = Element.prototype.animate;
+    Element.prototype.animate = function (this: Element, ...args: Parameters<Element["animate"]>) {
+      w.__started.push(this.id || this.tagName.toLowerCase());
+      return animate.apply(this, args);
+    };
+  };
+  await page.addInitScript(install);
+  await page.evaluate(install);
+}
+
+function started(page: Page) {
+  return page.evaluate(() => (window as unknown as { __started: string[] }).__started);
+}
+
+/** The key's two check layers (the empty ring, the filled disc): their opacity, filter and transition. */
+function checkLayers(key: Locator) {
+  return key.locator("[data-check]").evaluate((el) =>
+    [...el.children].map((layer) => {
+      const s = getComputedStyle(layer);
+      return { opacity: Number(s.opacity), filter: s.filter, property: s.transitionProperty, duration: s.transitionDuration };
+    }),
+  );
+}
+
+test("Feature 10i: the check crossfades with a blur, both ways; the streak pulses once when it rises, never on undo or a reload", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "no-preference" });
+  await page.reload();
+  const read = habitKey(page, "Read 10 pages");
+  const streakId = (await read.getAttribute("aria-describedby"))!.split(" ")[0];
+  await watchAnimate(page);
+  // Open: the ring sharp, the disc faded and blurred; both ready to crossfade over 200 ms.
+  let [ring, disc] = await checkLayers(read);
+  expect(ring.opacity).toBe(1);
+  expect(disc.opacity).toBe(0);
+  expect(disc.filter).toContain("blur(2px)");
+  for (const layer of [ring, disc]) {
+    expect(layer.property).toMatch(/opacity/);
+    expect(layer.property).toMatch(/filter/);
+    expect(layer.property).toMatch(/scale/);
+    expect(layer.duration).toBe("0.2s");
+  }
+  const saved = nextSave(page);
+  await holdKey(page, read, 800);
+  await saved;
+  await expect(read).toContainText("5-day streak");
+  await expect(read.locator("[data-check]")).toHaveAttribute("data-check", "done");
+  await expect.poll(async () => (await checkLayers(read))[1].opacity).toBe(1);
+  [ring, disc] = await checkLayers(read);
+  expect(ring.opacity).toBe(0);
+  expect(ring.filter).toContain("blur(2px)");
+  expect(disc.filter).not.toContain("blur");
+  // One pulse on the streak caption.
+  expect((await started(page)).filter((id) => id === streakId)).toHaveLength(1);
+  // To Climb and back (Today hidden, then shown again): the number didn't change, so no second pulse.
+  await page.getByRole("link", { name: /^Altitude/ }).click();
+  await expect(page.getByRole("heading", { name: "Climb", level: 1 })).toBeVisible();
+  await page.getByRole("link", { name: "Done" }).click();
+  await expect(read).toContainText("5-day streak");
+  await page.waitForTimeout(500);
+  expect((await started(page)).filter((id) => id === streakId)).toHaveLength(1);
+  // Undo: the swap back, and no pulse (the number went down).
+  const undone = nextSave(page);
+  await read.click();
+  await undone;
+  await expect(read.locator("[data-check]")).toHaveAttribute("data-check", "open");
+  await expect.poll(async () => (await checkLayers(read))[0].opacity).toBe(1);
+  expect((await started(page)).filter((id) => id === streakId)).toHaveLength(1);
+  // A reload shows the number as it is: no pulse (recorded from the new page's very start).
+  await page.reload();
+  await expect(habitKey(page, "Read 10 pages")).toContainText("4-day streak");
+  await page.waitForTimeout(500);
+  expect((await started(page)).filter((id) => id === streakId)).toHaveLength(0);
+});
+
+test("Feature 10i, Reduce Motion: the check swaps at once and the streak doesn't pulse", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.reload();
+  const read = habitKey(page, "Read 10 pages");
+  const streakId = (await read.getAttribute("aria-describedby"))!.split(" ")[0];
+  await watchAnimate(page);
+  for (const layer of await checkLayers(read)) expect(layer.duration).toBe("0s");
+  const saved = nextSave(page);
+  await holdKey(page, read, 800);
+  await saved;
+  await expect(read).toContainText("5-day streak");
+  expect((await started(page)).filter((id) => id === streakId)).toHaveLength(0);
 });

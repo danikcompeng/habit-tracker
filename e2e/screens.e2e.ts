@@ -348,7 +348,7 @@ test("climb 10h screens", async ({ page }) => {
       await page.clock.runFor(t - at);
       at = t;
       // The card's CSS animation, to the same moment (it began with the celebration).
-      await card.evaluate((el, t) => el.getAnimations().forEach((a) => ((a.currentTime = t), a.pause())), t);
+      await card.evaluate((el, t) => el.getAnimations().forEach((a) => (a.pause(), (a.currentTime = t))), t);
       await page.screenshot({ path: `docs/screenshots/${folder}/t${t}-${scheme}.png`, clip: { x: 0, y: 0, width: 390, height: 300 } });
     }
     await page.clock.resume();
@@ -371,6 +371,109 @@ test("climb 10h screens", async ({ page }) => {
     await expect(page.getByRole("button", { name: /New zone Summit/ })).toBeVisible();
     await page.waitForTimeout(400);
     await page.screenshot({ path: `docs/screenshots/${folder}/reduce-${scheme}.png` });
+    await reseedDemo();
+  }
+});
+
+/**
+ * Freezes the next animations that `pick` finds (checked every frame, from
+ * now) at `ms` into them, and resolves once it has. Start it before the
+ * action that begins them; screenshot; then `thaw`. Resolves with how many it
+ * froze (0: none came within 4 s); `frozen()` fails the test on 0.
+ */
+function freezeNext(page: Page, pick: "morph" | "check" | "streak", ms: number | `${number}%`) {
+  return page.evaluate(
+    ([pick, ms]) =>
+      new Promise<number>((resolve) => {
+        const until = performance.now() + 4_000;
+        const look = () => {
+          const all = document.documentElement.getAnimations({ subtree: true });
+          const found = all.filter((a) => {
+            const effect = a.effect as KeyframeEffect | null;
+            if (pick === "morph") return effect?.pseudoElement?.includes("climb-scene");
+            const target = effect?.target as Element | null;
+            if (pick === "check") return !!target?.parentElement?.hasAttribute("data-check");
+            return !!target?.id.endsWith("-streak");
+          });
+          if (found.length > 0) {
+            for (const a of found) {
+              const duration = Number(a.effect?.getTiming().duration);
+              a.pause();
+              a.currentTime = typeof ms === "number" ? ms : (duration * parseInt(ms)) / 100;
+            }
+            (window as unknown as { __frozen: Animation[] }).__frozen = found;
+            resolve(found.length);
+          } else if (performance.now() < until) requestAnimationFrame(look);
+          else resolve(0);
+        };
+        look();
+      }),
+    [pick, ms] as const,
+  );
+}
+
+/** Waits for a freezeNext, failing the screens test if nothing was frozen (a still of the settled state would mislead). */
+async function frozen(what: string, freeze: Promise<number>) {
+  expect(await freeze, `${what}: an animation to freeze`).toBeGreaterThan(0);
+}
+
+async function thaw(page: Page) {
+  await page.evaluate(() => (window as unknown as { __frozen?: Animation[] }).__frozen?.forEach((a) => a.play()));
+  await page.waitForTimeout(500);
+}
+
+test("climb 10i screens", async ({ page }) => {
+  // Feature 10i, frozen mid-motion: the strip growing into Climb's window (at
+  // 40% and 80%) and shrinking back (50%); a key's check mid-crossfade,
+  // completing and undoing; its streak mid-pulse.
+  test.setTimeout(240_000);
+  const folder = "feature-10/climb-10i";
+  const strip = page.getByRole("link", { name: /^Altitude/ });
+  for (const scheme of SCHEMES) {
+    await page.emulateMedia({ colorScheme: scheme, reducedMotion: "no-preference" });
+    await freshDemo(page);
+    await page.evaluate(() => document.fonts.ready);
+    // The first visit grows into Climb's loading box; later ones into the world itself.
+    for (const [visit, at, backAt] of [["first", "40%", "50%"], ["again", "20%", "20%"], ["again", "60%", null]] as const) {
+      const freeze = freezeNext(page, "morph", at);
+      await strip.click();
+      await frozen("the morph in", freeze);
+      await page.screenshot({ path: `docs/screenshots/${folder}/morph-in-${visit}-${at.replace("%", "")}-${scheme}.png` });
+      await thaw(page);
+      await expect(page.getByRole("heading", { name: "Climb", level: 1 })).toBeVisible();
+      await page.waitForTimeout(400);
+      const back = freezeNext(page, "morph", backAt ?? "50%");
+      await page.getByRole("link", { name: "Done" }).click();
+      await frozen("the morph back", back);
+      if (backAt) await page.screenshot({ path: `docs/screenshots/${folder}/morph-back-${backAt.replace("%", "")}-${scheme}.png` });
+      await thaw(page);
+      await expect(strip).toBeVisible();
+      await page.waitForTimeout(400);
+    }
+    // A key: completing (its check mid-crossfade, its streak mid-pulse), then undoing.
+    const key = habitKey(page, "Read 10 pages");
+    const box = (await key.boundingBox())!;
+    const check = freezeNext(page, "check", 100);
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.mouse.down();
+    await frozen("the check completing", check);
+    await page.mouse.up();
+    await page.screenshot({ path: `docs/screenshots/${folder}/check-complete-${scheme}.png`, clip: { x: 0, y: box.y - 20, width: 390, height: box.height + 40 } });
+    await thaw(page);
+    // (Its streak pulse ran too: shown on the next completion, below.)
+    const undo = freezeNext(page, "check", 100);
+    await key.click();
+    await frozen("the check undoing", undo);
+    await page.screenshot({ path: `docs/screenshots/${folder}/check-undo-${scheme}.png`, clip: { x: 0, y: box.y - 20, width: 390, height: box.height + 40 } });
+    await thaw(page);
+    const pulseAgain = freezeNext(page, "streak", 125);
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.mouse.down();
+    await frozen("the streak pulse", pulseAgain);
+    await page.mouse.up();
+    await page.screenshot({ path: `docs/screenshots/${folder}/streak-pulse-${scheme}.png`, clip: { x: 0, y: box.y - 20, width: 390, height: box.height + 40 } });
+    await thaw(page);
+    await page.waitForTimeout(800);
     await reseedDemo();
   }
 });

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { applyDone, buildToday, dayLabel, dotsSummary, shortDayLabel, streakText, summaryLine, weekdayName } from "./today";
+import { applyDone, buildToday, dayLabel, dotsSummary, shortDayLabel, streakRose, streakText, summaryLine, weekdayName } from "./today";
 
 const TODAY = "2026-11-23";
 
@@ -94,5 +94,16 @@ describe("applyDone (what a key shows before the server answers)", () => {
 
   it("no change keeps the server's numbers", () => {
     expect(applyDone(habit, true)).toMatchObject({ done: true, streak: 5 });
+  });
+});
+
+describe("streakRose (the caption's pulse, Feature 10i)", () => {
+  it("is true only when the number goes up from a known one", () => {
+    expect(streakRose(4, 5)).toBe(true);
+    expect(streakRose(0, 1)).toBe(true);
+    expect(streakRose(5, 5)).toBe(false);
+    expect(streakRose(5, 4)).toBe(false);
+    // The first render: nothing to compare with.
+    expect(streakRose(null, 12)).toBe(false);
   });
 });

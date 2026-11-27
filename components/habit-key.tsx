@@ -9,9 +9,9 @@ import { useEffect, useLayoutEffect, useRef, useState, type PointerEvent as Reac
 import { Dots } from "@/components/dots";
 import { CheckIcon } from "@/components/icons";
 import { HINT_MS, HOLD_MS, IDLE, fillRadius, isActivationKey, next, type HoldEvent, type HoldMode, type HoldState, type Point } from "@/lib/hold";
-import { EASE_OUT, MOTION } from "@/lib/motion";
+import { EASE_GLIDE, EASE_OUT, MOTION } from "@/lib/motion";
 import type { Dot } from "@/lib/streaks";
-import { dotsSummary, streakText } from "@/lib/today";
+import { dotsSummary, streakRose, streakText } from "@/lib/today";
 
 export type KeyHabit = { id: string; name: string; done: boolean; streak: number; dots: Dot[] };
 
@@ -209,6 +209,29 @@ export function HabitKey({ habit, mode, onComplete, onUndo, onHint, onHoldingCha
     return { x: event.clientX, y: event.clientY };
   }
 
+  // The streak caption pulses when its number goes up (Feature 10i): with
+  // the done pop, the key swells and the number ticks (1.08, from its right
+  // edge). Never on the first render, on undo, or with Reduce Motion;
+  // transform only (no reflow).
+  const streakRef = useRef<HTMLSpanElement>(null);
+  const shownStreak = useRef<number | null>(null);
+  useEffect(() => {
+    const rose = streakRose(shownStreak.current, habit.streak);
+    shownStreak.current = habit.streak;
+    if (rose && !prefersReducedMotion()) {
+      // A tick, not a jolt: up quickly (a third of the time), down gently;
+      // from the right edge, so the caption keeps its column with the check.
+      streakRef.current?.animate(
+        [
+          { transform: "scale(1)", easing: EASE_OUT },
+          { transform: "scale(1.08)", offset: 0.35, easing: EASE_GLIDE },
+          { transform: "scale(1)" },
+        ],
+        { duration: MOTION.pop },
+      );
+    }
+  }, [habit.streak]);
+
   const ids = { streak: `${habit.id}-streak`, week: `${habit.id}-week`, how: `${habit.id}-how` };
   const instruction = habit.done
     ? "Done today. Tap to undo."
@@ -306,7 +329,7 @@ export function HabitKey({ habit, mode, onComplete, onUndo, onHint, onHoldingCha
         )}
         {/* Proportional figures (Feature 9, the user's call): Manrope's
             tabular "1" sits alone in a wide slot ("1 2-day streak"). */}
-        <span id={ids.streak} className={`text-sm font-medium ${habit.done ? "" : filled ? "text-ink" : "text-ink-muted"}`}>
+        <span ref={streakRef} id={ids.streak} data-streak={habit.streak} className={`origin-right text-sm font-medium ${habit.done ? "" : filled ? "text-ink" : "text-ink-muted"}`}>
           {streakText(habit.streak)}
         </span>
       </span>
@@ -321,18 +344,26 @@ export function HabitKey({ habit, mode, onComplete, onUndo, onHint, onHoldingCha
   );
 }
 
+/**
+ * The key's check (Feature 10i): the empty ring and the filled disc with its
+ * check, drawn on top of each other; the one showing is sharp and whole, the
+ * other faded, blurred and a little smaller, and they crossfade over
+ * --motion-base, completing and undoing alike (the check still draws itself
+ * in on completion, 60 ms in, so its stroke shows once the disc has come
+ * through). With Reduce Motion the swap is instant.
+ */
 function CheckCircle({ done, animate }: { done: boolean; animate: boolean }) {
+  const layer =
+    "absolute inset-0 flex items-center justify-center rounded-full border-2 motion-safe:transition-[opacity,filter,scale] motion-safe:duration-(--motion-base) motion-safe:ease-(--ease-out)";
+  const shown = "opacity-100 blur-none scale-100";
+  const hidden = "opacity-0 blur-[2px] scale-85";
   return (
-    <span
-      aria-hidden="true"
-      className={
-        // The empty ring is ink-muted (6:1), so "not done, press me" is
-        // visible; it fades with the key on undo.
-        "flex size-8 shrink-0 items-center justify-center rounded-full border-2 motion-safe:transition-colors motion-safe:duration-(--motion-base) " +
-        (done ? "border-on-accent bg-on-accent text-accent-key" : "border-ink-muted bg-transparent")
-      }
-    >
-      {done && <CheckIcon size={20} strokeWidth={2.5} className={animate ? "motion-safe:animate-[draw-check_200ms_ease-out_both]" : ""} />}
+    <span aria-hidden="true" data-check={done ? "done" : "open"} className="relative size-8 shrink-0">
+      {/* The empty ring is ink-muted (6:1), so "not done, press me" is visible. */}
+      <span className={`${layer} border-ink-muted bg-transparent ${done ? hidden : shown}`} />
+      <span className={`${layer} border-on-accent bg-on-accent text-accent-key ${done ? shown : hidden}`}>
+        <CheckIcon size={20} strokeWidth={2.5} className={done && animate ? "motion-safe:animate-[draw-check_200ms_ease-out_60ms_both]" : ""} />
+      </span>
     </span>
   );
 }

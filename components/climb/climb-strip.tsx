@@ -12,13 +12,13 @@
 // The zone moment's card sits beside the link, never inside it.
 
 import Link from "next/link";
-import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { ViewTransition, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { ChevronRightIcon } from "@/components/icons";
 import { SceneCanvas, type Celebration } from "@/components/climb/scene-canvas";
 import { balloonRise, balloonSway, confetti, confettiRoles, confettiSeed, flightAt, liftSpeed, nextRun, sparkles, type Run } from "@/lib/celebration";
 import { CM, metres, metresText, type Zone, zoneAt } from "@/lib/altitude";
 import { NIGHT_M } from "@/lib/climb-scene/scene";
-import { MOTION } from "@/lib/motion";
+import { CLIMB_SCENE, MORPH_ONLY, MOTION } from "@/lib/motion";
 
 export type ZoneMoment = { id: number; zone: Zone; gainedCm: number; altitudeCm: number };
 
@@ -134,6 +134,13 @@ export function ClimbStrip({ altitudeCm, shapeCm, moment, onDismissMoment }: Pro
       ? STILL
       : undefined;
   const zone = zoneAt(altitudeCm);
+  // The scene's ground colour for the loading boxes and the morph (Feature
+  // 10i): space from NIGHT_M, as the strip's own background.
+  const night = altitudeCm >= NIGHT_M * CM;
+  useEffect(() => {
+    if (night) document.documentElement.dataset.climbNight = "";
+    else delete document.documentElement.dataset.climbNight;
+  }, [night]);
   // If the card closes itself while focused, focus goes to the strip, not the page's start.
   const link = useRef<HTMLAnchorElement>(null);
   const cardFocused = useRef(false);
@@ -149,9 +156,12 @@ export function ClimbStrip({ altitudeCm, shapeCm, moment, onDismissMoment }: Pro
       {/* At least 8.75rem (140 px at normal text); the chips are in the flow
           over the art, so with large text the strip grows instead of the
           chips running into each other. */}
+      {/* The same name as Climb's window (Feature 10i): the strip grows into it, and shrinks back on Done. */}
+      <ViewTransition name={CLIMB_SCENE} share={MORPH_ONLY} default="none">
       <Link
         ref={link}
         href="/climb"
+        transitionTypes={[CLIMB_SCENE]}
         className={`relative flex min-h-[8.75rem] flex-col items-start justify-between gap-2 overflow-hidden rounded-key border border-line ${altitudeCm >= NIGHT_M * CM ? "bg-(--scene-space-1)" : "bg-(--scene-sky-6)"} p-3 motion-safe:transition-transform motion-safe:duration-(--motion-fast) motion-safe:active:translate-y-0.5`}
       >
         <SceneCanvas view="close" altitude={shownM} shapeAt={shapeCm / CM} celebration={celebration} className="absolute inset-0" avoid={".bg-surface"} />
@@ -169,6 +179,7 @@ export function ClimbStrip({ altitudeCm, shapeCm, moment, onDismissMoment }: Pro
           </span>
         </span>
       </Link>
+      </ViewTransition>
       {moment && (
         // The zone moment, over the strip: one tap closes it (and it closes
         // itself after a few seconds). Its words are also announced.
@@ -180,8 +191,9 @@ export function ClimbStrip({ altitudeCm, shapeCm, moment, onDismissMoment }: Pro
           onBlur={() => (cardFocused.current = false)}
           // In the right 42%, clear of the balloon and the peak, so you see them during the moment.
           // It lands as the balloon settles (hidden until then, so a tap
-          // meant for the strip still opens Climb); with Reduce Motion it fades in.
-          className="absolute inset-y-0 right-0 flex w-[42%] items-center justify-center rounded-key p-2 motion-safe:animate-[card-in_var(--motion-base)_var(--ease-out)_var(--motion-land)_both] motion-reduce:animate-[fade-in_var(--motion-base)_var(--ease-out)_both]"
+          // meant for the strip still opens Climb), wiping open from the
+          // balloon's side (Feature 10i); with Reduce Motion it fades in.
+          className="absolute inset-y-0 right-0 flex w-[42%] items-center justify-center rounded-key p-2 motion-safe:animate-[card-in_var(--motion-pop)_var(--ease-glide)_var(--motion-land)_both] motion-reduce:animate-[fade-in_var(--motion-base)_var(--ease-out)_both]"
         >
           <span className="flex max-w-full flex-col items-center gap-0.5 rounded-(--radius-field) border border-line bg-surface px-3 py-2.5 text-center text-balance shadow-[0_3px_0_var(--surface-sunk)]">
             <span className="text-sm font-semibold tracking-wide text-accent uppercase">New zone</span>

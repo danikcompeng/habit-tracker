@@ -226,13 +226,20 @@
   background-image: linear-gradient(var(--scene-ruler), var(--scene-ruler));
 }
 
-/* The zone moment's card (Feature 10): in with a small scale and fade (motion-safe only), after the
-   celebration's lift (--motion-land, Feature 10h); with Reduce Motion, a fade alone (fade-in). */
+/* The zone moment's card (Feature 10): after the celebration's lift
+   (--motion-land, Feature 10h; hidden until then), revealed by a mask wiping
+   from the balloon's side (left) to the right, a clean edge like a game's
+   dialogue box opening (Feature 10i; motion-safe only). It opens 8 px past
+   the button, so the button's focus ring (2 px at a 3 px offset) is never
+   clipped. With Reduce
+   Motion, a fade alone (fade-in). */
 @keyframes card-in {
   from {
-    opacity: 0;
-    transform: scale(0.96);
+    clip-path: inset(-8px 100% -8px -8px round var(--radius-key));
     visibility: hidden;
+  }
+  to {
+    clip-path: inset(-8px round var(--radius-key));
   }
 }
 @keyframes fade-in {
@@ -313,7 +320,60 @@
   --motion-celebrate: 1300ms;
   --motion-land: 950ms;
   --motion-confetti: 2000ms;
+  --motion-morph: 350ms;
   --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --ease-glide: cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+/* Today's strip growing into Climb's window, and back (Feature 10i): a
+   React <ViewTransition> pair named climb-scene, morphing only for the strip
+   link and Done (their transition type). The box moves and resizes on
+   --ease-glide, clipped to its rounded corners and solid in the scene's
+   colour (--climb-ground) from the first frame; its two pictures sit at
+   their own size (1:1), centred, crossfading evenly, so the strip opens into
+   the window rather than stretching. Only the box moves: the page itself
+   isn't captured (no root snapshot), so it swaps underneath and stays live,
+   and taps go through to it (never blocks input). With Reduce Motion every
+   view transition is instant. */
+:root {
+  view-transition-name: none;
+  /* The scene's ground colour: sky, or space once the strip has shown space
+     (data-climb-night, set by the strip). The loading boxes use it too. */
+  --climb-ground: var(--scene-sky-6);
+}
+:root[data-climb-night] {
+  --climb-ground: var(--scene-space-1);
+}
+::view-transition {
+  pointer-events: none;
+}
+::view-transition-group(.morph) {
+  animation-duration: var(--motion-morph);
+  animation-timing-function: var(--ease-glide);
+  overflow: clip;
+  border-radius: var(--radius-key);
+  background: var(--climb-ground);
+}
+::view-transition-image-pair(.morph),
+::view-transition-old(.morph),
+::view-transition-new(.morph) {
+  animation-duration: var(--motion-morph);
+  animation-timing-function: linear;
+}
+::view-transition-old(.morph),
+::view-transition-new(.morph) {
+  height: 100%;
+  object-fit: none;
+  object-position: center;
+}
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*),
+  ::view-transition-image-pair(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation-duration: 0s !important;
+    animation-delay: 0s !important;
+  }
 }
 
 /* The check drawing itself in when a habit is completed (motion-safe only). */

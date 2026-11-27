@@ -78,6 +78,11 @@ export function streakText(streak: number): string {
   return streak > 0 ? `${streak}-day streak` : "Start today";
 }
 
+/** Did a streak go up (so its caption pulses, Feature 10i)? Never on the first render (no previous number), never down. */
+export function streakRose(previous: number | null, next: number): boolean {
+  return previous !== null && next > previous;
+}
+
 /** For screen readers: "Last 7 days: 5 done, 1 missed. Today: not done yet." */
 export function dotsSummary(dots: Dot[]): string {
   const past = dots.slice(0, -1);

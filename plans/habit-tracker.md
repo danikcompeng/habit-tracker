@@ -1374,6 +1374,133 @@ The logic-checker said "Ready after fixes". What changed:
   - **Indigo confetti:** `nebula-light` appears as confetti in light (forest, Treeline, Summit); few other roles show on those backdrops.
   - **A small settle:** the balloon settles about 3 rows against the far mountain as the view catches up. It's slow and has streaks.
 
+### Feature 10i: motion polish (2026-11-27)
+
+_The user's inbox task (07-motion-polish.md), from a "10 UI/UX tips" list they liked._
+
+What they asked for:
+1. **Expand the same element:** tapping Today's Climb strip grows it into the Climb screen (a shared-element transition), and Done shrinks it back into the strip.
+2. **Crossfade icons with blur:** a key's empty circle → check swaps with a quick blur and crossfade (and back on undo).
+3. **Reveal with a mask:** the "New zone" card reveals with a short mask wipe as the balloon settles (10h's timing kept).
+4. **Pulse to confirm:** a tiny pulse on the streak number when it goes up.
+
+Rules:
+- Existing motion tokens; every animation 150–400 ms and purposeful.
+- Reduce Motion: a fade or nothing instead.
+- Never block input; 60 fps on an iPhone; no new heavy libraries.
+- If one already exists or would fight the design, skip it and log why.
+- Then re-record all the demo videos (check for stutter, restore the demo) and commit "Feature 10i: motion polish".
+
+Visuals only: **no change to data, the save flow, the hold gesture's rules (`lib/hold.ts`), the zone moment's rules or Climb's scene; no migration.**
+
+**1. The strip grows into Climb: React's `<ViewTransition>`** (React 19.3, built in: `node_modules/next/dist/docs/01-app/02-guides/view-transitions.md`). No library: the browser's View Transitions API, which React starts for route navigations.
+- One name, `climb-scene`, on two things:
+  - Today's strip (the link's box);
+  - Climb's scene window (`.climb-box`), and its skeleton box while Climb loads. The skeleton gets the name too because a pair only forms when both ends are in the same commit. A first visit to Climb shows its skeleton first: the strip grows into the skeleton's box, and the world then appears in it (the skeleton and the world share the name, so it's a crossfade in place).
+- `share="morph" default="none"`: only this pair animates, and only when it pairs. History, Habits and Settings navigations do nothing new.
+- The morph: the group's size and position over `--motion-morph` (350 ms) on `--ease-out`, with a 2 px blur mid-flight (the guide's recipe; it hides the strip's snapshot stretching into the taller window). The rest of the page crossfades (the browser's default root fade, which runs alongside).
+- Done back to Today shrinks the window into the strip. Today is kept alive (`<Activity>`), so it's there in the same commit.
+- **Never blocks input:** `::view-transition { pointer-events: none }`. Taps go through to the page underneath during the 350 ms. Named parts aren't hit-tested meanwhile; nobody taps the moving strip twice in 350 ms.
+- **Reduce Motion:** every view-transition animation set to 0 s. The navigation is instant, as now.
+- **Browsers without the API** (older Safari): a plain navigation, as now.
+- **Unknown until tried:** whether React pairs a named element in a route that Activity hides with one in the route being shown. If it doesn't in either direction, I'll log it and skip this item rather than fight the router.
+
+**2. The check: blur and crossfade, both ways.**
+- **Now:** the check draws itself in (stroke, 200 ms) while the ring's colour fades. On undo the check vanishes at once and the ring fades back.
+- **New:** both states are drawn on top of each other: the empty ring, and the filled disc with its check. The one showing has opacity 1, no blur and scale 1; the other has opacity 0, `blur(2px)` and scale 0.85.
+  - They crossfade over `--motion-base` (200 ms) on `--ease-out`, completing and undoing alike.
+  - The check's stroke draw stays on completion: it's the "done" mark's own beat, and they don't fight (the draw happens inside the fading-in disc).
+- **Reduce Motion:** no transition, the swap is instant, as now.
+- It's CSS transitions on opacity, filter and transform: the compositor's work, nothing per frame in JavaScript.
+
+**3. The card: a mask wipe.**
+- `card-in` (fade and scale 0.96) becomes a wipe: `clip-path: inset(…)` opening from the balloon's side (left) to the right, over `--motion-pop` (250 ms) on `--ease-out`, still after `--motion-land` (950 ms) and hidden until then. A slight fade (0.4 → 1) goes with it, so the edge isn't a hard cut.
+- The clip includes the card's 3 px lip shadow at the end.
+- **Reduce Motion:** the fade, as now.
+
+**4. The streak pulses when it goes up.**
+- When a key's streak number rises (a completion; or fresh data showing a higher number), its caption scales 1 → 1.15 → 1 over `--motion-pop` (250 ms), from its own centre. A Web Animations call, like the key's done pop. The pop and the pulse land together: the key swells, the number ticks.
+- Never on the first render, never when it goes down (undo), and only once per rise (a ref keeps the last number). `streakRose(previous, next)` is a pure, tested function.
+- **Reduce Motion:** none.
+- It's transform only, so the caption never changes size or reflows the row.
+
+**Tokens:**
+- `MOTION.morph` 350 (`--motion-morph`), new, for the morph.
+- Everything else reuses `--motion-base`, `--motion-pop` and `--ease-out`.
+- `lib/motion.test.ts` keeps them in step, and checks every 10i duration is 150–400 ms.
+
+**Tests.**
+- Unit:
+  - `streakRose`.
+  - The motion tokens (`morph` in range).
+  - The stylesheet: the morph rule uses `--motion-morph`; `::view-transition` lets taps through; Reduce Motion zeroes view-transition animations; the card's wipe keyframes clip and end open.
+- Browser:
+  - Tapping the strip runs a view transition with a `climb-scene` group, and Done runs one back (read from the document's animations during the navigation, in Chromium).
+  - With Reduce Motion the navigation's animations take 0 s.
+  - Completing a key shows both check layers crossfading (computed styles mid-transition); undo reverses it.
+  - The streak caption runs one pulse animation on completion and none on undo or reload.
+  - The zone card's animation is the wipe (its keyframes clip), still landing after 950 ms.
+
+**Previews** (390×844, light and dark):
+- the morph at about 40% and 80% (Today → Climb) and 50% back;
+- a key mid-crossfade (complete and undo);
+- the streak mid-pulse;
+- the card mid-wipe.
+
+**After logic-checker, and trying it (decided):**
+
+The logic-checker said "Ready after fixes". The "unknown until tried" is settled: React pairs across `<Activity>` both ways, a first visit and later ones (tried in Chromium).
+- **The morph only for the two links** (Medium, and a High found by trying it).
+  - A loading reveal is also a view transition, so a page load ran the morph: the skeleton's strip giving way to the real strip.
+  - While that ran, the page was a snapshot and taps landed on `<html>`. A hold started during a reload was lost: two browser tests failed that way.
+  - Now the pair's `share` is keyed by a transition type (`MORPH_ONLY`: `climb-scene` → morph, anything else → none). Only the strip link and Climb's Done carry the type (`transitionTypes`).
+  - Reveals, refreshes, and the browser's back and swipe (untyped) don't animate, so iOS's own swipe slide isn't doubled.
+- **The page isn't captured** (Medium; the plan's "the rest crossfades" was wrong).
+  - `:root { view-transition-name: none }`: only the box moves; the page swaps underneath, stays live, and taps go through (`::view-transition { pointer-events: none }`).
+  - Tested: a key held the moment Done is tapped, as the window shrinks, completes and saves.
+- **It grows, not slides** (High).
+  - The box is clipped to its rounded corners (`overflow: clip`, `border-radius`). Its two pictures sit at their own size (`object-fit: none`), centred, crossfading, so the strip opens into the window and the window closes into the strip.
+  - Nothing stretches any more, so the 2 px blur went. That's also one fewer phone-sized filter layer.
+- **The loading boxes:**
+  - On a first visit Climb's world isn't there yet. With Partial Prefetching even `prefetch={true}` leaves out per-user data.
+  - Back on Today, its data refreshes, so its skeleton shows for about 300 ms. That was already so before 10i: it's how a kept route returns here.
+  - So the strip grows into Climb's skeleton box, and the window shrinks into Today's skeleton strip. Both boxes carry the name and are now the scene's sky colour (`--scene-sky-6`, the strip's own background), not grey. The world, or the strip, then appears in place, with no second animation (untyped).
+- **The card's wipe and focus** (Medium):
+  - The wipe opens 8 px past the button on every side and ends at `inset(-8px)`, so its focus ring (2 px at a 3 px offset) is never clipped.
+  - `visibility: hidden` stays in its first frame (no taps before it lands).
+  - It ends at 1,200 ms (950 + 250); the comments and 10h's tests say so.
+- **Accepted:**
+  - **The pulse while hidden:** a streak that rose while Today was hidden (fresh data) pulses as Today reappears. A completion whose save then fails pulses, then the number goes back. Both are "the number went up".
+  - **Commits wait for the morph:** React holds a transition's commit while a view transition runs, so a navigation tapped within 350 ms of Done, or a save's refreshed data, lands after it. Keys stay pressable, and the optimistic guess isn't held back.
+  - **First-visit timing:** the world appears once its data arrives and the 350 ms morph has ended, as before 10i but never sooner than 350 ms.
+- **Screenshots:** a paused-clock still can't show a composited `clip-path` animation (the computed style is right, the picture isn't). Tried on a plain box: the wipe paints paused and live. The card's wipe is checked in the re-recorded videos instead.
+
+**After the code-reviewer and the design-critic (decided):**
+- **A solid box** (design-critic): the morphing box is painted in the scene's ground colour (`--climb-ground`), so it's solid from the first frame. In round 1 it was half see-through mid-flight, a haze over the page.
+- **The ground follows the scene** (both):
+  - Once the strip has shown space (from `NIGHT_M`, 17,500 m), it sets `data-climb-night` on `<html>`. `--climb-ground` is then `--scene-space-1` for the morph and both loading boxes, so there's no dark → light → dark flash up there.
+  - A cold load still starts in sky colour (the static shell can't know your height). Accepted.
+- **The loading boxes** have the real boxes' 1 px border, and Climb's has the window's size limits (`max-h-[900px]`, `basis-0`), so nothing snaps at the hand-off.
+- **Easing** (design-critic):
+  - A second curve, `--ease-glide` (cubic-bezier(0.32, 0.72, 0, 1), `EASE_GLIDE`, tested in step; a soft ease-out, named so after the design-critic's round 2), for things that travel or unroll: the morph and the card's wipe. `--ease-out` was 90% done at 40% of the time, so the box jumped and the card flashed across.
+  - The morph's two pictures crossfade linearly.
+  - The pulse: 1.08 (was 1.15), from the caption's right edge (it kept to the check's column), up in the first 35% on `EASE_OUT`, down on `EASE_GLIDE`: a tick, not a jolt.
+- **The card's wipe** is a clean edge (like a game's dialogue box), with no fade: the fade had washed the whole card out.
+- **The check** draws 60 ms in, so its stroke shows once the disc has come through.
+- **Tests that could never fail** (code-reviewer), rewritten:
+  - **View transitions** are recorded by an init script (every new document, from its start), with a flag that it ran. A reload, a cold load, the browser's back, a save and History start no view transition.
+  - **Reduce Motion** checks that nothing that runs takes time.
+  - **A tap during the morph:** the morph is slowed to 3 s and a pointerdown records that the `climb-scene` group was running when Done was tapped, and the tap navigated.
+  - **The pulse:** the animation recorder is an init script too, so a reload's first render is watched. Going to Climb and back doesn't pulse again.
+  - **The stills:** the freezer fails when it froze nothing. Stills now include a later visit and early frames (20%). (Climb, like Today, refreshes on every visit, so later visits land on its loading box too.)
+  - **Checked by breaking it on purpose:**
+    - an untyped `share` fails "a reload";
+    - a captured root fails "no root snapshot";
+    - without `::view-transition { pointer-events: none }` a tap still goes through, because React already lets taps through its transition overlay. The rule stays as a guard, and the test checks the behaviour itself.
+- **Accepted:**
+  - **The return lands on Today's loading strip** (design-critic: "drop the shrink if it always lands on a placeholder"). The user asked for Done to shrink the window back into the strip. Today refreshes its data on every return (before 10i too), so the window lands in the loading strip, which is now the same shape, border and colour, and the strip appears in it about 300 ms later. Keeping Today's strip from re-suspending would change how Today loads, which is outside 10i.
+  - **Commits wait for the morph** and **the pulse while hidden**, as decided above.
+
 ## Reviews
 
 _One entry per feature. Every agent finding is logged with its severity and what was done about it, so the log shows what each reviewer caught and what changed as a result._
@@ -2688,6 +2815,71 @@ Verdict: **Ship**. All nine round-1 items resolved; it reads as one moment in or
 | 4 | Low | A small settle against the far mountain. | Accepted | Slow, with streaks. |
 
 Checks (final): 655 unit and database tests, tsc, eslint, next build; the browser suite on the production build: 100 passed, 0 failed. Screenshots: `docs/screenshots/feature-10/climb-10h/` (stills at 150, 400, 900, 1,400 ms on a paused clock, and Reduce Motion, light and dark), the app's screenshots refreshed. Unit tests run with a 120 s timeout this time: the machine was at 100% CPU from other programs, and three heavy scene tests passed their 20 s limit (they pass alone).
+
+### Feature 10i: motion polish (2026-11-27)
+
+The user's inbox task (07-motion-polish.md): four touches from a "10 UI/UX tips" list.
+- **The strip grows into Climb**, and Done shrinks it back (shared element).
+- **The check crossfades with a blur.**
+- **The card reveals with a mask wipe.**
+- **The streak pulses** when it rises.
+
+None already existed or fought the design, so all four were built. React 19.3's `<ViewTransition>` was used for the morph (no library). Visuals only; no SQL.
+
+#### logic-checker (plan review)
+Verdict: **Ready after fixes**. The pairing across `<Activity>`, an off-screen strip, browsers without the API, Reduce Motion, the hold gesture and the pulse basics checked out.
+
+| # | Severity | Finding | Outcome | What changed |
+|---|----------|---------|---------|--------------|
+| 1 | High | Nothing clips or sizes the pictures: it would read as a slide, not a grow, and the old window would hang over Today's keys. | Fixed | The group clipped and rounded; pictures 1:1, centred. |
+| 2 | Medium | "The rest of the page crossfades" was wrong. | Fixed | The root is out on purpose (`view-transition-name: none`): only the box moves, the page stays live. |
+| 3 | Medium | Every loading reveal also runs the morph (and holds the next commit). | Fixed | Trying it found the worse half: a hold during a page load was lost. `share` is keyed by a transition type that only the two links carry. |
+| 4 | Medium | Browser back and swipe would morph too (doubling iOS's slide). | Fixed | Untyped, so no morph; tested. |
+| 5 | Medium | The card's clip would cut its focus ring, or drop its hidden start. | Fixed | Wipe from and to 8 px outside the button; hidden first frame kept. |
+| 6 | Low | The card lands at 1,200 ms now. | Fixed | Comments and 10h's tests updated. |
+| 7 | Low | A full-window blur may be slow on a phone. | Fixed | Dropped (nothing stretches now). |
+| 8 | Low | Commits wait for the morph. | Accepted | 350 ms; keys stay pressable. |
+| 9 | Low | The pulse on return or on a failed save. | Accepted | Both are "the number went up". |
+| 10 | Low | Plan text behind the code. | Fixed | |
+
+#### code-reviewer (diff review)
+Verdict: **Ship after fixes**. The app code held up: the RSC boundaries (`MORPH_ONLY` from a plain module), `transitionTypes`, React's named-transition tracking across Activity, the check's layout at large text, the card's focus geometry and the tokens all checked out. The problems were tests that couldn't fail.
+
+| # | Severity | Finding | Outcome | What changed |
+|---|----------|---------|---------|--------------|
+| 1 | Medium | "A page load doesn't morph" could never fail: its recorder was lost with the reload. | Fixed | An init-script recorder with a ran-flag. Broken on purpose (untyped share): it fails. |
+| 2 | Medium | The input test pressed after the morph had ended. | Fixed | The morph slowed to 3 s; a pointerdown records the group running when Done is tapped. Broken on purpose: without the CSS rule it still passes, because React already lets taps through. The behaviour is what's tested. |
+| 3 | Medium | Loading boxes always sky, the strip space-dark above 17,500 m. | Fixed | `--climb-ground` follows the strip (`data-climb-night`). |
+| 4 | Low | "No pulse on reload" missed the first render. | Fixed | The recorder is an init script. |
+| 5 | Low | The Reduce Motion check needed to catch a 0 s frame. | Fixed | Asserts nothing takes time. |
+| 6 | Low | Climb's loading box lacked the window's limits and border. | Fixed | |
+| 7 | Low | The stills' freezer passed with nothing frozen. | Fixed | Fails on 0. |
+| — | Tests | A save and History start no view transition; no second pulse after Climb and back. | Fixed | Added. The check mid-crossfade is in the stills (100 ms). |
+
+#### design-critic, round 1 (the morph at 40/80% and back at 50%; the check completing and undoing; the streak mid-pulse; light and dark)
+Verdict: **Ship after fixes**. All four have a purpose, none loops, Reduce Motion is right everywhere. Nothing High.
+
+| # | Severity | Finding | Outcome | What changed |
+|---|----------|---------|---------|--------------|
+| 1 | Medium | The growing box is see-through mid-flight (a haze). | Fixed | The group is painted `--climb-ground`. |
+| 2 | Medium | Loading boxes pale sky above 17,500 m. | Fixed | As code-reviewer 3. |
+| 3 | Medium | Done always shrinks into a skeleton. | Accepted | The user asked for the shrink; Today refreshes on return (before 10i too). The loading strip now matches the strip's shape, border and colour. |
+| 4 | Medium | `--ease-out` front-loads everything (the pulse a jolt, the box a jump, the card a flash). | Fixed | `--ease-glide` for the morph and the wipe; a linear crossfade; the pulse eased per keyframe. |
+| 5 | Medium-Low | The pulse too big, pushing past the check's column. | Fixed | 1.08, from the right edge. |
+| 6 | Low | The check's blur barely registers; the draw half-hidden. | Fixed | Kept; the draw starts 60 ms in. |
+| 7 | Low | The card's fade washes it out without softening the edge. | Fixed | A clean wipe, no fade. |
+| 8 | Low | Loading boxes have no border. | Fixed | |
+
+#### design-critic, round 2 (verification: the morph at 20/40/60% in and 20/50% back, a first and a later visit; the check; the pulse)
+Verdict: **Ship**. Every round-1 finding fixed or soundly accepted. The box is solid ground with the strip crossfading in it, so the strip visibly becomes the window, both ways. The pulse is a tick that keeps its column. The check's beat is in order: the disc lands, then the check draws.
+
+| # | Severity | Finding | Outcome | What changed |
+|---|----------|---------|---------|--------------|
+| 1 | Low | `--ease-in-out` is really a soft ease-out (it starts at speed). | Fixed | Renamed `--ease-glide` / `EASE_GLIDE`; timing unchanged. |
+| 2 | Low | Light: the flat ground is paler than the sky at your height (the strip reads as a band in the box). | Accepted | A small step; a per-zone ground colour isn't worth the plumbing. |
+| 3 | Low | The night colour is only known after the strip has drawn once (a cold launch above 17,500 m shows a sky-coloured loading strip). | Accepted | Nobody is up there yet; persisting it (a cookie or inline script) can come with the first climber who is. |
+
+Checks (final): 664 unit and database tests, tsc, eslint, next build; the browser suite on the production build: 105 passed, 0 failed (before the round-2 rename; after it, the 11 Feature 10h/10i browser tests and stills again: 11 passed). Breaking the morph on purpose made its tests fail (see the code-reviewer's table). Screenshots: `docs/screenshots/feature-10/climb-10i/`, the app's screenshots refreshed. The card's wipe can't be painted by a paused-clock still; checked in the re-recorded videos.
 
 <!--
 Template — copy for each feature:
