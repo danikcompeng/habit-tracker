@@ -6,7 +6,7 @@ balloon up a mountain and into space.**
 **Live:** [ascend-dk.vercel.app](https://ascend-dk.vercel.app). Try the demo, no email needed.
 
 <p align="center">
-  <img src="design/videos/ascend-summit.gif" alt="Holding the last three habits on Today, each fill growing under the finger; the perfect day lifts the balloon past the Summit and a New zone: Summit card pops up" width="360">
+  <img src="design/videos/ascend-summit.gif" alt="Holding the last three habits on Today, each fill growing under the finger; the perfect day lifts the balloon past the Summit in a burst of pixel confetti, and a New zone: Summit card lands" width="360">
 </p>
 
 Full tour (sign in, the Summit, History, then Climb up into space):
